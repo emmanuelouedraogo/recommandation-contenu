@@ -1,0 +1,9 @@
+pandas
+numpy==1.26
+tqdm
+scipy
+implicit
+surprise
+scikit-learn
+matplotlib
+seaborn

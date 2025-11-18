@@ -1,3 +1,1 @@
 # recommandation-contenu
-
-content
