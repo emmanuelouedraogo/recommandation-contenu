@@ -5,3 +5,6 @@ streamlit
 surprise
 scipy
 implicit
+fastapi
+uvicorn
+azure-storage-blob

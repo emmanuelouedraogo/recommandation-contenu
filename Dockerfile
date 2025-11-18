@@ -16,8 +16,6 @@ USER appuser
 # On copie le code de l'API, les classes de modèles, et les données/modèles nécessaires
 COPY ./api ./api
 COPY ./models.py .
-COPY ./data ./data
-COPY --chown=appuser:appuser ./save ./save
 
 # Étape 6: Installer les dépendances
 # L'option --no-cache-dir réduit la taille de l'image finale
@@ -26,6 +24,9 @@ RUN pip install --no-cache-dir --user -r requirements.txt
 
 # Étape 7: Exposer le port sur lequel l'API s'exécutera (standard pour FastAPI)
 EXPOSE 8000
+
+# Variable d'environnement pour la connexion à Azure (sera passée au `docker run`)
+ENV AZURE_CONNECTION_STRING=""
 
 # Étape 8: Définir la commande pour lancer l'application lorsque le conteneur démarre
 CMD ["/home/appuser/.local/bin/uvicorn", "api.api:app", "--host", "0.0.0.0", "--port", "8000"]

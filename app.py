@@ -4,6 +4,8 @@ import streamlit as st
 import pandas as pd
 import os
 import requests
+from azure.storage.blob import BlobServiceClient
+from io import StringIO
 
 # --- Configuration de la Page ---
 st.set_page_config(
@@ -13,62 +15,73 @@ st.set_page_config(
 )
 
 # --- Constantes ---
-USERS_FILE = 'data/users.csv'
-ARTICLES_FILE = 'data/articles_metadata.csv'
-# Remplacez par l'URL de votre Azure Function
-AZURE_FUNCTION_URL = st.secrets.get("AZURE_FUNCTION_URL", "http://localhost:7071/api/myfunction")
+AZURE_CONNECTION_STRING = st.secrets.get("AZURE_CONNECTION_STRING")
+AZURE_CONTAINER_NAME = "reco-data"
+USERS_BLOB_NAME = 'users.csv'
+ARTICLES_BLOB_NAME = 'articles_metadata.csv'
+API_URL = st.secrets.get("API_URL", "http://localhost:8000/recommendations/")
 
 # --- Fonctions de Chargement des Données ---
 
 @st.cache_resource
-def load_csv_data(file_path, columns):
-    """Charge un fichier CSV ou en crée un nouveau. Mise en cache."""
-    # S'assure que le dossier parent existe
-    dir_name = os.path.dirname(file_path)
-    if dir_name:
-        os.makedirs(dir_name, exist_ok=True)
+def get_blob_service_client():
+    """Crée un client de service blob. Mis en cache pour la performance."""
+    if not AZURE_CONNECTION_STRING:
+        st.error("La chaîne de connexion Azure n'est pas configurée dans les secrets !")
+        return None
+    return BlobServiceClient.from_connection_string(AZURE_CONNECTION_STRING)
 
-    if not os.path.exists(file_path):
-        df = pd.DataFrame(columns=columns)
-        df.to_csv(file_path, index=False)
-        return df
-    return pd.read_csv(file_path)
+def load_df_from_blob(blob_name):
+    """Charge un DataFrame depuis un blob CSV."""
+    blob_service_client = get_blob_service_client()
+    if not blob_service_client: return pd.DataFrame()
+    
+    blob_client = blob_service_client.get_blob_client(container=AZURE_CONTAINER_NAME, blob=blob_name)
+    try:
+        downloader = blob_client.download_blob(max_connections=1, encoding='utf-8')
+        blob_data = downloader.readall()
+        return pd.read_csv(StringIO(blob_data))
+    except Exception as e:
+        st.warning(f"Le blob '{blob_name}' est vide ou n'existe pas. Un nouveau sera créé. Erreur: {e}")
+        return pd.DataFrame(columns=['user_id'] if 'user' in blob_name else ['article_id', 'title', 'content', 'category_id', 'created_at_ts'])
 
-def save_csv_data(df, file_path):
-    """Sauvegarde un DataFrame dans un fichier CSV."""
-    df.to_csv(file_path, index=False)
+def save_df_to_blob(df, blob_name):
+    """Sauvegarde un DataFrame dans un blob CSV."""
+    blob_service_client = get_blob_service_client()
+    if not blob_service_client: return
+
+    output = StringIO()
+    df.to_csv(output, index=False)
+    blob_client = blob_service_client.get_blob_client(container=AZURE_CONTAINER_NAME, blob=blob_name)
+    blob_client.upload_blob(output.getvalue(), overwrite=True)
 
 # --- Initialisation et Chargement ---
 # Chargement des données
-users_df = load_csv_data(USERS_FILE, columns=['user_id'])
-articles_df = load_csv_data(ARTICLES_FILE, columns=['article_id', 'title', 'content', 'category_id', 'created_at_ts'])
+users_df = load_df_from_blob(USERS_BLOB_NAME)
+articles_df = load_df_from_blob(ARTICLES_BLOB_NAME)
 
 # --- Fonctions du Système de Recommandation ---
 
 def get_recommendations(user_id):
     """
-    Appelle l'Azure Function pour obtenir les recommandations.
+    Appelle l'API FastAPI pour obtenir les recommandations.
     """
     if user_id not in users_df['user_id'].unique():
         st.error("Cet identifiant utilisateur n'existe pas. Veuillez créer un compte.")
         return None
     
     try:
-        params = {'user_id': user_id}
-        response = requests.get(AZURE_FUNCTION_URL, params=params, timeout=20)
+        # L'API attend une requête POST avec un corps JSON
+        response = requests.post(API_URL, json={'user_id': user_id}, timeout=20)
         response.raise_for_status() # Lève une exception si la requête échoue
         
         data = response.json()
         
-        if data.get("is_cold_start"):
-            st.info("Nouvel utilisateur ! Voici les 5 articles les plus populaires :")
-        else:
-            st.success(f"Bienvenue, Utilisateur {user_id} ! Voici vos recommandations personnalisées :")
-            
-        return pd.DataFrame(data.get("recommendations", []))
+        # L'API renvoie directement une liste de dictionnaires
+        return pd.DataFrame(data)
         
     except requests.exceptions.RequestException as e:
-        st.error(f"Erreur de connexion au service de recommandation : {e}")
+        st.error(f"Erreur de connexion à l'API de recommandation : {e}")
         return None
 
 # --- Interface Streamlit ---
@@ -95,11 +108,18 @@ if choice == "Recommandations":
                 # Tente de convertir en int si vos IDs sont numériques
                 user_id = int(user_id_input)
                 recommendations = get_recommendations(user_id)
+                
                 if recommendations is not None and not recommendations.empty:
+                    # Fusionner avec les métadonnées pour obtenir les titres et contenus
+                    reco_details = recommendations.merge(articles_df, on='article_id', how='left')
+                    
+                    st.success(f"Bienvenue, Utilisateur {user_id} ! Voici vos recommandations personnalisées :")
+                    
                     for _, row in recommendations.iterrows():
                         with st.container():
-                            st.subheader(f"{row['title']} (Article ID: {row['article_id']})")
-                            st.write(row['content'][:200] + "...") # Affiche un aperçu
+                            # Utiliser les données fusionnées si disponibles, sinon juste l'ID
+                            st.subheader(f"{row.get('title', 'Titre inconnu')} (Article ID: {row['article_id']})")
+                            st.write(str(row.get('content', ''))[:200] + "...") # Affiche un aperçu
                             st.markdown("---")
                 elif recommendations is not None:
                      st.warning("Il n'y a pas assez d'articles à recommander pour le moment.")
@@ -119,7 +139,7 @@ elif choice == "Créer un compte":
         # Ajoute au DataFrame et sauvegarde
         new_user_df = pd.DataFrame([{'user_id': new_user_id}])
         users_df = pd.concat([users_df, new_user_df], ignore_index=True)
-        save_csv_data(users_df, USERS_FILE)
+        save_df_to_blob(users_df, USERS_BLOB_NAME)
         
         st.success(f"Votre nouveau compte a été créé avec succès ! Votre identifiant est :")
         st.code(new_user_id, language='text')
@@ -148,7 +168,7 @@ elif choice == "Ajouter un article":
                 }])
                 
                 articles_df = pd.concat([articles_df, new_article], ignore_index=True)
-                save_csv_data(articles_df, ARTICLES_FILE)
+                save_df_to_blob(articles_df, ARTICLES_BLOB_NAME)
                 
                 st.success(f"L'article '{article_title}' a été ajouté avec succès !")
             else:
