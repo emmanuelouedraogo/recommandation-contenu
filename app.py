@@ -18,7 +18,7 @@ st.set_page_config(
 AZURE_CONNECTION_STRING = st.secrets.get("AZURE_CONNECTION_STRING")
 AZURE_CONTAINER_NAME = "reco-data"
 USERS_BLOB_NAME = 'users.csv'
-ARTICLES_BLOB_NAME = 'articles_metadata.csv'
+URL_ARTICLES = "https://recoappstorage123.blob.core.windows.net/reco-data/articles_metadata.csv"
 API_URL = st.secrets.get("API_URL", "http://localhost:8000/recommendations/")
 
 # --- Fonctions de Chargement des Données ---
@@ -45,6 +45,15 @@ def load_df_from_blob(blob_name):
         st.warning(f"Le blob '{blob_name}' est vide ou n'existe pas. Un nouveau sera créé. Erreur: {e}")
         return pd.DataFrame(columns=['user_id'] if 'user' in blob_name else ['article_id', 'title', 'content', 'category_id', 'created_at_ts'])
 
+@st.cache_data
+def load_articles_from_url(url):
+    """Charge le DataFrame des articles depuis une URL publique."""
+    try:
+        return pd.read_csv(url)
+    except Exception as e:
+        st.error(f"Impossible de charger les articles depuis l'URL. Erreur: {e}")
+        return pd.DataFrame()
+
 def save_df_to_blob(df, blob_name):
     """Sauvegarde un DataFrame dans un blob CSV."""
     blob_service_client = get_blob_service_client()
@@ -58,7 +67,7 @@ def save_df_to_blob(df, blob_name):
 # --- Initialisation et Chargement ---
 # Chargement des données
 users_df = load_df_from_blob(USERS_BLOB_NAME)
-articles_df = load_df_from_blob(ARTICLES_BLOB_NAME)
+articles_df = load_articles_from_url(URL_ARTICLES)
 
 # --- Fonctions du Système de Recommandation ---
 
@@ -168,7 +177,8 @@ elif choice == "Ajouter un article":
                 }])
                 
                 articles_df = pd.concat([articles_df, new_article], ignore_index=True)
-                save_df_to_blob(articles_df, ARTICLES_BLOB_NAME)
+                # Note: La sauvegarde d'un nouvel article ne mettra pas à jour le fichier public via l'URL.
+                # Il faudrait un mécanisme de ré-upload pour cela.
                 
                 st.success(f"L'article '{article_title}' a été ajouté avec succès !")
             else:

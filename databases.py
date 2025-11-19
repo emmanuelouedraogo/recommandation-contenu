@@ -12,18 +12,14 @@ Structure des dossiers :
 data/
 ├── articles_metadata.csv
 ├── articles_embeddings.pickle
-└── clicks/
-    └── clicks/
-        ├── clicks_hour_000.csv
-        ├── clicks_hour_001.csv
-        └── ... (jusqu'à 364)
+└── clicks_sample.csv
 
 
 Fichiers de données (Tables) :
 ------------------------------
 1. data/articles_metadata.csv      -> Table `articles`
 2. data/articles_embeddings.pickle -> Table `embeddings`
-3. data/clicks/clicks/             -> Table `interactions` (ou `clicks`)
+3. data/clicks_sample.csv          -> Table `interactions` (ou `clicks`)
 
 Note : Une table des utilisateurs (`users`) est gérée par l'application principale
 (`app.py`) via le fichier `data/users.csv`.
@@ -114,10 +110,10 @@ Description :
 -------------
 Ce fichier journalise tous les événements d'interaction (clics, lectures, "j'aime")
 entre les utilisateurs et les articles. C'est la source de données la plus critique
-pour les modèles de filtrage collaboratif et pour le calcul de la popularité. Les
-données sont réparties dans 365 fichiers, représentant chacun une heure d'interactions.
+pour les modèles de filtrage collaboratif et pour le calcul de la popularité.
+Ce fichier est un échantillon contenant un ensemble d'interactions.
 
-Chemin : `data/clicks/clicks/clicks_hour_XXX.csv`
+Chemin : `data/clicks_sample.csv`
 
 Contenu / Colonnes possibles :
 ------------------------------

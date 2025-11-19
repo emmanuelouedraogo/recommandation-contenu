@@ -52,21 +52,16 @@ def main():
     upload_file_to_blob(blob_service_client, AZURE_CONTAINER_NAME,
                         os.path.join(LOCAL_DATA_PATH, 'articles_embeddings.pickle'),
                         'articles_embeddings.pickle')
-
-    # 3. Charger le dossier des clics
-    clicks_local_dir = os.path.join(LOCAL_DATA_PATH, 'clicks', 'clicks')
-    if os.path.isdir(clicks_local_dir):
-        print(f"\nChargement des fichiers de clics depuis '{clicks_local_dir}'...")
-        click_files = [f for f in os.listdir(clicks_local_dir) if f.endswith('.csv')]
-        
-        # Utilisation de tqdm pour une barre de progression
-        for filename in tqdm(click_files, desc="Chargement des clics"):
-            local_path = os.path.join(clicks_local_dir, filename)
-            # Nous les stockons dans un "sous-dossier" virtuel dans le blob
-            blob_path = f"clicks/{filename}" 
-            upload_file_to_blob(blob_service_client, AZURE_CONTAINER_NAME, local_path, blob_path)
+    
+    # Fichier de clics (échantillon)
+    # Note: Le nom local est 'clicks_sample.csv' dans le dossier 'data'
+    clicks_sample_path = os.path.join(LOCAL_DATA_PATH, 'clicks_sample.csv')
+    if os.path.exists(clicks_sample_path):
+        upload_file_to_blob(blob_service_client, AZURE_CONTAINER_NAME,
+                            clicks_sample_path,
+                            'clicks_sample.csv')
     else:
-        print(f"AVERTISSEMENT : Le dossier des clics '{clicks_local_dir}' n'a pas été trouvé.")
+        print(f"AVERTISSEMENT : Le fichier '{clicks_sample_path}' n'a pas été trouvé.")
 
     print("\n--- Processus de chargement terminé ! ---")
 

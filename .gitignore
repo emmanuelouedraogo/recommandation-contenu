@@ -1,0 +1,35 @@
+# Fichiers de secrets et de configuration locale
+# Le répertoire .streamlit contient les secrets, il est donc ignoré.
+.streamlit/
+.env
+
+# Fichiers de cache et compilés Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Répertoires d'environnement virtuel
+venv/
+.venv/
+env/
+.env/
+
+# Artefacts de build et de distribution
+build/
+dist/
+*.egg-info/
+
+# Fichiers générés par les IDE
+.vscode/
+.idea/
+
+# Artefacts de modèle, de logs et d'expérimentation
+save/
+mlruns/
+*.log
+
+# Fichier de prompts spécifique au projet
+prompts.md
+
+3

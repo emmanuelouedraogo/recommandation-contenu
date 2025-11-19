@@ -65,50 +65,22 @@ Nous chargeons les trois ensembles de données principaux :
 3.  `clicks` : L'historique des interactions des utilisateurs, agrégé à partir de 365 fichiers horaires.
 """
 
-# --- Configuration Azure ---
-# Pour un script, il est courant de les charger depuis des variables d'environnement
-AZURE_CONNECTION_STRING = os.getenv("AZURE_CONNECTION_STRING", "VOTRE_CHAINE_DE_CONNEXION_AZURE_ICI")
-AZURE_CONTAINER_NAME = "reco-data"
-
-def get_blob_service_client():
-    """Crée un client de service blob."""
-    if AZURE_CONNECTION_STRING == "VOTRE_CHAINE_DE_CONNEXION_AZURE_ICI":
-        raise ValueError("La chaîne de connexion Azure n'est pas configurée.")
-    return BlobServiceClient.from_connection_string(AZURE_CONNECTION_STRING)
-
-blob_service_client = get_blob_service_client()
-container_client = blob_service_client.get_container_client(AZURE_CONTAINER_NAME)
+# --- URLs des données sur Azure Blob Storage ---
+URL_EMBEDDINGS = "https://recoappstorage123.blob.core.windows.net/reco-data/articles_embeddings.pickle"
+URL_METADATA = "https://recoappstorage123.blob.core.windows.net/reco-data/articles_metadata.csv"
+URL_CLICKS = "https://recoappstorage123.blob.core.windows.net/reco-data/clicks_sample.csv"
 
 # --- 1. Chargement des Embeddings des Articles (items2vec) ---
 print("Chargement des embeddings des articles (items2vec)...")
-blob_client_emb = container_client.get_blob_client("articles_embeddings.pickle")
-downloader_emb = blob_client_emb.download_blob()
-items2vec = pd.read_pickle(BytesIO(downloader_emb.readall()))
+items2vec = pd.read_pickle(URL_EMBEDDINGS)
 
 # --- 2. Chargement des Métadonnées des Articles ---
 print("Chargement des métadonnées des articles...")
-blob_client_meta = container_client.get_blob_client("articles_metadata.csv")
-downloader_meta = blob_client_meta.download_blob()
-items = pd.read_csv(StringIO(downloader_meta.readall().decode('utf-8')), delimiter=',')
+items = pd.read_csv(URL_METADATA)
 
-# --- 3. Chargement et Agrégation des Données de Clics (All Clicks) ---
-print("Agrégation des données de clics (365 fichiers horaires)...")
-clics = pd.DataFrame()
-
-# Lister les blobs dans le "dossier" virtuel 'clicks/'
-blob_list = container_client.list_blobs(name_starts_with="clicks/")
-
-click_files_to_process = [blob.name for blob in blob_list]
-
-if click_files_to_process:
-    for blob_name in tqdm(click_files_to_process, desc="Traitement des fichiers de clics"):
-        blob_client_click = container_client.get_blob_client(blob_name)
-        downloader_click = blob_client_click.download_blob()
-        click_data = downloader_click.readall().decode('utf-8')
-        temp = pd.read_csv(StringIO(click_data), delimiter=',')
-        clics = pd.concat([clics, temp], ignore_index=True)
-
-clics = clics.reset_index(drop=True)
+# --- 3. Chargement des Données de Clics ---
+print("Chargement des données de clics (clicks_sample.csv)...")
+clics = pd.read_csv(URL_CLICKS)
 print(f"Chargement et agrégation terminés. Nombre total de clics : {len(clics)}")
 
 """### **Exploration et Analyse des Données (EDA)**
