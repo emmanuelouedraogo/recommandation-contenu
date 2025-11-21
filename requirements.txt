@@ -10,5 +10,3 @@ mlflow
 streamlit
 fastapi
 uvicorn
-matplotlib
-seaborn

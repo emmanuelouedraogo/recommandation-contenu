@@ -79,19 +79,20 @@ def get_recommendations(user_id):
         st.error("Cet identifiant utilisateur n'existe pas. Veuillez créer un compte.")
         return None
     
-    try:
-        # L'API attend une requête POST avec un corps JSON
-        response = requests.post(f"{API_URL}/recommendations/", json={'user_id': user_id}, timeout=20)
-        response.raise_for_status() # Lève une exception si la requête échoue
-        
-        data = response.json()
-        
-        # L'API renvoie directement une liste de dictionnaires
-        return pd.DataFrame(data)
-        
-    except requests.exceptions.RequestException as e:
-        st.error(f"Erreur de connexion à l'API de recommandation : {e}")
-        return None
+    with st.spinner('Recherche de vos recommandations...'):
+        try:
+            # L'API attend une requête POST avec un corps JSON
+            response = requests.post(f"{API_URL}/recommendations/", json={'user_id': user_id}, timeout=10)
+            response.raise_for_status() # Lève une exception pour les codes d'erreur HTTP (4xx ou 5xx)
+            
+            data = response.json()
+            
+            # L'API renvoie directement une liste de dictionnaires
+            return pd.DataFrame(data)
+            
+        except requests.exceptions.RequestException as e:
+            st.error(f"Impossible de contacter le service de recommandation. Veuillez réessayer plus tard. (Erreur: {e})")
+            return None
 
 # --- Interface Streamlit ---
 
