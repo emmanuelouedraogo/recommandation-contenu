@@ -19,8 +19,12 @@ app = FastAPI(
     version="1.0.0"
 )
 
+# Construire un chemin absolu vers le dossier racine du projet
+API_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(API_DIR)
 # --- Chargement du modèle au démarrage de l'application ---
 MODEL_PATH = os.getenv("MODEL_PATH", "save/hybrid_recommender_pipeline.pkl")
+MODEL_PATH = os.getenv("MODEL_PATH", os.path.join(PROJECT_ROOT, "save", "hybrid_recommender_pipeline.pkl"))
 model = None
 
 @app.on_event("startup")

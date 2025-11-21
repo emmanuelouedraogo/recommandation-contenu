@@ -1,10 +1,14 @@
 pandas
 numpy
 scikit-learn
-streamlit
 surprise
 scipy
 implicit
+azure-storage-blob
+tqdm
+mlflow
+streamlit
 fastapi
 uvicorn
-azure-storage-blob
+matplotlib
+seaborn

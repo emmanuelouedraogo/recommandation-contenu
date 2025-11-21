@@ -15,11 +15,11 @@ st.set_page_config(
 )
 
 # --- Constantes ---
-AZURE_CONNECTION_STRING = st.secrets.get("AZURE_CONNECTION_STRING")
+AZURE_CONNECTION_STRING = st.secrets.get("AZURE_CONNECTION_STRING", "")
 AZURE_CONTAINER_NAME = "reco-data"
 USERS_BLOB_NAME = 'users.csv'
 URL_ARTICLES = "https://recoappstorage123.blob.core.windows.net/reco-data/articles_metadata.csv"
-API_URL = st.secrets.get("API_URL", "http://localhost:8000/recommendations/")
+API_URL = st.secrets.get("API_URL", "http://localhost:8000")
 
 # --- Fonctions de Chargement des Données ---
 
@@ -81,7 +81,7 @@ def get_recommendations(user_id):
     
     try:
         # L'API attend une requête POST avec un corps JSON
-        response = requests.post(API_URL, json={'user_id': user_id}, timeout=20)
+        response = requests.post(f"{API_URL}/recommendations/", json={'user_id': user_id}, timeout=20)
         response.raise_for_status() # Lève une exception si la requête échoue
         
         data = response.json()
