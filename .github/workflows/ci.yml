@@ -1,6 +1,14 @@
 name: Construction et Déploiement de l'API
 
 # --- Déclencheurs du Workflow ---
+
+# --- Variables d'environnement pour le workflow ---
+env:
+  AZURE_RESOURCE_GROUP: rg-recommandation-contenu # Le groupe de ressources où se trouve votre App Service
+  AZURE_ACR_NAME: monregistreacr                  # Remplacez par le nom réel de votre Azure Container Registry
+  AZURE_APP_SERVICE_NAME: recommandation-contenu-api # Le nom de votre App Service
+  IMAGE_NAME: api/recommandation-api
+
 on:
   # 1. Se déclenche à chaque push sur la branche 'main'
   push:
@@ -27,22 +35,14 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      # Étape 3: Connexion à Azure Container Registry (ACR)
-      # Assurez-vous que votre principal de service a les droits pour pousser des images sur ce registre
-      - name: Connexion à Azure Container Registry
-        run: az acr login --name monregistreacr
-        # Remplacez 'monregistreacr' par le nom de votre registre de conteneurs Azure
-
       # Étape 4: Construction et push de l'image Docker
       # Cette étape suppose que vous avez un Dockerfile à la racine de votre projet
       - name: Construction et push de l'image Docker de l'API
         run: |
           az acr build \
-            --registry monregistreacr \
-            --image api/recommandation-api:latest \
+            --registry ${{ env.AZURE_ACR_NAME }} \
+            --image ${{ env.IMAGE_NAME }}:latest \
             .
-        # Remplacez 'monregistreacr' par le nom de votre registre
-        # 'api/recommandation-api:latest' est le nom et le tag de votre image
 
       # Étape 4.5: Configuration des variables d'environnement sur App Service
       - name: Définition des paramètres de l'application
@@ -50,19 +50,14 @@ jobs:
         with:
           inlineScript: |
             az webapp config appsettings set \
-              --resource-group <NOM_DE_VOTRE_GROUPE_DE_RESSOURCES> \
-              --name mon-api-app-service \
+              --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+              --name ${{ env.AZURE_APP_SERVICE_NAME }} \
               --settings "AZURE_CONNECTION_STRING=${{ secrets.AZURE_CONNECTION_STRING }}"
-            # Remplacez <NOM_DE_VOTRE_GROUPE_DE_RESSOURCES> par le nom correct.
 
       # Étape 5: Déploiement sur Azure App Service
       # Met à jour votre App Service pour utiliser la nouvelle image Docker
       - name: Déploiement sur Azure App Service
         uses: azure/webapps-deploy@v2
         with:
-          app-name: 'mon-api-app-service' # Remplacez par le nom de votre App Service
-          images: 'monregistreacr.azurecr.io/api/recommandation-api:latest' # Chemin complet de votre image
-
-      # Étape 6: Déconnexion d'Azure
-      - name: Déconnexion d'Azure
-        run: az logout
+          app-name: ${{ env.AZURE_APP_SERVICE_NAME }}
+          images: '${{ env.AZURE_ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:latest'
