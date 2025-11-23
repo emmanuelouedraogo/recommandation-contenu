@@ -1,80 +1,19 @@
-name: Ré-entraînement et Déploiement du Modèle de Recommandation
+name: Construction et Déploiement de l'API
 
 # --- Déclencheurs du Workflow ---
 on:
-  # 1. Permet de lancer ce workflow manuellement depuis l'onglet "Actions" de GitHub
-  workflow_dispatch:
+  # 1. Se déclenche à chaque push sur la branche 'main'
+  push:
+    branches:
+      - main
 
-  # 2. Planifie l'exécution automatique
-  schedule:
-    # S'exécute tous les dimanches à 2h00 du matin (format CRON)
-    - cron: '0 2 * * 0'
+  # 2. Permet de lancer ce workflow manuellement depuis l'onglet "Actions" de GitHub
+  workflow_dispatch:
 
 # --- Définition des Tâches (Jobs) ---
 jobs:
-  retrain-and-deploy:
-    # Le type de machine virtuelle sur laquelle exécuter la tâche
-    runs-on: ubuntu-latest
-
-    # Les étapes qui composent la tâche
-    steps:
-      # --- 1. Préparation de l'environnement ---
-
-      # Étape 1.1: Récupère le code de votre dépôt
-      - name: Checkout du code
-        uses: actions/checkout@v4
-
-      # Étape 1.2: Configure l'environnement Python
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.9' # Assurez-vous que cette version est compatible avec vos scripts
-
-      # Étape 1.3: Installe les dépendances Python
-      - name: Installation des dépendances
-        run: |
-          python -m pip install --upgrade pip
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-
-      # --- 2. Exécution du script d'entraînement ---
-
-      - name: Exécution du script de ré-entraînement du modèle
-        # Cette commande exécute votre script Python.
-        # Le script va télécharger les données depuis Azure, entraîner les modèles,
-        # et sauvegarder le fichier 'hybrid_recommender_pipeline.pkl' dans le dossier 'save/'.
-        run: python reco_model_script.py
-        env:
-          # Injecte la chaîne de connexion Azure depuis les secrets GitHub
-          AZURE_CONNECTION_STRING: ${{ secrets.AZURE_CONNECTION_STRING }}
-
-      # --- 3. Sauvegarde et Déploiement de l'artefact ---
-
-      # Étape 3.1: Charge le modèle entraîné comme un "artefact" du workflow
-      # Cela vous permet de télécharger le modèle directement depuis la page de l'action sur GitHub.
-      - name: Upload de l'artefact du modèle
-        uses: actions/upload-artifact@v4
-        with:
-          name: hybrid-recommender-model
-          path: save/hybrid_recommender_pipeline.pkl
-
-      # Étape 3.2 (Optionnel mais recommandé): Déploie le modèle sur Azure Blob Storage
-      # Votre application Streamlit ou votre API pourra ainsi toujours charger la dernière version du modèle.
-      - name: Déploiement du modèle sur Azure Blob Storage
-        uses: azure/CLI@v1
-        with:
-          inlineScript: |
-            az storage blob upload \
-              --account-name recoappstorage123 \
-              --container-name reco-data \
-              --name models/hybrid_recommender_pipeline.pkl \
-              --file save/hybrid_recommender_pipeline.pkl \
-              --overwrite \
-              --connection-string "${{ secrets.AZURE_CONNECTION_STRING }}"
-
   # --- Tâche de Conteneurisation et Déploiement de l'API ---
   build-and-deploy-api:
-    # Fait dépendre cette tâche de la précédente pour s'assurer que le modèle est prêt
-    needs: retrain-and-deploy
     runs-on: ubuntu-latest
     steps:
       # Étape 1: Récupère le code de votre dépôt
@@ -104,6 +43,17 @@ jobs:
             .
         # Remplacez 'monregistreacr' par le nom de votre registre
         # 'api/recommandation-api:latest' est le nom et le tag de votre image
+
+      # Étape 4.5: Configuration des variables d'environnement sur App Service
+      - name: Définition des paramètres de l'application
+        uses: azure/CLI@v1
+        with:
+          inlineScript: |
+            az webapp config appsettings set \
+              --resource-group <NOM_DE_VOTRE_GROUPE_DE_RESSOURCES> \
+              --name mon-api-app-service \
+              --settings "AZURE_CONNECTION_STRING=${{ secrets.AZURE_CONNECTION_STRING }}"
+            # Remplacez <NOM_DE_VOTRE_GROUPE_DE_RESSOURCES> par le nom correct.
 
       # Étape 5: Déploiement sur Azure App Service
       # Met à jour votre App Service pour utiliser la nouvelle image Docker
