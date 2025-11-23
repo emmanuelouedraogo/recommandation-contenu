@@ -18,8 +18,11 @@ st.set_page_config(
 AZURE_CONNECTION_STRING = st.secrets.get("AZURE_CONNECTION_STRING", "")
 AZURE_CONTAINER_NAME = "reco-data"
 USERS_BLOB_NAME = 'users.csv'
-URL_ARTICLES = "https://recoappstorage123.blob.core.windows.net/reco-data/articles_metadata.csv"
-API_URL = st.secrets.get("API_URL", "http://localhost:8000")
+URL_ARTICLES = "https://recoappstorage123.blob.core.windows.net/reco-data/articles_metadata.csv" # URL publique pour les articles
+
+# Utilise l'URL de l'API depuis les secrets, crucial pour le déploiement.
+# Pas de valeur par défaut pour forcer la configuration en production.
+API_URL = st.secrets.get("API_URL")
 
 # --- Fonctions de Chargement des Données ---
 
@@ -75,6 +78,10 @@ def get_recommendations(user_id):
     """
     Appelle l'API FastAPI pour obtenir les recommandations.
     """
+    if not API_URL:
+        st.error("L'URL de l'API n'est pas configurée dans les secrets Streamlit (API_URL).")
+        return None
+
     if user_id not in users_df['user_id'].unique():
         st.error("Cet identifiant utilisateur n'existe pas. Veuillez créer un compte.")
         return None
@@ -144,7 +151,7 @@ elif choice == "Créer un compte":
     
     if st.button("Créer un nouvel identifiant"):
         # Génère un nouvel ID unique (plus robuste qu'un simple incrément)
-        new_user_id = int(users_df['user_id'].max() + 1) if not users_df.empty else 1
+        new_user_id = (int(users_df['user_id'].max()) + 1) if not users_df.empty else 1
         
         # Ajoute au DataFrame et sauvegarde
         new_user_df = pd.DataFrame([{'user_id': new_user_id}])

@@ -5,6 +5,7 @@ surprise
 scipy
 implicit
 azure-storage-blob
+opencensus-ext-azure
 tqdm
 mlflow
 streamlit

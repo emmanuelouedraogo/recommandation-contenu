@@ -94,7 +94,7 @@ class CollabFiltRecommender:
         items2pred_ids = all_items - iid_to_ignore
         try:
             # Vérifier si l'utilisateur est connu du modèle
-            self.algo.trainset.to_inner_uid(uid)
+            self.algo.trainset.to_inner_uid(uid) # Lève une ValueError si l'utilisateur est inconnu
         except ValueError:
             # L'utilisateur est inconnu (cold start), retourner un DataFrame vide
             return pd.DataFrame(columns=['article_id', 'pred'])

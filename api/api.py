@@ -19,12 +19,10 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Construire un chemin absolu vers le dossier racine du projet
-API_DIR = os.path.dirname(os.path.abspath(__file__))
-PROJECT_ROOT = os.path.dirname(API_DIR)
 # --- Chargement du modèle au démarrage de l'application ---
-MODEL_PATH = os.getenv("MODEL_PATH", "save/hybrid_recommender_pipeline.pkl")
-MODEL_PATH = os.getenv("MODEL_PATH", os.path.join(PROJECT_ROOT, "save", "hybrid_recommender_pipeline.pkl"))
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DEFAULT_MODEL_PATH = os.path.join(PROJECT_ROOT, "save", "hybrid_recommender_pipeline.pkl")
+MODEL_PATH = os.getenv("MODEL_PATH", DEFAULT_MODEL_PATH)
 model = None
 
 @app.on_event("startup")
@@ -48,6 +46,10 @@ def load_model():
     except Exception as e:
         logger.error(f"Une erreur s'est produite lors du chargement du modèle : {e}")
         raise RuntimeError(f"Erreur au chargement du modèle: {e}")
+
+@app.get("/health/", summary="Vérifier l'état de santé de l'API")
+def health_check():
+    return {"status": "ok"}
 
 @app.post("/recommendations/", summary="Obtenir des recommandations d'articles", response_model=list)
 def get_recommendations(user: User):
