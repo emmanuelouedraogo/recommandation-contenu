@@ -4,9 +4,9 @@ name: Construction et Déploiement de l'API
 
 # --- Variables d'environnement pour le workflow ---
 env:
-  AZURE_RESOURCE_GROUP: rg-recommandation-contenu # Le groupe de ressources où se trouve votre App Service
+  AZURE_RESOURCE_GROUP: appsvc_linux_westeurope # Le groupe de ressources où se trouve votre App Service
   AZURE_ACR_NAME: acrrecommandationcontenu        # Remplacez par le nom réel de votre Azure Container Registry
-  AZURE_APP_SERVICE_NAME: recommandation-contenu-api # Le nom de votre App Service
+  AZURE_APP_SERVICE_NAME: content-recommendation-api # Le nom de votre App Service
   IMAGE_NAME: api/recommandation-api
 
 on:
@@ -35,6 +35,12 @@ jobs:
         uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      # Étape 3: Définition de l'abonnement Azure
+      # S'assure que toutes les commandes suivantes s'exécutent dans le bon abonnement
+      - name: Définition de l'abonnement Azure
+        run: |
+          az account set --subscription "eb0f3e9e-348b-48d3-aa59-7376cb69ca9b"
 
       # Étape de débogage: Lister les ACRs dans l'abonnement pour vérifier l'accès et les noms
       - name: Vérifier les ACRs disponibles

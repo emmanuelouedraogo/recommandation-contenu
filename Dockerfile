@@ -1,49 +1,33 @@
-# Étape 1: Utiliser une image Python officielle et légère comme image de base
-FROM python:3.10-slim
+# Étape 1: Image de base
+# Utilise une image Python légère.
+FROM python:3.10-slim-bullseye
 
-# Étape 2: Définir le répertoire de travail dans le conteneur
-# Toutes les commandes suivantes s'exécuteront à partir de ce dossier
+# Étape 2: Installation des dépendances système
+# Installe 'build-essential' qui contient le compilateur 'gcc', nécessaire pour des paquets comme scikit-surprise.
+# --no-install-recommends réduit la taille de l'image.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Étape 3: Définir le répertoire de travail
 WORKDIR /app
 
-# Étape 3: Copier le fichier des dépendances
+# Étape 4: Installation des dépendances Python
+# Copier uniquement requirements.txt et installer les paquets permet de tirer parti du cache Docker.
+# Cette étape ne sera ré-exécutée que si le fichier requirements.txt change.
 COPY requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
 
-# Étape 6: Installer les dépendances
-# L'option --no-cache-dir réduit la taille de l'image finale
-# Installer les dépendances après avoir copié le code tire parti du cache Docker
-RUN pip install --no-cache-dir -r requirements.txt
+# Étape 5: Copier le code de l'application
+# Copie le reste du code de l'application dans le conteneur.
+COPY . .
 
-# --- Étape pour télécharger le modèle depuis Azure Blob Storage ---
-# On installe la CLI Azure, on l'utilise pour télécharger le modèle, puis on la désinstalle.
-# Cela permet de garder l'image finale légère.
-# Le --account-name et --container-name doivent correspondre à votre configuration.
-RUN apt-get update && apt-get install -y curl && \
-    curl -sL https://aka.ms/InstallAzureCLIDeb | bash && \
-    az storage blob download \
-      --account-name recoappstorage123 \
-      --container-name reco-data \
-      --name models/hybrid_recommender_pipeline.pkl \
-      --file save/hybrid_recommender_pipeline.pkl \
-      --auth-mode login --no-progress && \
-    apt-get purge -y curl && apt-get autoremove -y && apt-get clean
-
-# Étape 4: Créer un utilisateur non-root pour la sécurité
-RUN useradd --create-home appuser
-
-# Étape 5: Copier les fichiers et dossiers de l'application dans le conteneur
-# On copie le code de l'API, les classes de modèles, et les données/modèles nécessaires
-COPY --chown=appuser:appuser ./api ./api
-COPY --chown=appuser:appuser ./models.py .
-COPY --chown=appuser:appuser ./save ./save
-
-# Basculer vers l'utilisateur non-root
-USER appuser
-
-# Étape 7: Exposer le port sur lequel l'API s'exécutera (standard pour FastAPI)
+# Étape 6: Exposer le port
+# Doit correspondre au port utilisé par uvicorn et configuré dans App Service (WEBSITES_PORT).
 EXPOSE 8000
 
-# Variable d'environnement pour la connexion à Azure (sera passée au `docker run`)
-ENV AZURE_CONNECTION_STRING=""
-
-# Étape 8: Définir la commande pour lancer l'application lorsque le conteneur démarre
+# Étape 7: Commande de démarrage
+# Lance l'application FastAPI avec Uvicorn.
+# --host 0.0.0.0 est nécessaire pour que l'application soit accessible de l'extérieur du conteneur.
 CMD ["uvicorn", "api.api:app", "--host", "0.0.0.0", "--port", "8000"]
