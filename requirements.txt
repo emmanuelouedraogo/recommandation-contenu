@@ -7,7 +7,4 @@ implicit
 azure-storage-blob
 opencensus-ext-azure
 tqdm
-mlflow
-streamlit
-fastapi
-uvicorn
+azure-functions

@@ -1,27 +1,21 @@
-name: Construction et Déploiement de l'API
+name: Déploiement sur Azure Functions
 
 # --- Déclencheurs du Workflow ---
 
 # --- Variables d'environnement pour le workflow ---
 env:
-  AZURE_RESOURCE_GROUP: appsvc_linux_westeurope # Le groupe de ressources où se trouve votre App Service
-  AZURE_ACR_NAME: acrrecommandationcontenu        # Remplacez par le nom réel de votre Azure Container Registry
-  AZURE_APP_SERVICE_NAME: content-recommendation-api # Le nom de votre App Service
-  IMAGE_NAME: api/recommandation-api
+  AZURE_FUNCTIONAPP_NAME: content-recommendation-function # Remplacez par le nom de votre Function App
+  PYTHON_VERSION: '3.10'
 
 on:
-  # 1. Se déclenche à chaque push sur la branche 'main'
   push:
     branches:
       - main
-
-  # 2. Permet de lancer ce workflow manuellement depuis l'onglet "Actions" de GitHub
   workflow_dispatch:
 
 # --- Définition des Tâches (Jobs) ---
 jobs:
-  # --- Tâche de Conteneurisation et Déploiement de l'API ---
-  build-and-deploy-api:
+  build-and-deploy-function:
     runs-on: ubuntu-latest
     steps:
       # Étape 1: Récupère le code de votre dépôt
@@ -29,51 +23,27 @@ jobs:
         uses: actions/checkout@v4
 
       # Étape 2: Connexion à Azure
-      # Utilise les identifiants de votre principal de service stockés dans les secrets GitHub
       - name: Connexion à Azure
-        id: login-to-azure
         uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      # Étape 3: Définition de l'abonnement Azure
-      # S'assure que toutes les commandes suivantes s'exécutent dans le bon abonnement
-      - name: Définition de l'abonnement Azure
-        run: |
-          az account set --subscription "eb0f3e9e-348b-48d3-aa59-7376cb69ca9b"
-
-      # Étape de débogage: Lister les ACRs dans l'abonnement pour vérifier l'accès et les noms
-      - name: Vérifier les ACRs disponibles
-        run: |
-          az acr list --output table
-
-      # Étape 4: Construction et push de l'image Docker
-      # Cette étape suppose que vous avez un Dockerfile à la racine de votre projet
-      - name: Construction et push de l'image Docker de l'API
-        run: |
-          az acr build \
-            --registry ${{ env.AZURE_ACR_NAME }} \
-            --image ${{ env.IMAGE_NAME }}:latest \
-            .
-
-      # Étape 4.5: Configuration de l'App Service
-      # Définit la source de l'image sur ACR et configure les variables d'environnement
-      - name: Définition des paramètres de l'application
-        uses: azure/CLI@v1
+      # Étape 3: Configuration de Python
+      - name: Setup Python
+        uses: actions/setup-python@v4
         with:
-          inlineScript: |
-            az webapp config container set \
-              --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-              --name ${{ env.AZURE_APP_SERVICE_NAME }} \
-              --docker-custom-image-name ${{ env.AZURE_ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:latest \
-              --docker-registry-server-url https://${{ env.AZURE_ACR_NAME }}.azurecr.io
-
-            az webapp config appsettings set \
-              --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-              --name ${{ env.AZURE_APP_SERVICE_NAME }} \
-              --settings "AZURE_CONNECTION_STRING=${{ secrets.AZURE_CONNECTION_STRING }}" "WEBSITES_PORT=8000"
+          python-version: ${{ env.PYTHON_VERSION }}
+      
+      # Étape 4: Installation des dépendances
+      - name: Installation des dépendances
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
 
       # Étape 5: Déploiement sur Azure App Service
-      # Redémarre l'App Service pour qu'il prenne en compte la nouvelle image et la configuration
-      - name: Redémarrage de l'App Service
-        run: az webapp restart --name ${{ env.AZURE_APP_SERVICE_NAME }} --resource-group ${{ env.AZURE_RESOURCE_GROUP }}
+      - name: Déploiement sur Azure Functions
+        uses: azure/functions-action@v1
+        with:
+          app-name: ${{ env.AZURE_FUNCTIONAPP_NAME }}
+          package: .
+          app-settings: '{"AZURE_CONNECTION_STRING": "${{ secrets.AZURE_CONNECTION_STRING }}"}'
