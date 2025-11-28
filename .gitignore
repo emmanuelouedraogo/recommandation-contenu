@@ -2,6 +2,7 @@
 # Le répertoire .streamlit contient les secrets, il est donc ignoré.
 .streamlit/
 .env
+local.settings.json
 
 # Fichiers de cache et compilés Python
 __pycache__/
