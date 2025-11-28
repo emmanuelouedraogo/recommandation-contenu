@@ -1,5 +1,5 @@
 # API de Recommandation de Contenu - Azure Functions
-
+   
 Ce projet déploie une API de recommandation de contenu en tant qu'application "serverless" sur Azure Functions.
 
 L'API expose un endpoint `/api/recommend` qui prend un `user_id` en paramètre et retourne une liste de recommandations générées par un modèle de machine learning. Le modèle est automatiquement téléchargé depuis Azure Blob Storage au démarrage de la fonction.
