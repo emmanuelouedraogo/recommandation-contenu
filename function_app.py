@@ -45,10 +45,11 @@ def recommend(req: func.HttpRequest) -> func.HttpResponse:
         return func.HttpResponse("Veuillez fournir un 'user_id' dans les paramètres de la requête.", status_code=400)
 
     try:
-        # NOTE: Adaptez cette partie à la méthode de prédiction de votre modèle
-        # predictions = model.predict(user_id)
-        # Pour l'exemple, nous retournons des données factices
-        predictions = {"user_id": user_id, "items": ["item_A", "item_B", "item_C"]}
+        # NOTE: C'est ici que vous appelez la méthode de prédiction de votre modèle
+        # Nous convertissons user_id en entier, ce qui est courant pour les modèles.
+        # Adaptez si votre modèle attend un autre type (ex: str).
+        recommended_items = model.predict(int(user_id))
+        predictions = {"user_id": user_id, "items": recommended_items}
         return func.HttpResponse(body=str(predictions), mimetype="application/json", status_code=200)
     except Exception as e:
         logging.error(f"Erreur lors de la prédiction : {e}")

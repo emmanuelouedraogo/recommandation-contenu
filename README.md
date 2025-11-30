@@ -54,6 +54,17 @@ L'API expose un endpoint `/api/recommend` qui prend un `user_id` en paramètre e
     ```
     L'API sera accessible à l'adresse `http://localhost:7071/api/recommend`.
 
+## Endpoint de l'API
+
+L'API expose un unique endpoint GET pour obtenir des recommandations.
+
+- **URL** : `/api/recommend`
+- **Méthode** : `GET`
+- **Paramètre de requête** :
+  - `user_id` (obligatoire) : L'identifiant de l'utilisateur pour lequel générer les recommandations.
+- **Exemple d'appel (une fois déployé)** :
+  `https://<nom-de-votre-app>.azurewebsites.net/api/recommend?user_id=123`
+
 ## Déploiement
 
 Le déploiement est automatisé via le workflow GitHub Actions défini dans `.github/workflows/ci.yml`. Un simple `push` sur la branche `main` déclenchera la construction et le déploiement de l'application sur Azure Functions.

@@ -52,4 +52,5 @@ jobs:
         uses: azure/CLI@v1
         with:
           inlineScript: |
-            az functionapp config appsettings set --name ${{ env.AZURE_FUNCTIONAPP_NAME }} --resource-group rg-recommandation-contenu --settings "AZURE_CONNECTION_STRING=${{ secrets.AZURE_CONNECTION_STRING }}"
+            az functionapp config appsettings set --name ${{ env.AZURE_FUNCTIONAPP_NAME }} --resource-group rg-recommandation-contenu --settings "AZURE_CONNECTION_STRING=${{ secrets.AZURE_CONNECTION_STRING }}" "SCM_DO_BUILD_DURING_DEPLOYMENT=true" "ENABLE_ORYX_BUILD=true" "FUNCTIONS_WORKER_RUNTIME=python"
+            az functionapp config set --name ${{ env.AZURE_FUNCTIONAPP_NAME }} --resource-group rg-recommandation-contenu --linux-fx-version "PYTHON|${{ env.PYTHON_VERSION }}"
