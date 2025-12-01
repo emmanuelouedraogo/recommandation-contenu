@@ -46,11 +46,17 @@ def recommend(req: func.HttpRequest) -> func.HttpResponse:
 
     try:
         # NOTE: C'est ici que vous appelez la méthode de prédiction de votre modèle
-        # Nous convertissons user_id en entier, ce qui est courant pour les modèles.
-        # Adaptez si votre modèle attend un autre type (ex: str).
-        recommended_items = model.predict(int(user_id))
-        predictions = {"user_id": user_id, "items": recommended_items}
-        return func.HttpResponse(body=str(predictions), mimetype="application/json", status_code=200)
+        # CORRECTION: Utilisation de la méthode `recommend_items` au lieu de `predict`.
+        # La méthode attend un entier pour l'ID utilisateur.
+        user_id_int = int(user_id)
+        
+        # On demande les 10 meilleures recommandations.
+        recommendations_df = model.recommend_items(uid=user_id_int, topn=10)
+        
+        # Conversion du DataFrame en JSON (liste de dictionnaires), format attendu par l'interface Streamlit.
+        result_json = recommendations_df.to_json(orient="records")
+        
+        return func.HttpResponse(body=result_json, mimetype="application/json", status_code=200)
     except Exception as e:
         logging.error(f"Erreur lors de la prédiction : {e}")
         return func.HttpResponse("Erreur interne du serveur lors de la prédiction.", status_code=500)
