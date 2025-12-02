@@ -8,3 +8,4 @@ azure-storage-blob
 opencensus-ext-azure
 tqdm
 azure-functions
+lz4
