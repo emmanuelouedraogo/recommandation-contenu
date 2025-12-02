@@ -48,12 +48,14 @@ jobs:
         uses: azure/functions-action@v1
         with:
           app-name: ${{ env.AZURE_FUNCTIONAPP_NAME }}
-          package: .
+          package: . # Déploie le contenu du répertoire courant
 
       # Étape 6: Configuration des paramètres de l'application
       - name: Configuration des paramètres de l'application
         uses: azure/CLI@v1
         with:
           inlineScript: |
-            az functionapp config appsettings set --name ${{ env.AZURE_FUNCTIONAPP_NAME }} --resource-group rg-recommandation-contenu --settings "AZURE_CONNECTION_STRING=${{ secrets.AZURE_CONNECTION_STRING }}" "FUNCTIONS_WORKER_RUNTIME=python" "SCM_DO_BUILD_DURING_DEPLOYMENT=false" "ENABLE_ORYX_BUILD=false"
+            echo "Configuration des paramètres de l'application..."
+            az functionapp config appsettings set --name ${{ env.AZURE_FUNCTIONAPP_NAME }} --resource-group rg-recommandation-contenu --settings "AZURE_CONNECTION_STRING=${{ secrets.AZURE_CONNECTION_STRING }}" "FUNCTIONS_WORKER_RUNTIME=python" "SCM_DO_BUILD_DURING_DEPLOYMENT=false"
+            echo "Configuration de la version de Python..."
             az functionapp config set --name ${{ env.AZURE_FUNCTIONAPP_NAME }} --resource-group rg-recommandation-contenu --linux-fx-version "PYTHON|${{ env.PYTHON_VERSION }}"
