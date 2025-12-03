@@ -1,0 +1,11 @@
+[flake8]
+max-line-length = 120
+ignore = 
+    E203, # Espace blanc avant ':'
+    E266, # Trop de '#' pour un commentaire de bloc
+    E501, # Ligne trop longue (géré par max-line-length)
+    W503, # Rupture de ligne avant un opérateur binaire
+    F401, # Module importé mais non utilisé
+    E302, # 2 lignes vides attendues
+    E305  # 2 lignes vides attendues après la définition d'une fonction ou d'une classe
+exclude = .venv,.git,__pycache__

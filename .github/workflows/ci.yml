@@ -45,11 +45,8 @@ jobs:
 
       # Étape 3: Déploiement sur Azure Functions
       # Ajout d'une étape de linting avant le déploiement
-      - name: Linter le code avec flake8
-        run: |
-          # --count affiche le nombre total d'erreurs
-          # --show-source affiche la ligne de code en erreur
-          flake8 . --count --show-source --statistics
+      - name: Linter le code avec flake8 (en utilisant .flake8 config)
+        run: flake8 .
 
       # Cette action va créer le groupe de ressources, le compte de stockage et la Function App si ils n'existent pas,
       # puis déployer le code. Elle gère également le build distant (Oryx).
