@@ -43,6 +43,14 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
+      # Ajout pour enregistrer le fournisseur de ressources manquant
+      - name: Enregistrement du fournisseur de ressources Azure
+        uses: azure/CLI@v1
+        with:
+          inlineScript: |
+            echo "Enregistrement du fournisseur 'Microsoft.AlertsManagement'..."
+            az provider register --namespace Microsoft.AlertsManagement
+
       # Étape 3: Déploiement sur Azure Functions
       # Ajout d'une étape de linting avant le déploiement
       - name: Linter le code avec flake8 (en utilisant .flake8 config)
