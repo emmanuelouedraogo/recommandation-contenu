@@ -11,24 +11,30 @@ container_name = os.getenv("AZURE_STORAGE_CONTAINER_NAME", "reco-data")
 model_blob_name = os.getenv("AZURE_STORAGE_MODEL_BLOB", "models/hybrid_recommender_pipeline.pkl")
 local_model_path = "/tmp/model.pkl"
 
-# --- Chargement du modèle ---
-# Le modèle est téléchargé depuis le Blob Storage une seule fois au démarrage de la fonction (démarrage à froid)
-model = None
-try:
-    if connect_str:
+def load_model_from_blob():
+    """
+    Télécharge et charge le modèle depuis Azure Blob Storage.
+    Retourne le modèle chargé ou None en cas d'erreur.
+    """
+    try:
+        if not connect_str:
+            logging.warning("AZURE_CONNECTION_STRING n'est pas définie. Le modèle ne peut pas être chargé.")
+            return None
+
         blob_service_client = BlobServiceClient.from_connection_string(connect_str)
         blob_client = blob_service_client.get_blob_client(container=container_name, blob=model_blob_name)
 
-        logging.info(f"Téléchargement du modèle depuis {container_name}/{model_blob_name}...")
-        with open(file=local_model_path, mode="wb") as download_file:
-            download_file.write(blob_client.download_blob().readall())
+        logging.info(f"Début du téléchargement du modèle depuis {container_name}/{model_blob_name}...")
+        with open(local_model_path, "wb") as download_file:
+            download_file.write(blob_client.download_blob(timeout=300).readall())
+        logging.info("Téléchargement terminé.")
 
-        model = joblib.load(local_model_path)
+        loaded_model = joblib.load(local_model_path)
         logging.info("Modèle chargé avec succès.")
-    else:
-        logging.warning("AZURE_CONNECTION_STRING n'est pas définie. Le modèle ne peut pas être chargé.")
-except Exception as e:
-    logging.error(f"Erreur lors du chargement du modèle : {e}")
+        return loaded_model
+    except Exception as e:
+        logging.error(f"Erreur critique lors du chargement du modèle : {e}", exc_info=True)
+        return None
 
 # --- Définition de l'application de fonction ---
 app = func.FunctionApp()
@@ -37,7 +43,7 @@ app = func.FunctionApp()
 def recommend(req: func.HttpRequest) -> func.HttpResponse:
     logging.info('Requête de recommandation reçue.')
     
-    if not model:
+    if model is None:
         return func.HttpResponse("Erreur: Le modèle n'est pas chargé. Vérifiez les journaux de démarrage.", status_code=503)
 
     user_id = req.params.get('user_id')
@@ -53,3 +59,6 @@ def recommend(req: func.HttpRequest) -> func.HttpResponse:
     except Exception as e:
         logging.error(f"Erreur lors de la prédiction : {e}")
         return func.HttpResponse("Erreur interne du serveur lors de la prédiction.", status_code=500)
+
+# --- Démarrage de l'application et chargement du modèle ---
+model = load_model_from_blob()
