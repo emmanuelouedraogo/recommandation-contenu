@@ -34,7 +34,7 @@ def load_model_from_blob():
         logging.info("Modèle chargé avec succès.")
         return loaded_model
     except Exception as e:
-        logging.error(f"Erreur critique lors du chargement du modèle : {e}", exc_info=True)
+        logging.critical(f"Erreur critique lors du chargement du modèle, l'application ne pourra pas servir de recommandations : {e}", exc_info=True)
         return None
 
 # --- Définition de l'application de fonction ---
@@ -44,7 +44,7 @@ app = func.FunctionApp()
 def recommend(req: func.HttpRequest) -> func.HttpResponse:
     logging.info('Requête de recommandation reçue.')
     
-    if model is None:
+    if model is None: # Vérifie si le modèle a été chargé avec succès au démarrage
         return func.HttpResponse("Erreur: Le modèle n'est pas chargé. Vérifiez les journaux de démarrage.", status_code=503)
 
     user_id = req.params.get('user_id')
