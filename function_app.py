@@ -1,5 +1,6 @@
 import azure.functions as func
 import logging
+import pandas as pd
 import os
 import joblib
 from azure.storage.blob import BlobServiceClient
@@ -50,14 +51,21 @@ def recommend(req: func.HttpRequest) -> func.HttpResponse:
     if not user_id:
         return func.HttpResponse("Veuillez fournir un 'user_id' dans les paramètres de la requête.", status_code=400)
 
+    # Valider que l'user_id est un entier
     try:
         user_id_int = int(user_id)
-        recommendations_df = model.recommend_items(uid=user_id_int, topn=10)
-        result_json = recommendations_df.to_json(orient="records")
-        
-        return func.HttpResponse(body=result_json, mimetype="application/json", status_code=200)
+    except ValueError:
+        return func.HttpResponse("Le paramètre 'user_id' doit être un entier.", status_code=400)
+
+    try:
+        recommendations_df = model.recommend_items(uid=user_id_int, topn=10) # Utiliser l'ID entier
+        if recommendations_df is None or recommendations_df.empty:
+            return func.HttpResponse("[]", mimetype="application/json", status_code=200)
+
+        result_json = recommendations_df.to_json(orient="records")        
+        return func.HttpResponse(body=result_json, mimetype="application/json", status_code=200)    
     except Exception as e:
-        logging.error(f"Erreur lors de la prédiction : {e}")
+        logging.error(f"Erreur lors de la génération des recommandations pour user_id {user_id_int}: {e}", exc_info=True)
         return func.HttpResponse("Erreur interne du serveur lors de la prédiction.", status_code=500)
 
 # --- Démarrage de l'application et chargement du modèle ---

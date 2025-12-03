@@ -139,7 +139,7 @@ if choice == "Recommandations":
     # Affiche la liste des utilisateurs pour faciliter le test
     if not users_df.empty:
         st.info("Utilisateurs existants (pour tester) :")
-        st.dataframe(users_df, use_container_width=True)
+        st.dataframe(users_df, width='stretch')
 
     user_id_input = st.text_input("Entrez votre identifiant utilisateur :")
 
@@ -237,7 +237,7 @@ elif choice == "Performance du Modèle":
         st.line_chart(log_df, x='click_count', y='precision_at_10')
 
         st.subheader("Détail des entraînements")
-        st.dataframe(log_df, use_container_width=True)
+        st.dataframe(log_df, width='stretch')
 
 elif choice == "Créer un compte":
     st.header("Créez votre compte")
@@ -287,4 +287,4 @@ elif choice == "Ajouter un article":
     
     st.divider()
     st.subheader("Articles actuels dans la base de données")
-    st.dataframe(articles_df, use_container_width=True)
+    st.dataframe(articles_df, width='stretch')
