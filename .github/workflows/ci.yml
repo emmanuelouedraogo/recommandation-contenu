@@ -63,13 +63,26 @@ jobs:
       - name: Linter le code avec flake8 (en utilisant .flake8 config)
         run: flake8 .
 
-      # Cette action va créer le groupe de ressources, le compte de stockage et la Function App si ils n'existent pas,
-      # puis déployer le code. Elle gère également le build distant (Oryx).
+      # Étape 4: Création de l'infrastructure Azure
+      - name: Création des ressources Azure (si nécessaire)
+        uses: azure/CLI@v1
+        with:
+          inlineScript: |
+            echo "Création du groupe de ressources..."
+            az group create --name ${{ env.AZURE_RESOURCE_GROUP }} --location "${{ env.AZURE_LOCATION }}"
+            
+            echo "Création du compte de stockage..."
+            az storage account create --name ${{ env.AZURE_FUNCTIONAPP_NAME }}storage --location "${{ env.AZURE_LOCATION }}" --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --sku Standard_LRS
+
+            echo "Création de l'application de fonction..."
+            az functionapp create --name ${{ env.AZURE_FUNCTIONAPP_NAME }} --storage-account ${{ env.AZURE_FUNCTIONAPP_NAME }}storage --consumption-plan-location "${{ env.AZURE_LOCATION }}" --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --runtime python --runtime-version ${{ env.PYTHON_VERSION }} --functions-version 4
+
+            echo "Configuration des paramètres de l'application..."
+            az functionapp config appsettings set --name ${{ env.AZURE_FUNCTIONAPP_NAME }} --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --settings "AZURE_CONNECTION_STRING=${{ secrets.AZURE_CONNECTION_STRING }}" "WEBSITE_RUN_FROM_PACKAGE=1"
+
+      # Étape 5: Déploiement du code sur l'application de fonction existante
       - name: Déploiement sur Azure Functions
         uses: azure/functions-action@v1
         with:
           app-name: ${{ env.AZURE_FUNCTIONAPP_NAME }}
-          resource-group: ${{ env.AZURE_RESOURCE_GROUP }}
-          location: ${{ env.AZURE_LOCATION }}
           package: .
-          app-settings: '{"AZURE_CONNECTION_STRING":"${{ secrets.AZURE_CONNECTION_STRING }}", "FUNCTIONS_WORKER_RUNTIME":"python", "WEBSITE_RUN_FROM_PACKAGE":"1"}'
