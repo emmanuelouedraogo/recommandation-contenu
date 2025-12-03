@@ -48,8 +48,15 @@ jobs:
         uses: azure/CLI@v1
         with:
           inlineScript: |
-            echo "Enregistrement du fournisseur 'Microsoft.AlertsManagement'..."
+            echo "Enregistrement du fournisseur 'Microsoft.AlertsManagement' et attente de la confirmation..."
             az provider register --namespace Microsoft.AlertsManagement
+            
+            # L'enregistrement peut prendre plusieurs minutes. On attend qu'il soit terminé.
+            while [[ $(az provider show --namespace Microsoft.AlertsManagement --query registrationState) != "\"Registered\"" ]]; do
+              echo "En attente de l'enregistrement du fournisseur 'Microsoft.AlertsManagement'..."
+              sleep 30
+            done
+            echo "Fournisseur 'Microsoft.AlertsManagement' enregistré avec succès."
 
       # Étape 3: Déploiement sur Azure Functions
       # Ajout d'une étape de linting avant le déploiement
