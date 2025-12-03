@@ -6,6 +6,7 @@ name: Déploiement sur Azure Functions
 env:
   AZURE_FUNCTIONAPP_NAME: content-recommendation-function # Remplacez par le nom de votre Function App
   PYTHON_VERSION: '3.10'
+  AZURE_STORAGE_ACCOUNT_NAME: recoappstorage123 # Nom du compte de stockage (doit être unique globalement, 3-24 caractères, minuscules et chiffres)
   AZURE_RESOURCE_GROUP: rg-recommandation-contenu # Nom du groupe de ressources
   AZURE_LOCATION: 'francecentral' # Emplacement des ressources
 
@@ -72,10 +73,10 @@ jobs:
             az group create --name ${{ env.AZURE_RESOURCE_GROUP }} --location "${{ env.AZURE_LOCATION }}"
             
             echo "Création du compte de stockage..."
-            az storage account create --name ${{ env.AZURE_FUNCTIONAPP_NAME }}storage --location "${{ env.AZURE_LOCATION }}" --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --sku Standard_LRS
+            az storage account create --name ${{ env.AZURE_STORAGE_ACCOUNT_NAME }} --location "${{ env.AZURE_LOCATION }}" --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --sku Standard_LRS --https-only true
 
             echo "Création de l'application de fonction..."
-            az functionapp create --name ${{ env.AZURE_FUNCTIONAPP_NAME }} --storage-account ${{ env.AZURE_FUNCTIONAPP_NAME }}storage --consumption-plan-location "${{ env.AZURE_LOCATION }}" --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --runtime python --runtime-version ${{ env.PYTHON_VERSION }} --functions-version 4
+            az functionapp create --name ${{ env.AZURE_FUNCTIONAPP_NAME }} --storage-account ${{ env.AZURE_STORAGE_ACCOUNT_NAME }} --consumption-plan-location "${{ env.AZURE_LOCATION }}" --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --runtime python --runtime-version ${{ env.PYTHON_VERSION }} --functions-version 4
 
             echo "Configuration des paramètres de l'application..."
             az functionapp config appsettings set --name ${{ env.AZURE_FUNCTIONAPP_NAME }} --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --settings "AZURE_CONNECTION_STRING=${{ secrets.AZURE_CONNECTION_STRING }}" "WEBSITE_RUN_FROM_PACKAGE=1"
