@@ -1,6 +1,6 @@
 import os
-import pickle
 import pandas as pd
+import joblib
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import logging
@@ -38,7 +38,7 @@ def load_model():
     logger.info(f"Chargement du modèle depuis : {MODEL_PATH}")
     try:
         with open(MODEL_PATH, 'rb') as f:
-            model = pickle.load(f)
+            model = joblib.load(f)
         logger.info("Modèle chargé avec succès.")
     except FileNotFoundError:
         logger.error(f"Erreur: Le fichier modèle n'a pas été trouvé à l'emplacement : {MODEL_PATH}")

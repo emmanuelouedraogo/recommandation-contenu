@@ -6,9 +6,9 @@ from azure.storage.blob import BlobServiceClient
 
 # --- Configuration ---
 # La chaîne de connexion est récupérée depuis les paramètres de l'application
-connect_str = os.getenv('AZURE_CONNECTION_STRING')
-container_name = "reco-data" # Le nom de votre conteneur de blobs
-model_blob_name = "models/hybrid_recommender_pipeline.pkl" # Le chemin complet vers votre modèle
+connect_str = os.getenv("AZURE_CONNECTION_STRING")
+container_name = os.getenv("AZURE_STORAGE_CONTAINER_NAME", "reco-data")
+model_blob_name = os.getenv("AZURE_STORAGE_MODEL_BLOB", "models/hybrid_recommender_pipeline.pkl")
 local_model_path = "/tmp/model.pkl"
 
 # --- Chargement du modèle ---
