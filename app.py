@@ -110,11 +110,10 @@ def get_recommendations(user_id):
     
     with st.spinner('Recherche de vos recommandations...'):
         try:
-            # CORRECTION: L'API Azure Function attend une requête GET avec un paramètre d'URL.
-            # L'URL de base de la fonction est complétée par "/api/recommend".
-            params = {'user_id': user_id}
+            # CORRECTION: L'API FastAPI attend une requête POST avec un corps JSON.
+            # L'URL de l'endpoint est "/recommendations/".
             headers = {'Accept': 'application/json'}
-            response = requests.get(f"{API_URL}/api/recommend", params=params, headers=headers, timeout=20)
+            response = requests.post(f"{API_URL}/recommendations/", json={"user_id": user_id}, headers=headers, timeout=20)
             response.raise_for_status() # Lève une exception pour les codes d'erreur HTTP (4xx ou 5xx)
             
             data = response.json()
