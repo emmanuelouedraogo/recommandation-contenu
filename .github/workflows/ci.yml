@@ -2,10 +2,12 @@ name: Déploiement sur Azure Functions
 
 # --- Déclencheurs du Workflow ---
 
-# --- Variables d'environnement pour le workflow ---
+# --- Variables d'environnement globales ---
 env:
   AZURE_FUNCTIONAPP_NAME: content-recommendation-function # Remplacez par le nom de votre Function App
   PYTHON_VERSION: '3.10'
+  AZURE_RESOURCE_GROUP: rg-recommandation-contenu # Nom du groupe de ressources
+  AZURE_LOCATION: 'West Europe' # Emplacement des ressources
 
 on:
   push:
@@ -17,45 +19,45 @@ on:
 jobs:
   build-and-deploy-function:
     runs-on: ubuntu-latest
+    # environment: production # Optionnel. À décommenter si vous configurez un environnement dans les paramètres du dépôt.
     steps:
       # Étape 1: Récupère le code de votre dépôt
       - name: Checkout du code
         uses: actions/checkout@v4
 
-      # Étape 2: Connexion à Azure
+      # Étape 2: Configuration de Python et installation des dépendances pour le linting
+      - name: Setup Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Installation des dépendances et de l'outil de linting
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install flake8
+
+      # Étape 2: Connexion à Azure avec vos identifiants
       - name: Connexion à Azure
         uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      # Étape 3: Configuration de Python
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-      
-      # Étape 4: Installation des dépendances
-      - name: Installation des dépendances
+      # Étape 3: Déploiement sur Azure Functions
+      # Ajout d'une étape de linting avant le déploiement
+      - name: Linter le code avec flake8
         run: |
-          python -m venv .venv
-          source .venv/bin/activate
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          # --count affiche le nombre total d'erreurs
+          # --show-source affiche la ligne de code en erreur
+          flake8 . --count --show-source --statistics
 
-      # Étape 5: Déploiement sur Azure Functions
+      # Cette action va créer le groupe de ressources, le compte de stockage et la Function App si ils n'existent pas,
+      # puis déployer le code. Elle gère également le build distant (Oryx).
       - name: Déploiement sur Azure Functions
-        # Cette action va zipper le code et les dépendances installées localement
         uses: azure/functions-action@v1
         with:
           app-name: ${{ env.AZURE_FUNCTIONAPP_NAME }}
-          package: . # Déploie le contenu du répertoire courant
-
-      # Étape 6: Configuration des paramètres de l'application
-      - name: Configuration des paramètres de l'application
-        uses: azure/CLI@v1
-        with:
-          inlineScript: |
-            echo "Configuration des paramètres de l'application..."
-            az functionapp config appsettings set --name ${{ env.AZURE_FUNCTIONAPP_NAME }} --resource-group rg-recommandation-contenu --settings "AZURE_CONNECTION_STRING=${{ secrets.AZURE_CONNECTION_STRING }}" "FUNCTIONS_WORKER_RUNTIME=python" "SCM_DO_BUILD_DURING_DEPLOYMENT=false"
-            echo "Configuration de la version de Python..."
-            az functionapp config set --name ${{ env.AZURE_FUNCTIONAPP_NAME }} --resource-group rg-recommandation-contenu --linux-fx-version "PYTHON|${{ env.PYTHON_VERSION }}"
+          resource-group: ${{ env.AZURE_RESOURCE_GROUP }}
+          location: ${{ env.AZURE_LOCATION }}
+          package: .
+          app-settings: '{"AZURE_CONNECTION_STRING":"${{ secrets.AZURE_CONNECTION_STRING }}", "FUNCTIONS_WORKER_RUNTIME":"python", "WEBSITE_RUN_FROM_PACKAGE":"1"}'
