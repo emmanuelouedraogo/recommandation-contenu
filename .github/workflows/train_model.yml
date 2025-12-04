@@ -11,7 +11,7 @@ on:
 
 # --- Variables d'environnement pour le workflow ---
 env:
-  PYTHON_VERSION: '3.10'
+  PYTHON_VERSION: '3.13'
   AZURE_CONTAINER_NAME: 'reco-data'
   MODEL_BLOB_NAME: 'models/hybrid_recommender_pipeline.pkl'
   LOCAL_MODEL_PATH: '/tmp/hybrid_recommender_pipeline.pkl'
