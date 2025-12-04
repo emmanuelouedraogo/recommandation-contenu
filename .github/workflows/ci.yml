@@ -32,36 +32,18 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - name: Installation de pip-tools et compilation des dépendances
-        run: |
-          python -m pip install --upgrade pip
-          pip install pip-tools
-          echo "Compilation de requirements.in -> requirements.txt avec Python ${{ env.PYTHON_VERSION }}"
-          pip-compile requirements.in
-
-      # Ajout pour mettre en cache les dépendances pip
-      - name: Mise en cache des dépendances
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          # La clé de cache doit être basée sur le fichier source des dépendances
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.in') }}
-          # Restaure le cache même si la clé exacte ne correspond pas (utile pour des changements mineurs)
-          restore-keys: |
-            ${{ runner.os }}-pip-
-
-      - name: Installation des dépendances Python et de l'outil de linting
+      # Étape de validation : Installation des outils et linter
+      - name: Installation des outils de linting
         run: |
           pip install -r requirements.txt
           pip install flake8
 
-      # Étape 2: Connexion à Azure avec vos identifiants
+      # Étape 3: Connexion à Azure avec vos identifiants
       - name: Connexion à Azure
         uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      # Ajout pour enregistrer le fournisseur de ressources manquant
       - name: Enregistrement du fournisseur de ressources Azure
         uses: azure/CLI@v1
         with:
@@ -76,12 +58,11 @@ jobs:
             done
             echo "Fournisseur 'Microsoft.AlertsManagement' enregistré avec succès."
 
-      # Étape 3: Déploiement sur Azure Functions
-      # Ajout d'une étape de linting avant le déploiement
+      # Étape 4: Validation du code avec le linter
       - name: Linter le code avec flake8 (en utilisant .flake8 config)
         run: flake8 .
 
-      # Étape 4: Création de l'infrastructure Azure
+      # Étape 5: Création de l'infrastructure Azure
       - name: Création des ressources Azure (si nécessaire)
         uses: azure/CLI@v1
         with:
@@ -93,12 +74,15 @@ jobs:
             az storage account create --name ${{ env.AZURE_STORAGE_ACCOUNT_NAME }} --location "${{ env.AZURE_LOCATION }}" --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --sku Standard_LRS --https-only true
 
             echo "Création de l'application de fonction..."
-            az functionapp create --name ${{ env.AZURE_FUNCTIONAPP_NAME }} --storage-account ${{ env.AZURE_STORAGE_ACCOUNT_NAME }} --consumption-plan-location "${{ env.AZURE_LOCATION }}" --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --runtime python --runtime-version ${{ env.PYTHON_VERSION }} --functions-version 4 --os-type linux
+            az functionapp create --name ${{ env.AZURE_FUNCTIONAPP_NAME }} --storage-account ${{ env.AZURE_STORAGE_ACCOUNT_NAME }} --flex-consumption-location "${{ env.AZURE_LOCATION }}" --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --runtime python --runtime-version ${{ env.PYTHON_VERSION }} --functions-version 4 --os-type linux --sku FX1
 
             echo "Configuration des paramètres de l'application..."
-            az functionapp config appsettings set --name ${{ env.AZURE_FUNCTIONAPP_NAME }} --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --settings "AZURE_CONNECTION_STRING=${{ secrets.AZURE_CONNECTION_STRING }}" "WEBSITE_RUN_FROM_PACKAGE=1"
+            az functionapp config appsettings set --name ${{ env.AZURE_FUNCTIONAPP_NAME }} --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --settings "AZURE_CONNECTION_STRING=${{ secrets.AZURE_CONNECTION_STRING }}" "SCM_DO_BUILD_DURING_DEPLOYMENT=true"
 
-      # Étape 5: Déploiement du code sur l'application de fonction existante
+            echo "Attente de 30 secondes pour permettre à Azure de stabiliser les ressources..."
+            sleep 30
+
+      # Étape 6: Déploiement du code sur l'application de fonction existante
       - name: Déploiement sur Azure Functions
         uses: azure/functions-action@v1
         with:
