@@ -1,4 +1,0 @@
-python3.12 -m piptools compile requirements.in
-git add requirements.txt
-git commit -m "Fix: Régénération de requirements.txt pour compatibilité Python 3.12"
-git push

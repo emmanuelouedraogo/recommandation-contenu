@@ -1,0 +1,5 @@
+# Dossier de l'environnement virtuel Python
+venv/
+
+# Fichiers de cache Python
+__pycache__/
