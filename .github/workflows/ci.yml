@@ -36,9 +36,9 @@ jobs:
       - name: Vérifier la synchronisation de requirements.txt avec requirements.in
         run: |
           python -m pip install pip-tools
-          # --dry-run and --check-consistency will ensure requirements.txt is up-to-date
-          # without modifying it. The step will fail if it's not.
-          python -m piptools compile --output-file requirements.txt --dry-run --check-consistency requirements.in
+          # L'option --check vérifie si le fichier requirements.txt est à jour
+          # par rapport à requirements.in, sans le modifier. L'étape échoue si ce n'est pas le cas.
+          python -m piptools compile --check requirements.in
 
       # Étape de validation : Installation des dépendances et des outils
       - name: Installation des dépendances et des outils de validation
