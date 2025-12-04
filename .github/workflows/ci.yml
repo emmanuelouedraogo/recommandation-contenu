@@ -38,7 +38,7 @@ jobs:
           python -m pip install pip-tools
           # L'option --check vérifie si le fichier requirements.txt est à jour
           # par rapport à requirements.in, sans le modifier. L'étape échoue si ce n'est pas le cas.
-          pip-compile --check requirements.in
+          python -m pipcompile --check requirements.in
 
       # Étape de validation : Installation des dépendances et des outils
       - name: Installation des dépendances et des outils de validation
