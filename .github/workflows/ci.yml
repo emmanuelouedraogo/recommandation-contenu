@@ -72,6 +72,7 @@ jobs:
       - name: Création des ressources Azure (si nécessaire)
         uses: azure/CLI@v1
         with:
+          azcliversion: latest
           inlineScript: |
             echo "Création du groupe de ressources..."
             az group create --name ${{ env.AZURE_RESOURCE_GROUP }} --location "${{ env.AZURE_LOCATION }}"
