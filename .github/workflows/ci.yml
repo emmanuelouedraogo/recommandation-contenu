@@ -35,13 +35,15 @@ jobs:
       # Étape de validation : Vérifier la synchronisation de requirements.txt
       - name: Vérifier la synchronisation de requirements.txt avec requirements.in
         run: |
+          echo "Installation de pip-tools..."
           python -m pip install pip-tools
-          # L'option --check vérifie si le fichier requirements.txt est à jour
-          # par rapport à requirements.in, sans le modifier. L'étape échoue si ce n'est pas le cas.
-          # Nous utilisons `python -m piptools compile` pour éviter le conflit de nom
-          # avec la commande `pip compile` intégrée aux versions récentes de pip.
-          python -m piptools compile --check requirements.in
+          
+          echo "Génération d'un fichier requirements.txt temporaire pour comparaison..."
+          python -m piptools compile --output-file=requirements.tmp requirements.in
 
+          echo "Comparaison du fichier requirements.txt existant avec le fichier temporaire..."
+          # La commande `diff` échouera (code de sortie non nul) si les fichiers sont différents.
+          diff requirements.txt requirements.tmp
       # Étape de validation : Installation des dépendances et des outils
       - name: Installation des dépendances et des outils de validation
         run: |
