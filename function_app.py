@@ -1,5 +1,6 @@
 import azure.functions as func
 import logging
+import asyncio
 import pandas as pd
 import os
 import joblib
@@ -11,6 +12,10 @@ connect_str = os.getenv("AZURE_CONNECTION_STRING")
 container_name = os.getenv("AZURE_STORAGE_CONTAINER_NAME", "reco-data")
 model_blob_name = os.getenv("AZURE_STORAGE_MODEL_BLOB", "models/hybrid_recommender_pipeline.pkl")
 local_model_path = "/tmp/model.pkl"
+
+# Variable globale pour stocker le modèle et un verrou pour gérer le chargement concurrent
+model = None
+model_load_lock = asyncio.Lock()
 
 def load_model_from_blob():
     """
@@ -41,11 +46,22 @@ def load_model_from_blob():
 app = func.FunctionApp()
 
 @app.route(route="recommend", methods=["GET"])
-def recommend(req: func.HttpRequest) -> func.HttpResponse:
+async def recommend(req: func.HttpRequest) -> func.HttpResponse:
+    global model
     logging.info('Requête de recommandation reçue.')
     
-    if model is None: # Vérifie si le modèle a été chargé avec succès au démarrage
-        return func.HttpResponse("Erreur: Le modèle n'est pas chargé. Vérifiez les journaux de démarrage.", status_code=503)
+    # Chargement paresseux (lazy loading) du modèle au premier appel
+    if model is None:
+        async with model_load_lock:
+            # Double vérification pour éviter que plusieurs requêtes ne chargent le modèle en même temps
+            if model is None:
+                logging.info("Le modèle n'est pas chargé. Tentative de chargement...")
+                model = load_model_from_blob()
+
+    # Si le chargement a échoué, le modèle sera toujours None
+    if model is None:
+        logging.error("Le chargement du modèle a échoué. Impossible de servir la requête.")
+        return func.HttpResponse("Erreur: Le service de recommandation n'est pas disponible (échec du chargement du modèle).", status_code=503)
 
     user_id = req.params.get('user_id')
     if not user_id:
@@ -67,6 +83,3 @@ def recommend(req: func.HttpRequest) -> func.HttpResponse:
     except Exception as e:
         logging.error(f"Erreur lors de la génération des recommandations pour user_id {user_id_int}: {e}", exc_info=True)
         return func.HttpResponse("Erreur interne du serveur lors de la prédiction.", status_code=500)
-
-# --- Démarrage de l'application et chargement du modèle ---
-model = load_model_from_blob()
