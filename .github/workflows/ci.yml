@@ -32,11 +32,15 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      # Étape de validation : Installation des outils et linter
-      - name: Installation des outils de linting
+      # Étape de validation : Installation de l'outil de linter
+      - name: Installation de Flake8
+        run: |
+          pip install flake8
+
+      # Étape de validation des dépendances
+      - name: Installation des dépendances pour validation
         run: |
           pip install -r requirements.txt
-          pip install flake8
 
       # Étape 3: Connexion à Azure avec vos identifiants
       - name: Connexion à Azure
