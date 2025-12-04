@@ -77,6 +77,9 @@ jobs:
             echo "Création du groupe de ressources..."
             az group create --name ${{ env.AZURE_RESOURCE_GROUP }} --location "${{ env.AZURE_LOCATION }}"
             
+            echo "Installation de l'extension 'functionapp' pour les fonctionnalités les plus récentes..."
+            az extension add --name functionapp --upgrade
+            
             echo "Création du compte de stockage..."
             az storage account create --name ${{ env.AZURE_STORAGE_ACCOUNT_NAME }} --location "${{ env.AZURE_LOCATION }}" --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --sku Standard_LRS --https-only true
 
