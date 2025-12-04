@@ -1,0 +1,11 @@
+pandas
+numpy
+scikit-learn
+surprise
+scipy
+implicit
+azure-storage-blob
+opencensus-ext-azure
+azure-functions
+lz4
+joblib
