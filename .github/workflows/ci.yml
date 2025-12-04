@@ -5,7 +5,7 @@ name: Déploiement sur Azure Functions
 # --- Variables d'environnement globales ---
 env:
   AZURE_FUNCTIONAPP_NAME: content-recommendation-function # Remplacez par le nom de votre Function App
-  PYTHON_VERSION: '3.10'
+  PYTHON_VERSION: '3.12'
   AZURE_STORAGE_ACCOUNT_NAME: recoappstorage123 # Nom du compte de stockage (doit être unique globalement, 3-24 caractères, minuscules et chiffres)
   AZURE_RESOURCE_GROUP: rg-recommandation-contenu # Nom du groupe de ressources
   AZURE_LOCATION: 'francecentral' # Emplacement des ressources
@@ -32,16 +32,12 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      # Étape de validation : Compilation et installation des dépendances
-      - name: Compilation et installation des dépendances
+      # Étape de validation : Installation des dépendances et des outils
+      - name: Installation des dépendances et des outils de validation
         run: |
           python -m pip install --upgrade pip
-          pip install pip-tools flake8
-          
-          echo "Compilation de requirements.in -> requirements.txt avec Python ${{ env.PYTHON_VERSION }}"
-          pip-compile requirements.in
-          
-          echo "Installation des dépendances depuis le fichier requirements.txt généré..."
+          pip install flake8
+          echo "Installation des dépendances depuis requirements.txt pour validation..."
           pip install -r requirements.txt
 
       # Étape 3: Connexion à Azure avec vos identifiants
