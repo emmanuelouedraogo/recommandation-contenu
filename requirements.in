@@ -1,7 +1,6 @@
-pandas
+pandas==2.2.3
 numpy>=2.0
 scikit-learn
-pandas==2.1.4
 scipy
 implicit
 azure-storage-blob
