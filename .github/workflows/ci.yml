@@ -32,6 +32,11 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
+      - name: Install OpenBLAS
+        run: |
+          echo "Installing OpenBLAS..."
+          sudo apt-get update
+          sudo apt-get install libopenblas-dev -y
       # Étape de validation : Installation des dépendances et des outils
       - name: Installation des dépendances et des outils de validation
         run: |
