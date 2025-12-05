@@ -10,4 +10,4 @@ opencensus-ext-azure
 azure-functions
 lz4
 joblib
-surprise-plus # This is a placeholder, the actual package is scikit-surprise
+scikit-surprise
