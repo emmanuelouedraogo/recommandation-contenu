@@ -8,6 +8,6 @@ implicit
 azure-storage-blob
 opencensus-ext-azure
 azure-functions
-scikit-surprise==1.1.4
 lz4
 joblib
+surprise-plus # This is a placeholder, the actual package is scikit-surprise
