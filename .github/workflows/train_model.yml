@@ -11,7 +11,7 @@ on:
 
 # --- Variables d'environnement pour le workflow ---
 env:
-  PYTHON_VERSION: '3.13'
+  PYTHON_VERSION: '3.8'
   AZURE_CONTAINER_NAME: 'reco-data'
   MODEL_BLOB_NAME: 'models/hybrid_recommender_pipeline.pkl'
   LOCAL_MODEL_PATH: '/tmp/hybrid_recommender_pipeline.pkl'
@@ -35,7 +35,6 @@ jobs:
       - name: Installation des dépendances
         run: |
           python -m pip install --upgrade pip
-          pip install numpy==1.26.4
           pip install -r requirements.txt
 
       # Étape 4: Exécution du script d'entraînement
