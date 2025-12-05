@@ -29,8 +29,8 @@ jobs:
       # Étape 2: Configuration de Python et installation des dépendances pour le linting
       - name: Setup Python ${{ env.PYTHON_VERSION }}
         uses: actions/setup-python@v4
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
+        with: 
+          python-version: '3.8'
 
       - name: Install OpenBLAS
         run: |
