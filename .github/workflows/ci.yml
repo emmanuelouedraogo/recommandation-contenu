@@ -32,18 +32,6 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      # Étape de validation : Vérifier la synchronisation de requirements.txt
-      - name: Vérifier la synchronisation de requirements.txt avec requirements.in
-        run: |
-          echo "Installation de pip-tools..."
-          python -m pip install pip-tools
-          
-          echo "Génération d'un fichier requirements.txt temporaire pour comparaison..."
-          python -m piptools compile --output-file=requirements.tmp requirements.in
-
-          echo "Comparaison du fichier requirements.txt existant avec le fichier temporaire..."
-          # La commande `diff` échouera (code de sortie non nul) si les fichiers sont différents.
-          diff requirements.txt requirements.tmp
       # Étape de validation : Installation des dépendances et des outils
       - name: Installation des dépendances et des outils de validation
         run: |

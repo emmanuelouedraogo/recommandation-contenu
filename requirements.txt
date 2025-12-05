@@ -108,11 +108,13 @@ scipy==1.14.0
     #   -r requirements.in
     #   implicit
     #   scikit-learn
+scikit-surprise==1.1.4
+    # via surprise-plus
 six==1.16.0
     # via
     #   opencensus
     #   python-dateutil
-surprise==0.1
+surprise-plus==1.1.4
     # via -r requirements.in
 threadpoolctl==3.5.0
     # via
