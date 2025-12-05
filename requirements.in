@@ -1,10 +1,13 @@
 pandas==2.2.3
-numpy>=2.0
+# scikit-surprise n'est pas compatible avec numpy 2.0.
+# Nous utilisons une version < 2.0.
+numpy>=1.21,<2.0
 scikit-learn
 scipy
 implicit
 azure-storage-blob
 opencensus-ext-azure
 azure-functions
+scikit-surprise==1.1.4
 lz4
 joblib
