@@ -1,7 +1,6 @@
 import azure.functions as func
 import logging
 import asyncio
-import pandas as pd
 import os
 import joblib
 from azure.storage.blob import BlobServiceClient

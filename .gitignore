@@ -15,6 +15,8 @@ venv/
 .venv/
 env/
 .env/
+impenv/
+.impenv/
 
 # Artefacts de build et de distribution
 build/
@@ -34,3 +36,9 @@ mlruns/
 prompts.md
 azureinfos.txt
 CODEAZURE.md
+
+# Fichiers temporaires et de sauvegarde
+*.tmp
+*.bak
+*~
+*.swap
