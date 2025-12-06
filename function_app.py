@@ -3,6 +3,7 @@ import logging
 import asyncio
 import os
 import joblib
+from azure.core.exceptions import ResourceNotFoundError
 from azure.storage.blob import BlobServiceClient
 
 # --- Configuration ---
@@ -37,6 +38,9 @@ def load_model_from_blob():
         loaded_model = joblib.load(local_model_path)
         logging.info("Modèle chargé avec succès.")
         return loaded_model
+    except ResourceNotFoundError:
+        logging.critical(f"Le modèle blob '{model_blob_name}' n'a pas été trouvé dans le conteneur '{container_name}'.")
+        return None
     except Exception as e:
         logging.critical(f"Erreur critique lors du chargement du modèle, l'application ne pourra pas servir de recommandations : {e}", exc_info=True)
         return None
@@ -44,15 +48,16 @@ def load_model_from_blob():
 # --- Définition de l'application de fonction ---
 app = func.FunctionApp()
 
-@app.route(route="recommend", methods=["GET"])
+@app.route(route="recommend", methods=[func.HttpMethod.GET])
 async def recommend(req: func.HttpRequest) -> func.HttpResponse:
     global model
     logging.info('Requête de recommandation reçue.')
     
-    # Chargement paresseux (lazy loading) du modèle au premier appel
+    # Chargement paresseux (lazy loading) du modèle au premier appel pour optimiser le démarrage à froid.
+    # Le verrou (lock) garantit que même si plusieurs requêtes arrivent en même temps,
+    # le modèle ne sera chargé qu'une seule fois.
     if model is None:
         async with model_load_lock:
-            # Double vérification pour éviter que plusieurs requêtes ne chargent le modèle en même temps
             if model is None:
                 logging.info("Le modèle n'est pas chargé. Tentative de chargement...")
                 model = load_model_from_blob()
@@ -64,11 +69,11 @@ async def recommend(req: func.HttpRequest) -> func.HttpResponse:
 
     user_id = req.params.get('user_id')
     if not user_id:
-        return func.HttpResponse("Veuillez fournir un 'user_id' dans les paramètres de la requête.", status_code=400)
+        return func.HttpResponse("Le paramètre 'user_id' est manquant.", status_code=400)
 
-    # Valider que l'user_id est un entier
     try:
         user_id_int = int(user_id)
+        if user_id_int <= 0: raise ValueError("ID utilisateur doit être positif")
     except ValueError:
         return func.HttpResponse("Le paramètre 'user_id' doit être un entier.", status_code=400)
 
