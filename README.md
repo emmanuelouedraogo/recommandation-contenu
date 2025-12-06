@@ -7,7 +7,6 @@ L'API expose un endpoint `/api/recommend` qui prend un `user_id` en paramètre e
 ## Architecture
 
 - **Hébergement** : Azure Functions (Plan Consommation)
-- **Langage** : Python 3.10
 - **Langage** : Python 3.11
 - **Déploiement** : CI/CD avec GitHub Actions
 - **Stockage du modèle** : Azure Blob Storage
@@ -17,6 +16,10 @@ L'API expose un endpoint `/api/recommend` qui prend un `user_id` en paramètre e
 - Python 3.11+
 - Azure Functions Core Tools
 - Un compte Azure avec un abonnement actif
+- **Dépendances système** : Pour les systèmes basés sur Debian/Ubuntu, certaines bibliothèques sont nécessaires pour compiler des paquets comme `numpy` ou `scipy`. Installez-les avec la commande suivante :
+  ```bash
+  sudo apt-get update && sudo apt-get install -y libopenblas-dev
+  ```
 
 ## Installation et exécution locale
 
@@ -31,7 +34,8 @@ L'API expose un endpoint `/api/recommend` qui prend un `user_id` en paramètre e
     python -m venv .venv
     source .venv/bin/activate  # Sur Linux/macOS
     # .\.venv\Scripts\activate  # Sur Windows
-    pip install -r requirements.txt
+    pip install -r requirements.txt # Dépendances de production
+    pip install -r requirements-dev.txt # Dépendances de développement (flake8, etc.)
     ```
 
 3.  **Configurer les paramètres locaux**
@@ -44,7 +48,9 @@ L'API expose un endpoint `/api/recommend` qui prend un `user_id` en paramètre e
       "Values": {
         "AzureWebJobsStorage": "",
         "FUNCTIONS_WORKER_RUNTIME": "python",
-        "AZURE_CONNECTION_STRING": "Collez-votre-chaîne-de-connexion-ici"
+        "AZURE_CONNECTION_STRING": "Collez-votre-chaîne-de-connexion-ici",
+        "AZURE_STORAGE_CONTAINER_NAME": "reco-data",
+        "AZURE_STORAGE_MODEL_BLOB": "models/hybrid_recommender_pipeline.pkl"
       }
     }
     ```
@@ -65,6 +71,14 @@ L'API expose un unique endpoint GET pour obtenir des recommandations.
   - `user_id` (obligatoire) : L'identifiant de l'utilisateur pour lequel générer les recommandations.
 - **Exemple d'appel (une fois déployé)** :
   `https://<nom-de-votre-app>.azurewebsites.net/api/recommend?user_id=123`
+
+## Variables d'environnement
+
+L'application utilise les variables d'environnement suivantes pour sa configuration :
+
+- `AZURE_CONNECTION_STRING` (obligatoire) : Chaîne de connexion au compte de stockage Azure.
+- `AZURE_STORAGE_CONTAINER_NAME` (optionnel, défaut: `reco-data`) : Nom du conteneur Blob où le modèle est stocké.
+- `AZURE_STORAGE_MODEL_BLOB` (optionnel, défaut: `models/hybrid_recommender_pipeline.pkl`) : Chemin complet du modèle dans le conteneur.
 
 ## Déploiement
 

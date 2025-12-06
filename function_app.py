@@ -10,7 +10,7 @@ from azure.storage.blob import BlobServiceClient
 connect_str = os.getenv("AZURE_CONNECTION_STRING")
 container_name = os.getenv("AZURE_STORAGE_CONTAINER_NAME", "reco-data")
 model_blob_name = os.getenv("AZURE_STORAGE_MODEL_BLOB", "models/hybrid_recommender_pipeline.pkl")
-local_model_path = "/tmp/model.pkl"
+local_model_path = "/tmp/hybrid_recommender_pipeline.pkl"
 
 # Variable globale pour stocker le modèle et un verrou pour gérer le chargement concurrent
 model = None
