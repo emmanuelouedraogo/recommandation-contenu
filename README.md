@@ -14,7 +14,31 @@ L'API expose un endpoint `/api/recommend` qui prend un `user_id` en paramètre e
 ## Prérequis
 
 - Python 3.11+
-- Azure Functions Core Tools
+- **Azure Functions Core Tools** : C'est l'outil en ligne de commande (`func`) qui vous permet de développer et tester vos fonctions Azure localement. Suivez les instructions pour votre système d'exploitation :
+  - **Windows** (avec npm) :
+    ```bash
+    npm install -g azure-functions-core-tools@4 --unsafe-perm true
+    ```
+  - **macOS** (avec Homebrew) :
+    ```bash
+    brew tap azure/functions
+    brew install azure-functions-core-tools@4
+    ```
+  - **Linux (Debian/Ubuntu)** :
+    La méthode recommandée est d'ajouter le dépôt de paquets de Microsoft.
+    ```bash
+    # Télécharger la clé GPG de Microsoft et l'enregistrer
+    wget -qO- https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > packages.microsoft.gpg
+    sudo install -o root -g root -m 644 packages.microsoft.gpg /etc/apt/trusted.gpg.d/
+    
+    # Ajouter le dépôt de Microsoft
+    sudo sh -c 'echo "deb [arch=amd64] https://packages.microsoft.com/repos/microsoft-ubuntu-$(lsb_release -cs)-prod $(lsb_release -cs) main" > /etc/apt/sources.list.d/microsoft-prod.list'
+    
+    # Mettre à jour et installer
+    sudo apt-get update && sudo apt-get install -y azure-functions-core-tools-4
+    ```
+  Pour plus de détails, consultez la documentation officielle de Microsoft.
+
 - Un compte Azure avec un abonnement actif
 - **Dépendances système** : Pour les systèmes basés sur Debian/Ubuntu, certaines bibliothèques sont nécessaires pour compiler des paquets comme `numpy` ou `scipy`. Installez-les avec la commande suivante :
   ```bash
