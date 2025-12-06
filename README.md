@@ -8,12 +8,13 @@ L'API expose un endpoint `/api/recommend` qui prend un `user_id` en paramètre e
 
 - **Hébergement** : Azure Functions (Plan Consommation)
 - **Langage** : Python 3.10
+- **Langage** : Python 3.11
 - **Déploiement** : CI/CD avec GitHub Actions
 - **Stockage du modèle** : Azure Blob Storage
 
 ## Prérequis
 
-- Python 3.10+
+- Python 3.11+
 - Azure Functions Core Tools
 - Un compte Azure avec un abonnement actif
 

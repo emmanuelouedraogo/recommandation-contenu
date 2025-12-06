@@ -5,7 +5,7 @@ name: Déploiement sur Azure Functions
 # --- Variables d'environnement globales ---
 env:
   AZURE_FUNCTIONAPP_NAME: content-recommendation-function # Remplacez par le nom de votre Function App
-  PYTHON_VERSION: '3.10'
+  PYTHON_VERSION: '3.11'
   AZURE_STORAGE_ACCOUNT_NAME: recoappstorage123 # Nom du compte de stockage (doit être unique globalement, 3-24 caractères, minuscules et chiffres)
   AZURE_RESOURCE_GROUP: rg-recommandation-contenu # Nom du groupe de ressources
   AZURE_LOCATION: 'francecentral' # Emplacement des ressources
