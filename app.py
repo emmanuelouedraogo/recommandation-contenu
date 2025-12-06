@@ -223,8 +223,8 @@ elif choice == "Mon Historique":
                         else:
                             # S'assurer que chaque article n'apparaît qu'une fois (le plus récent)
                             user_history_df = user_history_df.sort_values('click_timestamp').drop_duplicates(subset=['user_id', 'article_id'], keep='last')
-                            articles_df_history = load_df_from_blob(ARTICLES_BLOB_NAME)
-                            history_details = user_history_df.merge(articles_df, on='article_id', how='left')
+                            articles_df_history = load_df_from_blob(ARTICLES_BLOB_NAME) # Correction: Utiliser une variable locale
+                            history_details = user_history_df.merge(articles_df_history, on='article_id', how='left')
                             history_details = history_details.sort_values(by='click_timestamp', ascending=False)
                             
                             st.subheader(f"Articles que vous avez notés, Utilisateur {user_id} :")
@@ -276,7 +276,7 @@ elif choice == "Créer un compte":
         
         # Ajoute au DataFrame et sauvegarde
         new_user_df = pd.DataFrame([{'user_id': new_user_id}])
-        save_df_to_blob(pd.concat([users_df, new_user_df], ignore_index=True), USERS_BLOB_NAME)
+        save_df_to_blob(pd.concat([current_users_df, new_user_df], ignore_index=True), USERS_BLOB_NAME)
         # Invalide le cache pour que la liste des utilisateurs soit mise à jour
         st.cache_data.clear()
         
