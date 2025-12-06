@@ -1,5 +1,5 @@
-# API de Recommandation de Contenu - Azure Functions
-   
+# API de Recommandation de Contenu - Azure Functions 
+
 Ce projet déploie une API de recommandation de contenu en tant qu'application "serverless" sur Azure Functions.
 
 L'API expose un endpoint `/api/recommend` qui prend un `user_id` en paramètre et retourne une liste de recommandations générées par un modèle de machine learning. Le modèle est automatiquement téléchargé depuis Azure Blob Storage au démarrage de la fonction.
@@ -23,43 +23,45 @@ L'API expose un endpoint `/api/recommend` qui prend un `user_id` en paramètre e
 
 ## Installation et exécution locale
 
-1.  **Cloner le dépôt**
-    ```bash
-    git clone <url-du-depot>
-    cd recommandation-contenu
-    ```
+1. **Cloner le dépôt**
 
-2.  **Créer un environnement virtuel et installer les dépendances**
-    ```bash
-    python -m venv .venv
-    source .venv/bin/activate  # Sur Linux/macOS
-    # .\.venv\Scripts\activate  # Sur Windows
-    pip install -r requirements.txt # Dépendances de production
-    pip install -r requirements-dev.txt # Dépendances de développement (flake8, etc.)
-    ```
+   ```bash
+   git clone <url-du-depot>
+   cd recommandation-contenu
+   ```
+2. **Créer un environnement virtuel et installer les dépendances**
 
-3.  **Configurer les paramètres locaux**
-    - Créez un fichier `local.settings.json` à la racine du projet.
-    - Copiez le contenu ci-dessous et remplacez la valeur de `AZURE_CONNECTION_STRING` par votre chaîne de connexion au compte de stockage Azure.
+   ```bash
+   python -m venv .venv
+   source .venv/bin/activate  # Sur Linux/macOS
+   # .\.venv\Scripts\activate  # Sur Windows
+   pip install -r requirements.txt # Dépendances de production
+   pip install -r requirements-dev.txt # Dépendances de développement (flake8, etc.)
+   ```
+3. **Configurer les paramètres locaux**
 
-    ```json
-    {
-      "IsEncrypted": false,
-      "Values": {
-        "AzureWebJobsStorage": "",
-        "FUNCTIONS_WORKER_RUNTIME": "python",
-        "AZURE_CONNECTION_STRING": "Collez-votre-chaîne-de-connexion-ici",
-        "AZURE_STORAGE_CONTAINER_NAME": "reco-data",
-        "AZURE_STORAGE_MODEL_BLOB": "models/hybrid_recommender_pipeline.pkl"
-      }
-    }
-    ```
+   - Créez un fichier `local.settings.json` à la racine du projet.
+   - Copiez le contenu ci-dessous et remplacez la valeur de `AZURE_CONNECTION_STRING` par votre chaîne de connexion au compte de stockage Azure.
 
-4.  **Lancer l'application localement**
-    ```bash
-    func start
-    ```
-    L'API sera accessible à l'adresse `http://localhost:7071/api/recommend`.
+   ```json
+   {
+     "IsEncrypted": false,
+     "Values": {
+       "AzureWebJobsStorage": "",
+       "FUNCTIONS_WORKER_RUNTIME": "python",
+       "AZURE_CONNECTION_STRING": "Collez-votre-chaîne-de-connexion-ici",
+       "AZURE_STORAGE_CONTAINER_NAME": "reco-data",
+       "AZURE_STORAGE_MODEL_BLOB": "models/hybrid_recommender_pipeline.pkl"
+     }
+   }
+   ```
+4. **Lancer l'application localement**
+
+   ```bash
+   func start
+   ```
+
+   L'API sera accessible à l'adresse `http://localhost:7071/api/recommend`.
 
 ## Endpoint de l'API
 
