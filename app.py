@@ -270,7 +270,7 @@ elif choice == "Mon Historique":
                             if not all(col in user_history_df.columns for col in required_cols):
                                 st.error("Le fichier d'historique (clicks_sample.csv) est mal formaté. Il manque des colonnes attendues (ex: 'user_id', 'article_id').")
                                 logger.error(f"Colonnes manquantes dans clicks_sample.csv. Colonnes trouvées : {user_history_df.columns.tolist()}")
-                                return
+                                st.stop()
 
                             # S'assurer que chaque article n'apparaît qu'une fois (le plus récent)
                             user_history_df = user_history_df.sort_values('click_timestamp').drop_duplicates(subset=['user_id', 'article_id'], keep='last')
