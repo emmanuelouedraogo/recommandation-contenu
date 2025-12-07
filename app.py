@@ -4,6 +4,8 @@ import os
 import requests
 from azure.storage.blob import BlobServiceClient
 from io import StringIO
+from azure.core.exceptions import ResourceNotFoundError, ServiceRequestError
+import logging
 
 # --- Configuration de la Page ---
 st.set_page_config(
@@ -11,6 +13,22 @@ st.set_page_config(
     page_icon="📚",
     layout="wide"
 )
+
+# --- Configuration du Logger ---
+# Créer un logger pour suivre les événements de l'application.
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
+# Créer un gestionnaire de fichiers pour écrire les logs dans app.log.
+# En production, vous pourriez utiliser des services de logging plus avancés.
+if not logger.handlers:
+    log_file = 'app.log'
+    fh = logging.FileHandler(log_file, encoding='utf-8')
+    fh.setLevel(logging.INFO)
+    # Définir le format des messages de log.
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    fh.setFormatter(formatter)
+    logger.addHandler(fh)
 
 # --- Constantes et Secrets ---
 # `st.secrets` lit les secrets depuis le fichier `.streamlit/secrets.toml` en local,
@@ -57,13 +75,13 @@ def load_df_from_blob(blob_name):
     try:
         downloader = blob_client.download_blob(encoding='utf-8')
         blob_data = downloader.readall()
-        return pd.read_csv(StringIO(blob_data)) if blob_data else pd.DataFrame()
-    except requests.exceptions.ConnectionError as e:
+        return pd.read_csv(StringIO(blob_data))
+    except ServiceRequestError as e:
         st.error(f"Erreur de connexion au stockage Azure. Vérifiez votre connexion internet et la chaîne de connexion. Erreur: {e}")
         return pd.DataFrame()
-    except Exception as e:
-        st.warning(f"Le blob '{blob_name}' est vide ou n'a pas pu être lu. Un nouveau sera créé si nécessaire. Erreur: {e}")
-        return pd.DataFrame() # Retourne un DF vide pour gérer tous les cas
+    except ResourceNotFoundError:
+        st.warning(f"Le blob '{blob_name}' n'a pas été trouvé. Un nouveau sera créé si nécessaire.")
+        return pd.DataFrame()
 
 def save_df_to_blob(df, blob_name):
     """Sauvegarde un DataFrame dans un blob CSV."""
@@ -72,25 +90,35 @@ def save_df_to_blob(df, blob_name):
     output = StringIO()
     df.to_csv(output, index=False)
     blob_client = blob_service_client.get_blob_client(container=AZURE_CONTAINER_NAME, blob=blob_name)
-    blob_client.upload_blob(output.getvalue(), overwrite=True)
+    try:
+        blob_client.upload_blob(output.getvalue(), overwrite=True)
+        return True
+    except Exception as e:
+        error_msg = f"Échec de la sauvegarde des données dans '{blob_name}'. Erreur: {e}"
+        st.error(error_msg)
+        logger.error(error_msg)
+        return False
 
 # ==============================================================================
 # --- Logique de l'application ---
 # ==============================================================================
 def add_interaction(user_id, article_id, rating):
-    """Charge les interactions, ajoute une nouvelle note et sauvegarde."""
+    """Ajoute une nouvelle interaction (note) et la sauvegarde."""
     clicks_df = load_df_from_blob(CLICKS_BLOB_NAME)
     
     new_interaction = pd.DataFrame([{
         'user_id': user_id,
         'article_id': article_id,
         'click_timestamp': int(pd.Timestamp.now().timestamp()),
-        'nb': rating # 'nb' est utilisé comme score d'interaction dans les modèles
+        'nb': rating
     }])
     
     updated_clicks_df = pd.concat([clicks_df, new_interaction], ignore_index=True)
-    save_df_to_blob(updated_clicks_df, CLICKS_BLOB_NAME)
-    st.toast(f"Merci pour votre note de {rating}/5 !", icon="⭐")
+    
+    if save_df_to_blob(updated_clicks_df, CLICKS_BLOB_NAME):
+        # Invalide le cache pour que la prochaine lecture récupère les données à jour
+        st.cache_data.clear()
+        st.toast(f"Merci pour votre note de {rating}/5 !", icon="⭐")
 
 def update_interaction(user_id, article_id, new_rating):
     """Met à jour la note la plus récente pour un article donné par un utilisateur."""
@@ -104,8 +132,11 @@ def update_interaction(user_id, article_id, new_rating):
         # Met à jour la note et le timestamp
         clicks_df.loc[latest_interaction_index, 'nb'] = new_rating
         clicks_df.loc[latest_interaction_index, 'click_timestamp'] = int(pd.Timestamp.now().timestamp())
-        save_df_to_blob(clicks_df, CLICKS_BLOB_NAME)
-        st.toast(f"Votre note a été mise à jour à {new_rating}/5 !", icon="👍")
+        
+        if save_df_to_blob(clicks_df, CLICKS_BLOB_NAME):
+            # Invalide le cache pour que l'historique se mette à jour
+            st.cache_data.clear()
+            st.toast(f"Votre note a été mise à jour à {new_rating}/5 !", icon="👍")
 
 # ==============================================================================
 # --- Fonctions du Système de Recommandation (API) ---
@@ -114,9 +145,15 @@ def get_recommendations(user_id):
     """
     Appelle l'API FastAPI pour obtenir les recommandations.
     """
-    # Recharger les utilisateurs pour s'assurer que la vérification est à jour
-    if user_id not in load_df_from_blob(USERS_BLOB_NAME)['user_id'].unique():
-        st.error("Cet identifiant utilisateur n'existe pas. Veuillez créer un compte.")
+    logger.info(f"Début de la récupération des recommandations pour user_id: {user_id}")
+    users_df = load_df_from_blob(USERS_BLOB_NAME)
+    if users_df.empty:
+        error_msg = "Impossible de vérifier l'utilisateur. Le fichier des utilisateurs est vide ou inaccessible."
+        st.error(error_msg)
+        logger.warning(f"Échec de la vérification pour user_id {user_id}: {error_msg}")
+        return None
+    if user_id not in users_df['user_id'].unique():
+        st.error(f"L'identifiant utilisateur '{user_id}' n'existe pas. Veuillez créer un compte.") # Message pour l'UI
         return None
     
     with st.spinner('Recherche de vos recommandations...'):
@@ -130,16 +167,23 @@ def get_recommendations(user_id):
             try:
                 data = response.json()
                 # L'API renvoie une liste de dictionnaires que nous convertissons en DataFrame.
+                logger.info(f"Recommandations reçues avec succès pour user_id: {user_id}. Nombre de recos: {len(data)}")
                 return pd.DataFrame(data)
             except requests.exceptions.JSONDecodeError:
-                st.error("Le service de recommandation a renvoyé une réponse invalide.")
+                error_msg = f"Le service de recommandation a renvoyé une réponse invalide. Statut: {response.status_code}, Contenu: {response.text}"
+                st.error(error_msg)
+                logger.error(f"Erreur de décodage JSON pour user_id {user_id}. {error_msg}")
                 return None
             
         except requests.exceptions.RequestException as e:
-            st.error(f"Impossible de contacter le service de recommandation. Vérifiez que l'URL de l'API est correcte et que le service est démarré. (Erreur: {e})")
+            error_msg = f"Impossible de contacter le service de recommandation. Vérifiez que l'URL de l'API est correcte et que le service est démarré. (Erreur: {e})"
+            st.error(error_msg)
+            logger.critical(f"Échec de l'appel API pour user_id {user_id}. {error_msg}")
             return None
         except Exception as e:
-            st.error(f"Une erreur inattendue est survenue: {e}")
+            error_msg = f"Une erreur inattendue est survenue: {e}"
+            st.error(error_msg)
+            logger.error(f"Erreur inattendue lors de la récupération des recommandations pour user_id {user_id}. {error_msg}")
             return None
 
 # ==============================================================================
@@ -157,7 +201,7 @@ if choice == "Recommandations":
     # Affiche la liste des utilisateurs pour faciliter le test
     users_df_display = load_df_from_blob(USERS_BLOB_NAME)
     if not users_df_display.empty:
-        st.info("Utilisateurs existants (pour tester) :")
+        st.info("Utilisateurs existants (pour les tests) :")
         st.dataframe(users_df_display, width='stretch')
 
     user_id_input = st.text_input("Entrez votre identifiant utilisateur :")
@@ -176,7 +220,6 @@ if choice == "Recommandations":
                     
                     st.success(f"Bienvenue, Utilisateur {user_id} ! Voici vos recommandations personnalisées :")
                     
-                    # CORRECTION: Itérer sur `reco_details` pour avoir accès aux titres et contenus.
                     for _, row in reco_details.iterrows():
                         with st.container():
                             # Utiliser les données fusionnées.
@@ -272,17 +315,17 @@ elif choice == "Créer un compte":
         else:
             new_user_id = int(current_users_df['user_id'].max()) + 1
             while new_user_id in current_users_df['user_id'].values:
-                new_user_id += 1
+                new_user_id += 1 # Assure l'unicité même si des IDs ont été supprimés
         
         # Ajoute au DataFrame et sauvegarde
         new_user_df = pd.DataFrame([{'user_id': new_user_id}])
-        save_df_to_blob(pd.concat([current_users_df, new_user_df], ignore_index=True), USERS_BLOB_NAME)
-        # Invalide le cache pour que la liste des utilisateurs soit mise à jour
-        st.cache_data.clear()
+        updated_users_df = pd.concat([current_users_df, new_user_df], ignore_index=True)
         
-        st.success(f"Votre nouveau compte a été créé avec succès ! Votre identifiant est :")
-        st.code(new_user_id, language='text')
-        st.info("Vous pouvez maintenant utiliser cet identifiant dans la section 'Recommandations'.")
+        if save_df_to_blob(updated_users_df, USERS_BLOB_NAME):
+            st.cache_data.clear()
+            st.success(f"Votre nouveau compte a été créé avec succès ! Votre identifiant est :")
+            st.code(new_user_id, language='text')
+            st.info("Vous pouvez maintenant utiliser cet identifiant dans la section 'Recommandations'.")
 
 elif choice == "Ajouter un article":
     st.header("Ajouter un nouvel article ou livre")
@@ -307,11 +350,10 @@ elif choice == "Ajouter un article":
             }])
             
             updated_articles_df = pd.concat([current_articles_df, new_article], ignore_index=True)
-            save_df_to_blob(updated_articles_df, ARTICLES_BLOB_NAME)
-            # Invalide le cache pour que la liste des articles soit mise à jour
-            st.cache_data.clear()
-            
-            st.success(f"L'article '{article_title}' a été ajouté avec succès !")
+            if save_df_to_blob(updated_articles_df, ARTICLES_BLOB_NAME):
+                # Invalide le cache pour que la liste des articles soit mise à jour
+                st.cache_data.clear()
+                st.success(f"L'article '{article_title}' a été ajouté avec succès !")
     
     st.divider()
     st.subheader("Articles actuels dans la base de données")
