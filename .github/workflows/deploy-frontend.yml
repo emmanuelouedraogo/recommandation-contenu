@@ -45,6 +45,7 @@ jobs:
     - name: Configurer l'App Service pour la haute disponibilité
       uses: azure/cli@v2
       with:
+        azcliversion: latest
         inlineScript: |
           echo "Configuration du bilan de santé et de la mise à l'échelle automatique..."
           # Activer le bilan de santé (Health Check) sur le chemin /health
