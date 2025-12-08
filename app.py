@@ -3,10 +3,12 @@ import pandas as pd
 import os
 import requests
 from azure.storage.blob import BlobServiceClient
+from azure.identity import DefaultAzureCredential
+from azure.keyvault.secrets import SecretClient
 from io import StringIO
 from azure.core.exceptions import ResourceNotFoundError, ServiceRequestError
 import logging
-
+# --- Configuration de la Page ---
 # --- Configuration de la Page ---
 st.set_page_config(
     page_title="Recommandation de Contenu",
@@ -30,32 +32,38 @@ if not logger.handlers:
     fh.setFormatter(formatter)
     logger.addHandler(fh)
 
-# --- Constantes et Secrets ---
-# `st.secrets` lit les secrets depuis le fichier `.streamlit/secrets.toml` en local,
-# ou depuis les secrets configurés sur Streamlit Cloud.
-AZURE_CONNECTION_STRING = st.secrets.get("AZURE_CONNECTION_STRING", "")
-
-# Si non trouvé, fallback sur les variables d'environnement (utile pour d'autres déploiements).
-if not AZURE_CONNECTION_STRING:
-    AZURE_CONNECTION_STRING = os.environ.get("AZURE_CONNECTION_STRING", "")
-
-# Validation robuste pour s'assurer que le secret est bien une chaîne non vide.
-if not isinstance(AZURE_CONNECTION_STRING, str) or not AZURE_CONNECTION_STRING.strip():
-    st.error(
-        "Le secret 'AZURE_CONNECTION_STRING' n'est pas configuré correctement. "
-        "Veuillez l'ajouter à .streamlit/secrets.toml ou définir la variable d'environnement AZURE_CONNECTION_STRING."
-    )
-    st.stop()
-
-# Nettoyage explicite pour éviter les erreurs dues aux espaces invisibles.
-AZURE_CONNECTION_STRING = AZURE_CONNECTION_STRING.strip()
-
 # Autres constantes
 AZURE_CONTAINER_NAME = "reco-data"
 USERS_BLOB_NAME = "users.csv"
 ARTICLES_BLOB_NAME = "articles_metadata.csv"  # Nom du blob pour les articles
 CLICKS_BLOB_NAME = "clicks_sample.csv"        # Nom du blob pour les interactions
 TRAINING_LOG_BLOB_NAME = "logs/training_log.csv"
+SECRET_NAME_IN_VAULT = "AZURE-STORAGE-CONNECTION-STRING" # Le nom du secret dans votre Key Vault
+
+# --- Gestion des Secrets via Azure Key Vault ---
+@st.cache_data(show_spinner=False)
+def get_secret_from_key_vault(vault_url: str, secret_name: str) -> str:
+    """Récupère un secret depuis Azure Key Vault en utilisant l'identité managée."""
+    try:
+        # DefaultAzureCredential s'authentifie automatiquement via l'identité managée
+        credential = DefaultAzureCredential()
+        client = SecretClient(vault_url=vault_url, credential=credential)
+        retrieved_secret = client.get_secret(secret_name)
+        return retrieved_secret.value
+    except Exception as e:
+        st.error(f"Impossible de récupérer le secret '{secret_name}' depuis Azure Key Vault. Erreur: {e}")
+        logger.critical(f"Échec de la récupération du secret depuis Key Vault. URL: {vault_url}. Erreur: {e}")
+        st.stop()
+
+# L'URL du Key Vault doit être stockée dans les secrets Streamlit ou en variable d'environnement
+KEY_VAULT_URL = st.secrets.get("KEY_VAULT_URL") or os.environ.get("KEY_VAULT_URL")
+
+if not KEY_VAULT_URL:
+    st.error("Le secret 'KEY_VAULT_URL' n'est pas configuré. Ajoutez-le à .streamlit/secrets.toml ou en variable d'environnement.")
+    st.stop()
+
+# Récupération dynamique de la chaîne de connexion
+AZURE_CONNECTION_STRING = get_secret_from_key_vault(KEY_VAULT_URL, SECRET_NAME_IN_VAULT)
 
 # Utilise l'URL de l'API depuis les secrets, crucial pour le déploiement.
 # Pas de valeur par défaut pour forcer la configuration en production.
