@@ -13,6 +13,8 @@ azure-functions==1.24.0
     # via -r requirements.in
 azure-identity==1.25.1
     # via opencensus-ext-azure
+azure-keyvault-secrets==4.8.0
+    # via -r requirements.in
 azure-storage-blob==12.27.1
     # via -r requirements.in
 cachetools==6.2.2
