@@ -38,7 +38,8 @@ USERS_BLOB_NAME = "users.csv"
 ARTICLES_BLOB_NAME = "articles_metadata.csv"  # Nom du blob pour les articles
 CLICKS_BLOB_NAME = "clicks_sample.csv"        # Nom du blob pour les interactions
 TRAINING_LOG_BLOB_NAME = "logs/training_log.csv"
-SECRET_NAME_IN_VAULT = "AZURE-STORAGE-CONNECTION-STRING" # Le nom du secret dans votre Key Vault
+STORAGE_SECRET_NAME = "STORAGE-CONNECTION-STRING" # Le nom du secret pour la chaîne de connexion
+API_URL_SECRET_NAME = "API-URL"                   # Le nom du secret pour l'URL de l'API
 
 # --- Gestion des Secrets via Azure Key Vault ---
 @st.cache_data(show_spinner=False)
@@ -63,16 +64,12 @@ if not KEY_VAULT_URL:
     st.stop()
 
 # Récupération dynamique de la chaîne de connexion
-AZURE_CONNECTION_STRING = get_secret_from_key_vault(KEY_VAULT_URL, SECRET_NAME_IN_VAULT)
+AZURE_CONNECTION_STRING = get_secret_from_key_vault(KEY_VAULT_URL, STORAGE_SECRET_NAME)
 
-# Utilise l'URL de l'API depuis les secrets, crucial pour le déploiement.
-# Pas de valeur par défaut pour forcer la configuration en production.
-API_URL = st.secrets.get("API_URL")
-if not API_URL: 
-    st.error("Le secret 'API_URL' n'est pas configuré. Veuillez l'ajouter à votre fichier .streamlit/secrets.toml.")
-    st.stop()
+# Récupération dynamique de l'URL de l'API depuis le Key Vault
+API_URL = get_secret_from_key_vault(KEY_VAULT_URL, API_URL_SECRET_NAME)
 # S'assurer que l'URL ne se termine pas par un slash pour éviter les doubles slashes
-API_URL = API_URL.rstrip('/')
+API_URL = API_URL.strip().rstrip('/')
 
 # ==============================================================================
 # --- Fonctions de Chargement des Données ---
