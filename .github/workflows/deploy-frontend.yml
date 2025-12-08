@@ -1,0 +1,48 @@
+name: Déployer le Frontend sur Azure App Service
+
+on:
+  # Déclenche le workflow à chaque push sur la branche main
+  push:
+    branches:
+      - main
+    # Optimisation : ne s'exécute que si des fichiers pertinents sont modifiés
+    paths:
+      - 'frontend/**'
+      - 'requirements.txt'
+      - '.github/workflows/deploy-frontend.yml'
+
+env:
+  AZURE_WEBAPP_NAME: reco-contenu-interface   # Le nom de votre App Service
+  PYTHON_VERSION: '3.11'                      # La version de Python utilisée
+
+jobs:
+  build-and-deploy:
+    name: Build and Deploy
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout du code
+      uses: actions/checkout@v4
+
+    - name: Configuration de Python ${{ env.PYTHON_VERSION }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Installation des dépendances
+      run: |
+        python -m venv venv
+        source venv/bin/activate
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Connexion à Azure
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    - name: Déploiement sur Azure Web App
+      uses: azure/webapps-deploy@v2
+      with:
+        app-name: ${{ env.AZURE_WEBAPP_NAME }}
+        package: .  # Déploie tout le contenu du dépôt

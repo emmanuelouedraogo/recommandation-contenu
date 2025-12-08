@@ -202,45 +202,8 @@ def get_recommendations(user_id):
             logger.error(f"Erreur inattendue lors de la récupération des recommandations pour user_id {user_id}. {error_msg}")
             return None
 
-# ==============================================================================
-# --- Interface Streamlit ---
-# ==============================================================================
-st.title("📚 Système de Recommandation de Contenu")
-
-# --- Gestion de la session utilisateur ---
-if 'user_id' not in st.session_state:
-    st.session_state.user_id = None
-
-# Menu dans la barre latérale
-st.sidebar.title("Navigation")
-menu = ["Recommandations", "Mon Historique", "Performance du Modèle", "Créer un compte", "Ajouter un article"]
-choice = st.sidebar.selectbox("Menu", menu)
-
-st.sidebar.divider()
-
-# --- Section de connexion dans la barre latérale ---
-if st.session_state.user_id is None:
-    st.sidebar.header("Connexion")
-    login_user_id = st.sidebar.text_input("Entrez votre identifiant utilisateur", key="login_input")
-    if st.sidebar.button("Se connecter"):
-        if login_user_id:
-            try:
-                user_id_to_check = int(login_user_id)
-                users_df = load_df_from_blob(USERS_BLOB_NAME)
-                if user_id_to_check in users_df['user_id'].unique():
-                    st.session_state.user_id = user_id_to_check
-                    st.rerun() # Recharge la page pour refléter l'état connecté
-                else:
-                    st.sidebar.error("Cet utilisateur n'existe pas.")
-            except ValueError:
-                st.sidebar.error("L'ID doit être un nombre.")
-else:
-    st.sidebar.success(f"Connecté en tant que : **{st.session_state.user_id}**")
-    if st.sidebar.button("Se déconnecter"):
-        st.session_state.user_id = None
-        st.rerun()
-
-if choice == "Recommandations":
+def show_recommendations_page():
+    """Affiche la page des recommandations."""
     st.header("Obtenez vos recommandations")
     
     # Affiche la liste des utilisateurs pour faciliter le test
@@ -274,7 +237,8 @@ if choice == "Recommandations":
         elif recommendations is not None:
              st.warning("Il n'y a pas assez d'articles à recommander pour le moment.")
 
-elif choice == "Mon Historique":
+def show_history_page():
+    """Affiche la page de l'historique des notations."""
     st.header("Historique de vos notations")
     
     if st.session_state.user_id is None:
@@ -315,7 +279,8 @@ elif choice == "Mon Historique":
                             update_interaction(user_id, row['article_id'], new_rating)
                     st.divider()
 
-elif choice == "Performance du Modèle":
+def show_performance_page():
+    """Affiche la page de performance du modèle."""
     st.header("Historique et Performance des Entraînements")
 
     log_df = load_df_from_blob(TRAINING_LOG_BLOB_NAME)
@@ -335,7 +300,8 @@ elif choice == "Performance du Modèle":
         st.subheader("Détail des entraînements")
         st.dataframe(log_df, width='stretch')
 
-elif choice == "Créer un compte":
+def show_create_account_page():
+    """Affiche la page de création de compte."""
     st.header("Créez votre compte")
     
     if st.button("Créer un nouvel identifiant"):
@@ -358,7 +324,8 @@ elif choice == "Créer un compte":
             st.code(new_user_id, language='text')
             st.info("Vous pouvez maintenant utiliser cet identifiant dans la section 'Recommandations'.")
 
-elif choice == "Ajouter un article":
+def show_add_article_page():
+    """Affiche la page d'ajout d'article."""
     st.header("Ajouter un nouvel article ou livre")
 
     with st.form(key="article_form", clear_on_submit=True):
@@ -390,3 +357,53 @@ elif choice == "Ajouter un article":
     st.subheader("Articles actuels dans la base de données")
     # Recharger les données pour afficher le nouvel article
     st.dataframe(load_df_from_blob(ARTICLES_BLOB_NAME), width='stretch')
+
+# ==============================================================================
+# --- Interface Streamlit ---
+# ==============================================================================
+st.title("📚 Système de Recommandation de Contenu")
+
+# --- Gestion de la session utilisateur ---
+if 'user_id' not in st.session_state:
+    st.session_state.user_id = None
+
+# Menu dans la barre latérale
+st.sidebar.title("Navigation")
+menu = ["Recommandations", "Mon Historique", "Performance du Modèle", "Créer un compte", "Ajouter un article"]
+choice = st.sidebar.selectbox("Menu", menu)
+
+st.sidebar.divider()
+
+# --- Section de connexion dans la barre latérale ---
+if st.session_state.user_id is None:
+    st.sidebar.header("Connexion")
+    login_user_id = st.sidebar.text_input("Entrez votre identifiant utilisateur", key="login_input")
+    if st.sidebar.button("Se connecter"):
+        if login_user_id:
+            try:
+                user_id_to_check = int(login_user_id)
+                users_df = load_df_from_blob(USERS_BLOB_NAME)
+                if user_id_to_check in users_df['user_id'].unique():
+                    st.session_state.user_id = user_id_to_check
+                    st.rerun() # Recharge la page pour refléter l'état connecté
+                else:
+                    st.sidebar.error("Cet utilisateur n'existe pas.")
+            except ValueError:
+                st.sidebar.error("L'ID doit être un nombre.")
+else:
+    st.sidebar.success(f"Connecté en tant que : **{st.session_state.user_id}**")
+    if st.sidebar.button("Se déconnecter"):
+        st.session_state.user_id = None
+        st.rerun()
+
+# --- Routeur de page principal ---
+if choice == "Recommandations":
+    show_recommendations_page()
+elif choice == "Mon Historique":
+    show_history_page()
+elif choice == "Performance du Modèle":
+    show_performance_page()
+elif choice == "Créer un compte":
+    show_create_account_page()
+elif choice == "Ajouter un article":
+    show_add_article_page()
