@@ -7,3 +7,5 @@ opencensus-ext-azure
 azure-functions
 joblib
 scikit-surprise
+azure-identity
+azure-keyvault-secrets
