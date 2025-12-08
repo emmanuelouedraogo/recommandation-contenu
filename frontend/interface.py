@@ -42,19 +42,22 @@ STORAGE_SECRET_NAME = "STORAGE-CONNECTION-STRING" # Le nom du secret pour la cha
 API_URL_SECRET_NAME = "API-URL"                   # Le nom du secret pour l'URL de l'API
 
 # --- Gestion des Secrets via Azure Key Vault ---
+class ConfigError(Exception):
+    """Exception personnalisée pour les erreurs de configuration."""
+    pass
+
 @st.cache_data(show_spinner=False)
 def recuperer_secret_depuis_key_vault(vault_url: str, secret_name: str) -> str:
     """Récupère un secret depuis Azure Key Vault en utilisant l'identité managée."""
     try:
-        # DefaultAzureCredential s'authentifie automatiquement via l'identité managée
         credential = DefaultAzureCredential()
         client = SecretClient(vault_url=vault_url, credential=credential)
         retrieved_secret = client.get_secret(secret_name)
+        logger.info(f"Secret '{secret_name}' récupéré avec succès depuis Key Vault.")
         return retrieved_secret.value
     except Exception as e:
-        st.error(f"Impossible de récupérer le secret '{secret_name}' depuis Azure Key Vault. Erreur: {e}")
         logger.critical(f"Échec de la récupération du secret depuis Key Vault. URL: {vault_url}. Erreur: {e}")
-        st.stop()
+        raise ConfigError(f"Impossible de récupérer le secret '{secret_name}' depuis Azure Key Vault.") from e
 
 # L'URL du Key Vault doit être stockée dans les secrets Streamlit ou en variable d'environnement
 KEY_VAULT_URL = st.secrets.get("KEY_VAULT_URL") or os.environ.get("KEY_VAULT_URL")
@@ -63,13 +66,17 @@ if not KEY_VAULT_URL:
     st.error("Le secret 'KEY_VAULT_URL' n'est pas configuré. Ajoutez-le à .streamlit/secrets.toml ou en variable d'environnement.")
     st.stop()
 
-# Récupération dynamique de la chaîne de connexion
-AZURE_CONNECTION_STRING = recuperer_secret_depuis_key_vault(KEY_VAULT_URL, STORAGE_SECRET_NAME)
-
-# Récupération dynamique de l'URL de l'API depuis le Key Vault
-API_URL = recuperer_secret_depuis_key_vault(KEY_VAULT_URL, API_URL_SECRET_NAME)
-# S'assurer que l'URL ne se termine pas par un slash pour éviter les doubles slashes
-API_URL = API_URL.strip().rstrip('/')
+try:
+    # Récupération dynamique de la chaîne de connexion
+    AZURE_CONNECTION_STRING = recuperer_secret_depuis_key_vault(KEY_VAULT_URL, STORAGE_SECRET_NAME)
+    # Récupération dynamique de l'URL de l'API depuis le Key Vault
+    API_URL = recuperer_secret_depuis_key_vault(KEY_VAULT_URL, API_URL_SECRET_NAME)
+    # S'assurer que l'URL ne se termine pas par un slash pour éviter les doubles slashes
+    API_URL = API_URL.strip().rstrip('/')
+except ConfigError as e:
+    st.error(f"Erreur de configuration critique : {e}")
+    st.info("Veuillez vérifier les permissions de l'identité managée de l'App Service sur le Key Vault et la présence des secrets.")
+    st.stop()
 
 # ==============================================================================
 # --- Fonctions de Chargement des Données ---
