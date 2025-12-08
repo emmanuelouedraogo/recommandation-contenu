@@ -70,7 +70,7 @@ blob_service_client = get_blob_service_client(AZURE_CONNECTION_STRING)
 
 @st.cache_data(ttl=3600) # Cache les données pendant 1 heure
 def load_df_from_blob(blob_name: str) -> pd.DataFrame:
-    """Charge un DataFrame depuis un blob CSV."""
+    """Charge un DataFrame depuis un blob CSV en utilisant le client global."""
     blob_client = blob_service_client.get_blob_client(container=AZURE_CONTAINER_NAME, blob=blob_name)
     try:
         downloader = blob_client.download_blob(encoding='utf-8')
@@ -84,7 +84,7 @@ def load_df_from_blob(blob_name: str) -> pd.DataFrame:
         return pd.DataFrame()
 
 def save_df_to_blob(df: pd.DataFrame, blob_name: str) -> bool:
-    """Sauvegarde un DataFrame dans un blob CSV."""
+    """Sauvegarde un DataFrame dans un blob CSV en utilisant le client global."""
 
     output = StringIO()
     df.to_csv(output, index=False)
