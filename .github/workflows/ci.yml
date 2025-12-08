@@ -41,12 +41,12 @@ jobs:
       - name: Installation des dépendances
         run: |
           python -m pip install --upgrade pip
-          pip install pip-tools
-          pip install -r requirements.txt # Dépendances de production
+          pip install -r api/requirements.txt # Dépendances de production
           pip install flake8 # Outil de développement pour le linting
 
       # Étape 3: Connexion à Azure avec vos identifiants
       - name: Connexion à Azure
+        id: login-to-azure
         uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
@@ -66,8 +66,8 @@ jobs:
             echo "Fournisseur 'Microsoft.AlertsManagement' enregistré avec succès."
 
       # Étape 5: Validation du code avec le linter
-      - name: Linter le code avec flake8 (en utilisant .flake8 config)
-        run: flake8 .
+      - name: Linter le code de l'API avec flake8
+        run: flake8 api/
 
       # Étape 6: Création de l'infrastructure Azure
       - name: Création des ressources Azure (si nécessaire)
@@ -98,4 +98,4 @@ jobs:
         uses: azure/functions-action@v1
         with:
           app-name: ${{ env.AZURE_FUNCTIONAPP_NAME }}
-          package: .
+          package: api

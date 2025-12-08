@@ -8,7 +8,7 @@ on:
     # Optimisation : ne s'exécute que si des fichiers pertinents sont modifiés
     paths:
       - 'frontend/**'
-      - 'requirements.txt'
+      - 'frontend/requirements.txt'
       - '.github/workflows/deploy-frontend.yml'
 
 env:
@@ -34,7 +34,7 @@ jobs:
         python -m venv venv
         source venv/bin/activate
         python -m pip install --upgrade pip
-        pip install -r requirements.txt
+        pip install -r frontend/requirements.txt
 
     - name: Connexion à Azure
       uses: azure/login@v1

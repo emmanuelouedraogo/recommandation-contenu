@@ -1,9 +1,0 @@
-streamlit
-pandas
-requests
-azure-identity
-azure-keyvault-secrets
-azure-storage-blob
-numpy==1.26.0
-scikit-surprise==1.1.4
-implicit==0.7.2

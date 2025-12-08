@@ -18,19 +18,10 @@ st.set_page_config(
 
 # --- Configuration du Logger ---
 # Créer un logger pour suivre les événements de l'application.
+# En production, logger vers stdout/stderr est la meilleure pratique.
+# Azure App Service collecte ces logs automatiquement.
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-
-# Créer un gestionnaire de fichiers pour écrire les logs dans app.log.
-# En production, vous pourriez utiliser des services de logging plus avancés.
-if not logger.handlers:
-    log_file = 'app.log'
-    fh = logging.FileHandler(log_file, encoding='utf-8')
-    fh.setLevel(logging.INFO)
-    # Définir le format des messages de log.
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    fh.setFormatter(formatter)
-    logger.addHandler(fh)
 
 # Autres constantes
 AZURE_CONTAINER_NAME = "reco-data"

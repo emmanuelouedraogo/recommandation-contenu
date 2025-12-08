@@ -1,11 +1,9 @@
 pandas
-numpy
+numpy==1.26.4
 scikit-learn
 implicit
 azure-storage-blob
-opencensus-ext-azure
 azure-functions
 joblib
 scikit-surprise
-azure-identity
-azure-keyvault-secrets
+lz4
