@@ -30,15 +30,21 @@ jobs:
       with:
         python-version: ${{ env.PYTHON_VERSION }}
 
+    - name: Mise en cache des dépendances pip
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
     - name: Installation des dépendances
       run: |
-        python -m venv venv
-        source venv/bin/activate
         python -m pip install --upgrade pip
         pip install -r frontend/requirements.txt
 
     - name: Connexion à Azure
-      uses: azure/login@v1
+      uses: azure/login@v2
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
 
@@ -67,7 +73,7 @@ jobs:
             --min-count 3 --max-count 5 --count 3 || echo "Le profil autoscale existe déjà, mise à jour en cours."
 
           # Supprimer les anciennes règles pour éviter les conflits, puis les recréer.
-          az monitor autoscale rule delete --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --autoscale-name "autoscale-plan-cpu" --index "*" --yes
+          yes | az monitor autoscale rule delete --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --autoscale-name "autoscale-plan-cpu" --index "*"
           az monitor autoscale rule create --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --autoscale-name "autoscale-plan-cpu" --scale "out 1" --condition "CpuPercentage > 70 avg 5m"
           az monitor autoscale rule create --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --autoscale-name "autoscale-plan-cpu" --scale "in 1" --condition "CpuPercentage < 30 avg 5m"
 
