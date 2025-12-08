@@ -58,19 +58,19 @@ API_URL = API_URL.rstrip('/')
 # --- Fonctions de Chargement des Données ---
 # ==============================================================================
 @st.cache_resource(ttl=3600)
-def get_blob_service_client(conn_str):
+def get_blob_service_client(conn_str: str) -> BlobServiceClient:
     """Crée un client de service blob. Mis en cache pour la performance."""
     if not conn_str:
         st.error("La chaîne de connexion Azure n'est pas configurée dans les secrets !")
-        return None
+        st.stop()
     return BlobServiceClient.from_connection_string(conn_str)
 
+# Initialiser le client une seule fois
+blob_service_client = get_blob_service_client(AZURE_CONNECTION_STRING)
+
 @st.cache_data(ttl=3600) # Cache les données pendant 1 heure
-def load_df_from_blob(blob_name, conn_str):
+def load_df_from_blob(blob_name: str) -> pd.DataFrame:
     """Charge un DataFrame depuis un blob CSV."""
-    blob_service_client = get_blob_service_client(conn_str)
-    if not blob_service_client: return pd.DataFrame()
-    
     blob_client = blob_service_client.get_blob_client(container=AZURE_CONTAINER_NAME, blob=blob_name)
     try:
         downloader = blob_client.download_blob(encoding='utf-8')
@@ -83,9 +83,8 @@ def load_df_from_blob(blob_name, conn_str):
         st.warning(f"Le blob '{blob_name}' n'a pas été trouvé. Un nouveau sera créé si nécessaire.")
         return pd.DataFrame()
 
-def save_df_to_blob(df, blob_name, conn_str):
+def save_df_to_blob(df: pd.DataFrame, blob_name: str) -> bool:
     """Sauvegarde un DataFrame dans un blob CSV."""
-    blob_service_client = get_blob_service_client(conn_str)
 
     output = StringIO()
     df.to_csv(output, index=False)
@@ -104,7 +103,7 @@ def save_df_to_blob(df, blob_name, conn_str):
 # ==============================================================================
 def add_interaction(user_id, article_id, rating):
     """Ajoute une nouvelle interaction (note) et la sauvegarde."""
-    clicks_df = load_df_from_blob(CLICKS_BLOB_NAME, AZURE_CONNECTION_STRING)
+    clicks_df = load_df_from_blob(CLICKS_BLOB_NAME)
     
     new_interaction = pd.DataFrame([{
         'user_id': user_id,
@@ -115,14 +114,14 @@ def add_interaction(user_id, article_id, rating):
     
     updated_clicks_df = pd.concat([clicks_df, new_interaction], ignore_index=True)
     
-    if save_df_to_blob(updated_clicks_df, CLICKS_BLOB_NAME, AZURE_CONNECTION_STRING):
+    if save_df_to_blob(updated_clicks_df, CLICKS_BLOB_NAME):
         # Invalide le cache pour que la prochaine lecture récupère les données à jour
         st.cache_data.clear()
         st.toast(f"Merci pour votre note de {rating}/5 !", icon="⭐")
 
 def update_interaction(user_id, article_id, new_rating):
     """Met à jour la note la plus récente pour un article donné par un utilisateur."""
-    clicks_df = load_df_from_blob(CLICKS_BLOB_NAME, AZURE_CONNECTION_STRING)
+    clicks_df = load_df_from_blob(CLICKS_BLOB_NAME)
     
     # Trouve l'index de la dernière interaction pour ce couple utilisateur/article
     user_article_interactions = clicks_df[(clicks_df['user_id'] == user_id) & (clicks_df['article_id'] == article_id)]
@@ -133,7 +132,7 @@ def update_interaction(user_id, article_id, new_rating):
         clicks_df.loc[latest_interaction_index, 'nb'] = new_rating
         clicks_df.loc[latest_interaction_index, 'click_timestamp'] = int(pd.Timestamp.now().timestamp())
         
-        if save_df_to_blob(clicks_df, CLICKS_BLOB_NAME, AZURE_CONNECTION_STRING):
+        if save_df_to_blob(clicks_df, CLICKS_BLOB_NAME):
             # Invalide le cache pour que l'historique se mette à jour
             st.cache_data.clear()
             st.toast(f"Votre note a été mise à jour à {new_rating}/5 !", icon="👍")
@@ -146,7 +145,7 @@ def get_recommendations(user_id):
     Appelle l'API FastAPI pour obtenir les recommandations.
     """
     logger.info(f"Début de la récupération des recommandations pour user_id: {user_id}")
-    users_df = load_df_from_blob(USERS_BLOB_NAME, AZURE_CONNECTION_STRING)
+    users_df = load_df_from_blob(USERS_BLOB_NAME)
     if users_df.empty:
         error_msg = "Impossible de vérifier l'utilisateur. Le fichier des utilisateurs est vide ou inaccessible."
         st.error(error_msg)
@@ -199,7 +198,7 @@ if choice == "Recommandations":
     st.header("Obtenez vos recommandations")
     
     # Affiche la liste des utilisateurs pour faciliter le test
-    users_df_display = load_df_from_blob(USERS_BLOB_NAME, AZURE_CONNECTION_STRING)
+    users_df_display = load_df_from_blob(USERS_BLOB_NAME)
     if not users_df_display.empty:
         st.info("Utilisateurs existants (pour les tests) :")
         st.dataframe(users_df_display, width='stretch')
@@ -215,7 +214,7 @@ if choice == "Recommandations":
                 
                 if recommendations is not None and not recommendations.empty:
                     # Fusionner avec les métadonnées pour obtenir les titres et contenus
-                    articles_df = load_df_from_blob(ARTICLES_BLOB_NAME, AZURE_CONNECTION_STRING)
+                    articles_df = load_df_from_blob(ARTICLES_BLOB_NAME)
                     reco_details = recommendations.merge(articles_df, on='article_id', how='left')
                     
                     st.success(f"Bienvenue, Utilisateur {user_id} ! Voici vos recommandations personnalisées :")
@@ -248,13 +247,13 @@ elif choice == "Mon Historique":
     if st.button("Afficher mon historique", key="history_btn"):
         if user_id_history:
             try:
-                users_df_history = load_df_from_blob(USERS_BLOB_NAME, AZURE_CONNECTION_STRING)
+                users_df_history = load_df_from_blob(USERS_BLOB_NAME)
                 user_id = int(user_id_history)
                 
                 if user_id not in users_df_history['user_id'].unique():
                     st.error("Cet identifiant utilisateur n'existe pas.")
                 else:
-                    clicks_df = load_df_from_blob(CLICKS_BLOB_NAME, AZURE_CONNECTION_STRING)
+                    clicks_df = load_df_from_blob(CLICKS_BLOB_NAME)
                     
                     if clicks_df.empty:
                         st.warning("Aucune notation n'a encore été enregistrée dans le système.")
@@ -274,7 +273,7 @@ elif choice == "Mon Historique":
 
                             # S'assurer que chaque article n'apparaît qu'une fois (le plus récent)
                             user_history_df = user_history_df.sort_values('click_timestamp').drop_duplicates(subset=['user_id', 'article_id'], keep='last')
-                            articles_df_history = load_df_from_blob(ARTICLES_BLOB_NAME, AZURE_CONNECTION_STRING) # Correction: Utiliser une variable locale
+                            articles_df_history = load_df_from_blob(ARTICLES_BLOB_NAME) # Correction: Utiliser une variable locale
                             history_details = user_history_df.merge(articles_df_history, on='article_id', how='left').fillna({'title': 'Titre inconnu'})
                             history_details = history_details.sort_values(by='click_timestamp', ascending=False)
                             
@@ -295,7 +294,7 @@ elif choice == "Mon Historique":
 elif choice == "Performance du Modèle":
     st.header("Historique et Performance des Entraînements")
 
-    log_df = load_df_from_blob(TRAINING_LOG_BLOB_NAME, AZURE_CONNECTION_STRING)
+    log_df = load_df_from_blob(TRAINING_LOG_BLOB_NAME)
 
     if log_df.empty:
         st.info("Aucun historique d'entraînement n'a encore été enregistré.")
@@ -316,7 +315,7 @@ elif choice == "Créer un compte":
     st.header("Créez votre compte")
     
     if st.button("Créer un nouvel identifiant"):
-        current_users_df = load_df_from_blob(USERS_BLOB_NAME, AZURE_CONNECTION_STRING)
+        current_users_df = load_df_from_blob(USERS_BLOB_NAME)
         # Génère un nouvel ID unique (plus robuste qu'un simple incrément)
         if current_users_df.empty:
             new_user_id = 1
@@ -329,7 +328,7 @@ elif choice == "Créer un compte":
         new_user_df = pd.DataFrame([{'user_id': new_user_id}])
         updated_users_df = pd.concat([current_users_df, new_user_df], ignore_index=True)
         
-        if save_df_to_blob(updated_users_df, USERS_BLOB_NAME, AZURE_CONNECTION_STRING):
+        if save_df_to_blob(updated_users_df, USERS_BLOB_NAME):
             st.cache_data.clear()
             st.success(f"Votre nouveau compte a été créé avec succès ! Votre identifiant est :")
             st.code(new_user_id, language='text')
@@ -345,7 +344,7 @@ elif choice == "Ajouter un article":
         submit_button = st.form_submit_button(label="Ajouter à la base de données")
 
         if submit_button and article_title and article_content:
-            current_articles_df = load_df_from_blob(ARTICLES_BLOB_NAME, AZURE_CONNECTION_STRING)
+            current_articles_df = load_df_from_blob(ARTICLES_BLOB_NAME)
             # Génère un ID unique pour l'article
             new_article_id = int(current_articles_df['article_id'].max() + 1) if not current_articles_df.empty else 1
             
@@ -358,7 +357,7 @@ elif choice == "Ajouter un article":
             }])
             
             updated_articles_df = pd.concat([current_articles_df, new_article], ignore_index=True)
-            if save_df_to_blob(updated_articles_df, ARTICLES_BLOB_NAME, AZURE_CONNECTION_STRING):
+            if save_df_to_blob(updated_articles_df, ARTICLES_BLOB_NAME):
                 # Invalide le cache pour que la liste des articles soit mise à jour
                 st.cache_data.clear()
                 st.success(f"L'article '{article_title}' a été ajouté avec succès !")
@@ -366,4 +365,4 @@ elif choice == "Ajouter un article":
     st.divider()
     st.subheader("Articles actuels dans la base de données")
     # Recharger les données pour afficher le nouvel article
-    st.dataframe(load_df_from_blob(ARTICLES_BLOB_NAME, AZURE_CONNECTION_STRING), width='stretch')
+    st.dataframe(load_df_from_blob(ARTICLES_BLOB_NAME), width='stretch')
