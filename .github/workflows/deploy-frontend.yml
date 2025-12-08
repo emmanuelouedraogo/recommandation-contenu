@@ -43,18 +43,22 @@ jobs:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
 
     - name: Configurer l'App Service pour la haute disponibilité
-      uses: azure/cli@v1
+      uses: azure/cli@v2
       with:
         inlineScript: |
           echo "Configuration du bilan de santé et de la mise à l'échelle automatique..."
           # Activer le bilan de santé (Health Check) sur le chemin /health
           az webapp config set --name ${{ env.AZURE_WEBAPP_NAME }} --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --health-check-path /health
           
-          # Créer un profil de mise à l'échelle automatique pour gérer entre 3 et 5 instances
-          # Cela garantit une haute disponibilité (minimum 3) et s'adapte à la charge.
-          az monitor autoscale create --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --resource ${{ env.AZURE_WEBAPP_NAME }} --resource-type Microsoft.Web/sites --name "autoscale-cpu" --min-count 3 --max-count 5 --count 3
-          # Ajouter une règle pour augmenter le nombre d'instances si l'utilisation moyenne du CPU est > 70% pendant 5 minutes
-          az monitor autoscale rule create --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --autoscale-name "autoscale-cpu" --scale "out 1" --condition "CpuPercentage > 70 avg 5m"
+          # Créer ou mettre à jour le profil de mise à l'échelle automatique pour garantir l'idempotence
+          echo "Création ou mise à jour du profil de mise à l'échelle automatique..."
+          az monitor autoscale create \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --resource ${{ env.AZURE_WEBAPP_NAME }} \
+            --resource-type Microsoft.Web/sites \
+            --name "autoscale-cpu" \
+            --min-count 3 --max-count 5 --count 3 \
+            --rule "scale out 1 if CpuPercentage > 70 avg 5m"
 
     - name: Déploiement sur Azure Web App
       uses: azure/webapps-deploy@v2
