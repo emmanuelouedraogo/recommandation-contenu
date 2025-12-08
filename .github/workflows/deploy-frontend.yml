@@ -57,10 +57,19 @@ jobs:
           echo "Configuration du bilan de santé via la mise à jour de la ressource..."
           az webapp update --name ${{ env.AZURE_WEBAPP_NAME }} --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --set siteConfig.healthCheckPath=/health
           
-          echo "Création ou mise à jour du profil de mise à l'échelle automatique..."
-          az monitor autoscale update --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --name "autoscale-cpu" --resource ${{ env.AZURE_WEBAPP_NAME }} --resource-type Microsoft.Web/sites --min-count 3 --max-count 5 --count 3 --enabled true
-          az monitor autoscale rule create --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --autoscale-name "autoscale-cpu" --scale "out 1" --condition "CpuPercentage > 70 avg 5m"
-          az monitor autoscale rule create --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --autoscale-name "autoscale-cpu" --scale "in 1" --condition "CpuPercentage < 30 avg 5m"
+          echo "Création/Mise à jour idempotente du profil de mise à l'échelle automatique..."
+          # La commande 'create' échoue si le profil existe déjà. Nous utilisons 'update' qui, elle, échoue s'il n'existe pas.
+          # L'approche la plus simple et idempotente est de créer le profil, puis de supprimer et recréer les règles.
+          az monitor autoscale create \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --resource $PLAN_ID \
+            --name "autoscale-plan-cpu" \
+            --min-count 3 --max-count 5 --count 3 || echo "Le profil autoscale existe déjà, mise à jour en cours."
+
+          # Supprimer les anciennes règles pour éviter les conflits, puis les recréer.
+          az monitor autoscale rule delete --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --autoscale-name "autoscale-plan-cpu" --index "*" --yes
+          az monitor autoscale rule create --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --autoscale-name "autoscale-plan-cpu" --scale "out 1" --condition "CpuPercentage > 70 avg 5m"
+          az monitor autoscale rule create --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --autoscale-name "autoscale-plan-cpu" --scale "in 1" --condition "CpuPercentage < 30 avg 5m"
 
     - name: Déploiement sur Azure Web App
       uses: azure/webapps-deploy@v2
