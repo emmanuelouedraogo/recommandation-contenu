@@ -43,7 +43,7 @@ jobs:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
 
     - name: Configurer l'App Service pour la haute disponibilité
-      uses: azure/cli@v2
+      uses: azure/cli@v1
       with:
         azcliversion: latest
         inlineScript: |
