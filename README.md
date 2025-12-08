@@ -1,111 +1,115 @@
-# API de Recommandation de Contenu - Azure Functions 
+# 📚 Système de Recommandation de Contenu
 
-Ce projet déploie une API de recommandation de contenu en tant qu'application "serverless" sur Azure Functions.
+Ce projet est une application web complète qui fournit des recommandations de contenu personnalisées aux utilisateurs. Il est construit avec une architecture moderne et découplée, entièrement hébergée sur Microsoft Azure.
 
-L'API expose un endpoint `/api/recommend` qui prend un `user_id` en paramètre et retourne une liste de recommandations générées par un modèle de machine learning. Le modèle est automatiquement téléchargé depuis Azure Blob Storage au démarrage de la fonction.
+## 🏛️ Architecture
 
-## Architecture
+L'application est composée des services Azure suivants :
 
-- **Hébergement** : Azure Functions (Plan Consommation)
-- **Langage** : Python 3.11
-- **Déploiement** : CI/CD avec GitHub Actions
-- **Stockage du modèle** : Azure Blob Storage
+-   **Frontend (Interface Utilisateur)** : Une application Streamlit hébergée sur **Azure App Service**. Elle permet aux utilisateurs de se connecter, d'obtenir des recommandations, de noter des articles et de consulter leur historique.
+-   **Backend (API de Recommandation)** : Une **Azure Function** qui expose une API REST. Elle reçoit un ID utilisateur et retourne une liste de recommandations personnalisées.
+-   **Stockage de Données** : Un **Azure Blob Storage** qui stocke toutes les données brutes sous forme de fichiers CSV (utilisateurs, articles, interactions, logs d'entraînement).
+-   **Gestion des Secrets** : Un **Azure Key Vault** qui stocke de manière sécurisée les informations sensibles comme la chaîne de connexion au stockage et l'URL de l'API.
+-   **Identité et Authentification** : Les **Identités Managées** d'Azure sont utilisées pour permettre à l'App Service et à l'Azure Function de s'authentifier de manière sécurisée auprès du Key Vault sans stocker de secrets dans le code.
+-   **Déploiement Continu (CI/CD)** : **GitHub Actions** est utilisé pour automatiser le déploiement du frontend sur l'App Service à chaque modification du code sur la branche `main`.
 
-## Prérequis
+## 📁 Structure du Projet
 
-- Python 3.11+
-- **Azure Functions Core Tools** : C'est l'outil en ligne de commande (`func`) qui vous permet de développer et tester vos fonctions Azure localement. Suivez les instructions pour votre système d'exploitation :
-  - **Windows** (avec npm) :
+```
+recommandation-contenu/
+├── .github/workflows/
+│   └── deploy-frontend.yml   # Workflow de déploiement du frontend
+├── .streamlit/
+│   └── secrets.toml          # Fichier de secrets pour le développement local
+├── frontend/
+│   └── interface.py          # Code de l'application Streamlit
+├── backend/
+│   └── ...                   # (Emplacement pour le code de l'Azure Function)
+├── .gitignore
+├── README.md
+└── requirements.txt          # Dépendances Python du projet
+```
+
+## 🚀 Démarrage Rapide (Développement Local)
+
+### Prérequis
+
+-   Python 3.11 ou supérieur
+-   Un compte Azure
+-   Azure CLI
+
+### Étapes d'installation
+
+1.  **Cloner le dépôt**
     ```bash
-    npm install -g azure-functions-core-tools@4 --unsafe-perm true
+    git clone <URL_DU_DEPOT>
+    cd recommandation-contenu
     ```
-  - **macOS** (avec Homebrew) :
+
+2.  **Installer les dépendances**
     ```bash
-    brew tap azure/functions
-    brew install azure-functions-core-tools@4
+    pip install -r requirements.txt
     ```
-  - **Linux (Debian/Ubuntu)** :
-    La méthode recommandée est d'ajouter le dépôt de paquets de Microsoft.
+
+3.  **S'authentifier sur Azure**
+    Pour que `DefaultAzureCredential` fonctionne localement, connectez-vous via l'Azure CLI.
     ```bash
-    # Télécharger la clé GPG de Microsoft et l'enregistrer
-    wget -qO- https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > packages.microsoft.gpg
-    sudo install -o root -g root -m 644 packages.microsoft.gpg /etc/apt/trusted.gpg.d/
-    
-    # Ajouter le dépôt de Microsoft
-    sudo sh -c 'echo "deb [arch=amd64] https://packages.microsoft.com/repos/microsoft-ubuntu-$(lsb_release -cs)-prod $(lsb_release -cs) main" > /etc/apt/sources.list.d/microsoft-prod.list'
-    
-    # Mettre à jour et installer
-    sudo apt-get update && sudo apt-get install -y azure-functions-core-tools-4
+    az login
     ```
-  Pour plus de détails, consultez la documentation officielle de Microsoft.
 
-- Un compte Azure avec un abonnement actif
-- **Dépendances système** : Pour les systèmes basés sur Debian/Ubuntu, certaines bibliothèques sont nécessaires pour compiler des paquets comme `numpy` ou `scipy`. Installez-les avec la commande suivante :
-  ```bash
-  sudo apt-get update && sudo apt-get install -y libopenblas-dev
-  ```
+4.  **Configurer les secrets locaux**
+    Créez un fichier `.streamlit/secrets.toml` et ajoutez-y l'URL de votre Key Vault. Votre compte utilisateur doit avoir les permissions "get" et "list" sur les secrets du Key Vault.
+    ```toml
+    # .streamlit/secrets.toml
+    KEY_VAULT_URL = "https://<NOM_DE_VOTRE_KEY_VAULT>.vault.azure.net/"
+    ```
 
-## Installation et exécution locale
+5.  **Lancer l'application**
+    ```bash
+    streamlit run frontend/interface.py
+    ```
 
-1. **Cloner le dépôt**
+## ☁️ Déploiement sur Azure
 
-   ```bash
-   git clone <url-du-depot>
-   cd recommandation-contenu
-   ```
-2. **Créer un environnement virtuel et installer les dépendances**
+Le déploiement du frontend est entièrement automatisé via GitHub Actions.
 
-   ```bash
-   python -m venv .venv
-   source .venv/bin/activate  # Sur Linux/macOS
-   # .\.venv\Scripts\activate  # Sur Windows
-   pip install -r requirements.txt # Dépendances de production
-   pip install -r requirements-dev.txt # Dépendances de développement (flake8, etc.)
-   ```
-3. **Configurer les paramètres locaux**
+### 1. Préparation de l'infrastructure Azure
 
-   - Créez un fichier `local.settings.json` à la racine du projet.
-   - Copiez le contenu ci-dessous et remplacez la valeur de `AZURE_CONNECTION_STRING` par votre chaîne de connexion au compte de stockage Azure.
+Assurez-vous que les ressources suivantes sont créées sur Azure :
 
-   ```json
-   {
-     "IsEncrypted": false,
-     "Values": {
-       "AzureWebJobsStorage": "",
-       "FUNCTIONS_WORKER_RUNTIME": "python",
-       "AZURE_CONNECTION_STRING": "Collez-votre-chaîne-de-connexion-ici",
-       "AZURE_STORAGE_CONTAINER_NAME": "reco-data",
-       "AZURE_STORAGE_MODEL_BLOB": "models/hybrid_recommender_pipeline.pkl"
-     }
-   }
-   ```
-4. **Lancer l'application localement**
+-   Un groupe de ressources (ex: `rg-recommandation-contenu`).
+-   Un compte de stockage avec un conteneur (ex: `reco-data`).
+-   Un Key Vault avec les secrets `STORAGE-CONNECTION-STRING` et `API-URL`.
+-   Une Azure Function pour le backend.
+-   Un **App Service** nommé `reco-contenu-interface` pour le frontend.
 
-   ```bash
-   func start
-   ```
+### 2. Configuration de l'App Service
 
-   L'API sera accessible à l'adresse `http://localhost:7071/api/recommend`.
+L'App Service doit être configuré pour fonctionner correctement :
 
-## Endpoint de l'API
+-   **Identité Managée** : Activez l'identité managée affectée par le système.
+-   **Permissions Key Vault** : Donnez à cette identité le rôle `Utilisateur des secrets Key Vault` sur votre Key Vault.
+-   **Commande de démarrage** : Dans la configuration de l'App Service, définissez la commande de démarrage :
+    ```
+    streamlit run frontend/interface.py --server.port 8000 --server.address 0.0.0.0
+    ```
+-   **Variable d'environnement** : Ajoutez une variable d'environnement `KEY_VAULT_URL` avec l'URL de votre Key Vault.
 
-L'API expose un unique endpoint GET pour obtenir des recommandations.
+### 3. Configuration de GitHub Actions
 
-- **URL** : `/api/recommend`
-- **Méthode** : `GET`
-- **Paramètre de requête** :
-  - `user_id` (obligatoire) : L'identifiant de l'utilisateur pour lequel générer les recommandations.
-- **Exemple d'appel (une fois déployé)** :
-  `https://<nom-de-votre-app>.azurewebsites.net/api/recommend?user_id=123`
+1.  **Créer un Principal de Service** : Suivez la documentation Azure pour créer un principal de service ayant le rôle `Contributeur` sur votre groupe de ressources.
 
-## Variables d'environnement
+2.  **Ajouter le secret à GitHub** :
+    -   Allez dans `Settings` > `Secrets and variables` > `Actions` sur votre dépôt GitHub.
+    -   Créez un nouveau secret nommé `AZURE_CREDENTIALS`.
+    -   Collez le JSON de sortie de la commande de création du principal de service.
 
-L'application utilise les variables d'environnement suivantes pour sa configuration :
+### 4. Déployer
 
-- `AZURE_CONNECTION_STRING` (obligatoire) : Chaîne de connexion au compte de stockage Azure.
-- `AZURE_STORAGE_CONTAINER_NAME` (optionnel, défaut: `reco-data`) : Nom du conteneur Blob où le modèle est stocké.
-- `AZURE_STORAGE_MODEL_BLOB` (optionnel, défaut: `models/hybrid_recommender_pipeline.pkl`) : Chemin complet du modèle dans le conteneur.
+Poussez simplement vos modifications sur la branche `main`. GitHub Actions se chargera de construire et de déployer automatiquement votre application sur l'App Service.
 
-## Déploiement
+```bash
+git push origin main
+```
 
-Le déploiement est automatisé via le workflow GitHub Actions défini dans `.github/workflows/ci.yml`. Un simple `push` sur la branche `main` déclenchera la construction et le déploiement de l'application sur Azure Functions.
+---
