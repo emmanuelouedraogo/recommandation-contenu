@@ -32,17 +32,29 @@ if not logger.handlers:
 
 # --- Constantes et Secrets ---
 # `st.secrets` lit les secrets depuis le fichier `.streamlit/secrets.toml` en local,
-# et depuis les secrets configurés sur la plateforme Streamlit Community Cloud une fois déployé.
-# Le code fonctionne donc de manière transparente dans les deux environnements.
+# ou depuis les secrets configurés sur Streamlit Cloud.
 AZURE_CONNECTION_STRING = st.secrets.get("AZURE_CONNECTION_STRING", "")
+
+# Si non trouvé, fallback sur les variables d'environnement (utile pour d'autres déploiements).
 if not AZURE_CONNECTION_STRING:
-    st.error("Le secret 'AZURE_CONNECTION_STRING' n'est pas configuré. Veuillez l'ajouter à votre fichier .streamlit/secrets.toml.")
+    AZURE_CONNECTION_STRING = os.environ.get("AZURE_CONNECTION_STRING", "")
+
+# Validation robuste pour s'assurer que le secret est bien une chaîne non vide.
+if not isinstance(AZURE_CONNECTION_STRING, str) or not AZURE_CONNECTION_STRING.strip():
+    st.error(
+        "Le secret 'AZURE_CONNECTION_STRING' n'est pas configuré correctement. "
+        "Veuillez l'ajouter à .streamlit/secrets.toml ou définir la variable d'environnement AZURE_CONNECTION_STRING."
+    )
     st.stop()
 
+# Nettoyage explicite pour éviter les erreurs dues aux espaces invisibles.
+AZURE_CONNECTION_STRING = AZURE_CONNECTION_STRING.strip()
+
+# Autres constantes
 AZURE_CONTAINER_NAME = "reco-data"
 USERS_BLOB_NAME = "users.csv"
-ARTICLES_BLOB_NAME = "articles_metadata.csv" # Nom du blob pour les articles
-CLICKS_BLOB_NAME = "clicks_sample.csv" # Nom du blob pour les interactions
+ARTICLES_BLOB_NAME = "articles_metadata.csv"  # Nom du blob pour les articles
+CLICKS_BLOB_NAME = "clicks_sample.csv"        # Nom du blob pour les interactions
 TRAINING_LOG_BLOB_NAME = "logs/training_log.csv"
 
 # Utilise l'URL de l'API depuis les secrets, crucial pour le déploiement.
