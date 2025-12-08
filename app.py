@@ -207,9 +207,38 @@ def get_recommendations(user_id):
 # ==============================================================================
 st.title("📚 Système de Recommandation de Contenu")
 
+# --- Gestion de la session utilisateur ---
+if 'user_id' not in st.session_state:
+    st.session_state.user_id = None
+
 # Menu dans la barre latérale
+st.sidebar.title("Navigation")
 menu = ["Recommandations", "Mon Historique", "Performance du Modèle", "Créer un compte", "Ajouter un article"]
 choice = st.sidebar.selectbox("Menu", menu)
+
+st.sidebar.divider()
+
+# --- Section de connexion dans la barre latérale ---
+if st.session_state.user_id is None:
+    st.sidebar.header("Connexion")
+    login_user_id = st.sidebar.text_input("Entrez votre identifiant utilisateur", key="login_input")
+    if st.sidebar.button("Se connecter"):
+        if login_user_id:
+            try:
+                user_id_to_check = int(login_user_id)
+                users_df = load_df_from_blob(USERS_BLOB_NAME)
+                if user_id_to_check in users_df['user_id'].unique():
+                    st.session_state.user_id = user_id_to_check
+                    st.rerun() # Recharge la page pour refléter l'état connecté
+                else:
+                    st.sidebar.error("Cet utilisateur n'existe pas.")
+            except ValueError:
+                st.sidebar.error("L'ID doit être un nombre.")
+else:
+    st.sidebar.success(f"Connecté en tant que : **{st.session_state.user_id}**")
+    if st.sidebar.button("Se déconnecter"):
+        st.session_state.user_id = None
+        st.rerun()
 
 if choice == "Recommandations":
     st.header("Obtenez vos recommandations")
@@ -220,93 +249,71 @@ if choice == "Recommandations":
         st.info("Utilisateurs existants (pour les tests) :")
         st.dataframe(users_df_display, width='stretch')
 
-    user_id_input = st.text_input("Entrez votre identifiant utilisateur :")
-
-    if st.button("Obtenir mes recommandations"):
-        if user_id_input:
-            try:
-                # Tente de convertir en int si vos IDs sont numériques
-                user_id = int(user_id_input)
-                recommendations = get_recommendations(user_id)
-                
-                if recommendations is not None and not recommendations.empty:
-                    # Fusionner avec les métadonnées pour obtenir les titres et contenus
-                    articles_df = load_df_from_blob(ARTICLES_BLOB_NAME)
-                    reco_details = recommendations.merge(articles_df, on='article_id', how='left')
+    if st.session_state.user_id is None:
+        st.info("Veuillez vous connecter via la barre latérale pour obtenir vos recommandations.")
+    else:
+        user_id = st.session_state.user_id
+        recommendations = get_recommendations(user_id)
+        
+        if recommendations is not None and not recommendations.empty:
+            articles_df = load_df_from_blob(ARTICLES_BLOB_NAME)
+            reco_details = recommendations.merge(articles_df, on='article_id', how='left')
+            
+            st.success(f"Bienvenue, Utilisateur {user_id} ! Voici vos recommandations personnalisées :")
+            
+            for _, row in reco_details.iterrows():
+                with st.container():
+                    st.subheader(f"{row.get('title', 'Titre inconnu')}")
+                    st.caption(f"Score de recommandation : {row.get('final_score', 0):.2f} | ID Article : {row['article_id']}")
+                    st.write(str(row.get('content', 'Contenu non disponible.'))[:250] + "...")
                     
-                    st.success(f"Bienvenue, Utilisateur {user_id} ! Voici vos recommandations personnalisées :")
-                    
-                    for _, row in reco_details.iterrows():
-                        with st.container():
-                            # Utiliser les données fusionnées.
-                            st.subheader(f"{row.get('title', 'Titre inconnu')}")
-                            st.caption(f"Score de recommandation : {row.get('final_score', 0):.2f} | ID Article : {row['article_id']}")
-                            st.write(str(row.get('content', 'Contenu non disponible.'))[:250] + "...") # Affiche un aperçu
-                            
-                            # Section pour noter l'article
-                            rating = st.slider("Notez cet article :", 1, 5, 3, key=f"rating_{row['article_id']}")
-                            if st.button("Envoyer ma note", key=f"btn_{row['article_id']}"):
-                                add_interaction(user_id, row['article_id'], rating)
-                            st.divider()
-                elif recommendations is not None:
-                     st.warning("Il n'y a pas assez d'articles à recommander pour le moment.")
-
-            except ValueError:
-                st.error("L'identifiant utilisateur doit être un nombre.")
-        else:
-            st.warning("Veuillez entrer un identifiant utilisateur.")
+                    rating = st.slider("Notez cet article :", 1, 5, 3, key=f"rating_{row['article_id']}")
+                    if st.button("Envoyer ma note", key=f"btn_{row['article_id']}"):
+                        add_interaction(user_id, row['article_id'], rating)
+                    st.divider()
+        elif recommendations is not None:
+             st.warning("Il n'y a pas assez d'articles à recommander pour le moment.")
 
 elif choice == "Mon Historique":
     st.header("Historique de vos notations")
+    
+    if st.session_state.user_id is None:
+        st.info("Veuillez vous connecter via la barre latérale pour voir votre historique.")
+    else:
+        user_id = st.session_state.user_id
+        clicks_df = load_df_from_blob(CLICKS_BLOB_NAME)
+        
+        if clicks_df.empty:
+            st.warning("Aucune notation n'a encore été enregistrée dans le système.")
+        else:
+            user_history_df = clicks_df[clicks_df['user_id'] == user_id]
+            
+            if user_history_df.empty:
+                st.info("Vous n'avez encore noté aucun article.")
+            else:
+                # --- Correction et Validation ---
+                required_cols = ['user_id', 'article_id', 'click_timestamp', 'nb']
+                if not all(col in user_history_df.columns for col in required_cols):
+                    st.error("Le fichier d'historique (clicks_sample.csv) est mal formaté. Il manque des colonnes attendues (ex: 'user_id', 'article_id').")
+                    logger.error(f"Colonnes manquantes dans clicks_sample.csv. Colonnes trouvées : {user_history_df.columns.tolist()}")
+                    st.stop()
 
-    user_id_history = st.text_input("Entrez votre identifiant utilisateur pour voir votre historique :", key="history_user_id")
-
-    if st.button("Afficher mon historique", key="history_btn"):
-        if user_id_history:
-            try:
-                users_df_history = load_df_from_blob(USERS_BLOB_NAME)
-                user_id = int(user_id_history)
+                user_history_df = user_history_df.sort_values('click_timestamp').drop_duplicates(subset=['user_id', 'article_id'], keep='last')
+                articles_df_history = load_df_from_blob(ARTICLES_BLOB_NAME)
+                history_details = user_history_df.merge(articles_df_history, on='article_id', how='left').fillna({'title': 'Titre inconnu'})
+                history_details = history_details.sort_values(by='click_timestamp', ascending=False)
                 
-                if user_id not in users_df_history['user_id'].unique():
-                    st.error("Cet identifiant utilisateur n'existe pas.")
-                else:
-                    clicks_df = load_df_from_blob(CLICKS_BLOB_NAME)
-                    
-                    if clicks_df.empty:
-                        st.warning("Aucune notation n'a encore été enregistrée dans le système.")
-                    else:
-                        user_history_df = clicks_df[clicks_df['user_id'] == user_id]
-                        
-                        if user_history_df.empty:
-                            st.info("Vous n'avez encore noté aucun article.")
-                        else:
-                            # --- Correction et Validation ---
-                            # Valider que les colonnes nécessaires existent avant de les utiliser
-                            required_cols = ['user_id', 'article_id', 'click_timestamp', 'nb']
-                            if not all(col in user_history_df.columns for col in required_cols):
-                                st.error("Le fichier d'historique (clicks_sample.csv) est mal formaté. Il manque des colonnes attendues (ex: 'user_id', 'article_id').")
-                                logger.error(f"Colonnes manquantes dans clicks_sample.csv. Colonnes trouvées : {user_history_df.columns.tolist()}")
-                                st.stop()
-
-                            # S'assurer que chaque article n'apparaît qu'une fois (le plus récent)
-                            user_history_df = user_history_df.sort_values('click_timestamp').drop_duplicates(subset=['user_id', 'article_id'], keep='last')
-                            articles_df_history = load_df_from_blob(ARTICLES_BLOB_NAME) # Correction: Utiliser une variable locale
-                            history_details = user_history_df.merge(articles_df_history, on='article_id', how='left').fillna({'title': 'Titre inconnu'})
-                            history_details = history_details.sort_values(by='click_timestamp', ascending=False)
-                            
-                            st.subheader(f"Articles que vous avez notés, Utilisateur {user_id} :")
-                            for _, row in history_details.iterrows():
-                                col1, col2 = st.columns([3, 2])
-                                with col1:
-                                    st.markdown(f"**{row.get('title', 'Titre inconnu')}**")
-                                    st.caption(f"Dernière modification : {pd.to_datetime(row['click_timestamp'], unit='s').strftime('%Y-%m-%d %H:%M')}")
-                                with col2:
-                                    new_rating = st.number_input("Votre note", min_value=1, max_value=5, value=int(row.get('nb', 0)), key=f"update_rating_{row['article_id']}")
-                                    if st.button("Modifier la note", key=f"update_btn_{row['article_id']}"):
-                                        update_interaction(user_id, row['article_id'], new_rating)
-                                st.divider()
-            except ValueError:
-                st.error("L'identifiant utilisateur doit être un nombre.")
+                st.subheader(f"Articles que vous avez notés, Utilisateur {user_id} :")
+                for _, row in history_details.iterrows():
+                    col1, col2 = st.columns([3, 2])
+                    with col1:
+                        st.markdown(f"**{row.get('title', 'Titre inconnu')}**")
+                        st.caption(f"Dernière modification : {pd.to_datetime(row['click_timestamp'], unit='s').strftime('%Y-%m-%d %H:%M')}")
+                    with col2:
+                        new_rating = st.number_input("Votre note", min_value=1, max_value=5, value=int(row.get('nb', 0)), key=f"update_rating_{row['article_id']}")
+                        if st.button("Modifier la note", key=f"update_btn_{row['article_id']}"):
+                            update_interaction(user_id, row['article_id'], new_rating)
+                    st.divider()
 
 elif choice == "Performance du Modèle":
     st.header("Historique et Performance des Entraînements")
