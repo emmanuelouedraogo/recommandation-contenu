@@ -8,7 +8,6 @@ on:
     # Optimisation : ne s'exécute que si des fichiers pertinents sont modifiés
     paths:
       - 'frontend/**'
-      - 'frontend/requirements.txt'
       - '.github/workflows/deploy-frontend.yml'
 
 env:
@@ -75,16 +74,16 @@ jobs:
           # L'approche la plus simple et idempotente est de créer le profil, puis de supprimer et recréer les règles.
           az monitor autoscale create \
             --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-            --resource $PLAN_ID \
+            --resource "$PLAN_ID" \
             --name "autoscale-plan-cpu" \
-            --min-count 3 --max-count 5 --count 3 || echo "Le profil autoscale existe déjà, mise à jour en cours."
+            --min-count 3 --max-count 5 --count 3 || echo "Le profil autoscale existe déjà, nous continuons."
 
           # Supprimer les anciennes règles pour éviter les conflits, puis les recréer.
-          yes | az monitor autoscale rule delete --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --autoscale-name "autoscale-plan-cpu" --index "*"
+          az monitor autoscale rule delete --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --autoscale-name "autoscale-plan-cpu" --index "*" --yes
           az monitor autoscale rule create --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --autoscale-name "autoscale-plan-cpu" --scale "out 1" --condition "CpuPercentage > 70 avg 5m"
           az monitor autoscale rule create --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --autoscale-name "autoscale-plan-cpu" --scale "in 1" --condition "CpuPercentage < 30 avg 5m"
 
-    - name: Attendre la stabilisation de l'App Service
+    - name: Créer l'archive de déploiement
       run: |
         cd frontend
         zip -r ../app.zip .
