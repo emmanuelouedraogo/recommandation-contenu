@@ -1,0 +1,64 @@
+name: Configurer l'Infrastructure Azure
+
+on:
+  # Déclenchement manuel depuis l'interface GitHub Actions
+  workflow_dispatch:
+
+env:
+  AZURE_WEBAPP_NAME: reco-contenu-interface
+  AZURE_RESOURCE_GROUP: rg-recommandation-contenu
+
+jobs:
+  configure-infra:
+    name: Configure Azure Infrastructure
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout du code
+      uses: actions/checkout@v4
+
+    - name: Connexion à Azure
+      uses: azure/login@v2
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    - name: Configurer l'App Service pour la haute disponibilité
+      uses: azure/cli@v2
+      with:
+        azcliversion: latest
+        inlineScript: |
+          set -e # Arrêter le script en cas d'erreur
+
+          echo "Récupération du nom du plan App Service..."
+          PLAN_ID=$(az webapp show --name ${{ env.AZURE_WEBAPP_NAME }} --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --query "appServicePlanId" --output tsv)
+          PLAN_NAME=$(basename $PLAN_ID)
+
+          echo "Mise à jour du plan App Service vers S1 pour supporter le Health Check et l'Autoscaling..."
+          az appservice plan update --name $PLAN_NAME --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --sku S1
+
+          echo "Activation du bilan de santé (Health Check) sur le point de terminaison personnalisé..."
+          az webapp update --name ${{ env.AZURE_WEBAPP_NAME }} --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --set siteConfig.healthCheckPath="/health"
+
+          echo "Configuration des paramètres de l'application (App Settings)..."
+          az webapp config appsettings set --name ${{ env.AZURE_WEBAPP_NAME }} --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --settings \
+            WEBSITES_HEALTH_CHECK_PORT=8080 \
+            SCM_DO_BUILD_DURING_DEPLOYMENT=true \
+            KEY_VAULT_URL="${{ secrets.KEY_VAULT_URL }}"
+
+          echo "Activation de la journalisation de l'application (sur le système de fichiers)..."
+          az webapp log config --name ${{ env.AZURE_WEBAPP_NAME }} --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --application-logging filesystem --level verbose
+
+          echo "Création/Mise à jour idempotente du profil de mise à l'échelle automatique..."
+          az monitor autoscale create \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --resource "$PLAN_ID" \
+            --name "autoscale-plan-cpu" \
+            --min-count 3 --max-count 5 --count 3 || echo "Le profil autoscale existe déjà, nous continuons."
+
+          echo "Suppression des anciennes règles de mise à l'échelle pour éviter les conflits..."
+          az monitor autoscale rule delete --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --autoscale-name "autoscale-plan-cpu" --index "*" --yes
+          echo "Création des nouvelles règles de mise à l'échelle..."
+          az monitor autoscale rule create --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --autoscale-name "autoscale-plan-cpu" --scale "out 1" --condition "CpuPercentage > 70 avg 5m"
+          az monitor autoscale rule create --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --autoscale-name "autoscale-plan-cpu" --scale "in 1" --condition "CpuPercentage < 30 avg 5m"
+
+          echo "Configuration de l'infrastructure terminée avec succès."
