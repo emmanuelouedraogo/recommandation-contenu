@@ -36,25 +36,22 @@ jobs:
           echo "Mise à jour du plan App Service vers S1 pour supporter le Health Check et l'Autoscaling..."
           az appservice plan update --name $PLAN_NAME --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --sku S1
 
-          echo "Activation de l'identité managée et attribution des permissions sur le Key Vault..."
-          # Activer l'identité managée assignée par le système (idempotent)
-          PRINCIPAL_ID=$(az webapp identity assign --name ${{ env.AZURE_WEBAPP_NAME }} --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --query "principalId" --output tsv)
-
-          # Extraire le nom du Key Vault depuis l'URL
-          KEY_VAULT_NAME=$(echo "${{ secrets.KEY_VAULT_URL }}" | sed -e 's,.*/\([^/]*\)\.vault.*,\1,')
-
-          # Attribuer les permissions de lecture des secrets à l'identité managée de l'App Service (idempotent)
-          az keyvault set-policy --name "$KEY_VAULT_NAME" --object-id "$PRINCIPAL_ID" --secret-permissions get list
-          echo "Permissions Key Vault configurées pour l'identité managée."
-
           echo "Activation du bilan de santé (Health Check) sur le point de terminaison personnalisé..."
           az webapp update --name ${{ env.AZURE_WEBAPP_NAME }} --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --set siteConfig.healthCheckPath="/health"
 
           echo "Configuration des paramètres de l'application (App Settings)..."
+          # Nous utilisons un secret GitHub pour définir la variable d'environnement dans l'App Service.
+          # Assurez-vous d'avoir un secret nommé 'OPENAI_API_KEY' dans les paramètres de votre dépôt GitHub.
+          # Ajoutez les autres secrets nécessaires ici, en vous assurant qu'ils sont définis dans GitHub Secrets.
           az webapp config appsettings set --name ${{ env.AZURE_WEBAPP_NAME }} --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --settings \
             WEBSITES_HEALTH_CHECK_PORT=8080 \
             SCM_DO_BUILD_DURING_DEPLOYMENT=true \
-            KEY_VAULT_URL="${{ secrets.KEY_VAULT_URL }}"
+            OPENAI_API_KEY="${{ secrets.OPENAI_API_KEY }}" \
+            API_URL="${{ secrets.API_URL }}" \
+            STORAGE_ACCOUNT_URL="${{ secrets.STORAGE_ACCOUNT_URL }}" \
+            STORAGE_CONNECTION_STRING="${{ secrets.STORAGE_CONNECTION_STRING }}" \
+            WEBSITE_HEALTHCHECK_MAXPINGFAILURES="${{ secrets.WEBSITE_HEALTHCHECK_MAXPINGFAILURES }}" \
+            AZURE_CONNECTION_STRING="${{ secrets.AZURE_CONNECTION_STRING }}"
 
           echo "Activation de la journalisation de l'application (sur le système de fichiers)..."
           az webapp log config --name ${{ env.AZURE_WEBAPP_NAME }} --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --application-logging filesystem --level verbose
