@@ -3,8 +3,6 @@ import pandas as pd
 import os
 import requests
 from azure.storage.blob import BlobServiceClient
-from azure.identity import DefaultAzureCredential
-from azure.keyvault.secrets import SecretClient
 from io import StringIO
 from azure.core.exceptions import ResourceNotFoundError, ServiceRequestError
 import logging
@@ -51,50 +49,21 @@ USERS_BLOB_NAME = "users.csv"
 ARTICLES_BLOB_NAME = "articles_metadata.csv"  # Nom du blob pour les articles
 CLICKS_BLOB_NAME = "clicks_sample.csv"        # Nom du blob pour les interactions
 TRAINING_LOG_BLOB_NAME = "logs/training_log.csv"
-STORAGE_URL_SECRET_NAME = "STORAGE-ACCOUNT-URL"   # Le nom du secret pour l'URL du compte de stockage
-API_URL_SECRET_NAME = "API-URL"                   # Le nom du secret pour l'URL de l'API
-
-# --- Gestion des Secrets via Azure Key Vault ---
-class ConfigError(Exception):
-    """Exception personnalisée pour les erreurs de configuration."""
-    pass
-
-@st.cache_data(show_spinner=False, ttl=3600)
-def get_config_from_key_vault() -> dict:
-    """
-    Récupère toutes les configurations nécessaires depuis Azure Key Vault.
-    Cette fonction est mise en cache pour éviter les appels répétés.
-    """
-    logger.info("Récupération de KEY_VAULT_URL depuis les variables d'environnement...")
-    vault_url = os.environ.get("KEY_VAULT_URL")
-    if not vault_url:
-        raise ConfigError("The secret 'KEY_VAULT_URL' is not configured.")
-
-    try:
-        credential = DefaultAzureCredential()
-        secret_client = SecretClient(vault_url=vault_url, credential=credential)
-
-        logger.info("Récupération des secrets depuis Key Vault...")
-        storage_url = secret_client.get_secret(STORAGE_URL_SECRET_NAME).value.strip().rstrip('/')
-        api_url = secret_client.get_secret(API_URL_SECRET_NAME).value.strip().rstrip('/')
-        logger.info("Tous les secrets ont été récupérés avec succès.")
-
-        return {"storage_url": storage_url, "api_url": api_url}
-    except Exception as e:
-        logger.critical(f"Échec critique lors de la récupération des secrets depuis Key Vault. URL: {vault_url}. Erreur: {e}")
-        raise ConfigError("Impossible de récupérer la configuration depuis Azure Key Vault.") from e
 
 # ==============================================================================
 # --- Fonctions de Chargement des Données ---
 # ==============================================================================
 @st.cache_resource(ttl=3600)
-def recuperer_client_blob_service(storage_url: str) -> BlobServiceClient:
-    """Crée un client de service blob en utilisant l'URL et l'identité managée. Mis en cache pour la performance."""
-    if not storage_url:
-        st.error("L'URL du compte de stockage Azure n'est pas configurée dans les secrets !")
+def recuperer_client_blob_service() -> BlobServiceClient:
+    """
+    Crée un client de service blob en utilisant la chaîne de connexion des secrets.
+    Mis en cache pour la performance.
+    """
+    connect_str = st.secrets.get("STORAGE_CONNECTION_STRING")
+    if not connect_str:
+        st.error("La chaîne de connexion au stockage ('STORAGE_CONNECTION_STRING') n'est pas configurée !")
         st.stop()
-    credential = DefaultAzureCredential()
-    return BlobServiceClient(account_url=storage_url, credential=credential)
+    return BlobServiceClient.from_connection_string(connect_str)
 
 # Initialiser le client une seule fois
 @st.cache_data(ttl=3600) # Cache les données pendant 1 heure
@@ -376,15 +345,17 @@ def afficher_page_ajout_article(blob_service_client):
 st.title("📚 Système de Recommandation de Contenu")
 def main():
     """Fonction principale de l'application Streamlit."""
-    # --- Initialisation globale des clients et de la configuration ---
+    # --- Initialisation de la configuration et des clients ---
     try:
-        config = get_config_from_key_vault()
-        blob_service_client = recuperer_client_blob_service(config["storage_url"])
-        api_url = config["api_url"]
-    except ConfigError as e:
-        st.error(f"Erreur de configuration critique : {e}")
-        st.info("Veuillez vérifier les permissions de l'identité managée de l'App Service sur le Key Vault et la présence des secrets.")
-        st.stop() # Arrête l'exécution si la configuration échoue
+        # st.secrets lit automatiquement les variables d'environnement de l'App Service
+        # ou le fichier .streamlit/secrets.toml en local.
+        api_url = st.secrets["API_URL"]
+        # La chaîne de connexion est utilisée à l'intérieur de la fonction de récupération du client.
+        blob_service_client = recuperer_client_blob_service()
+    except KeyError as e:
+        st.error(f"Erreur de configuration : Le secret '{e.args[0]}' est manquant.")
+        st.info("Veuillez vérifier vos variables d'environnement sur Azure App Service ou votre fichier .streamlit/secrets.toml en local.")
+        st.stop()
 
     # --- Gestion de la session utilisateur ---
     if 'user_id' not in st.session_state:

@@ -9,8 +9,8 @@ L'application est conçue autour des services Azure et d'une automatisation via 
 *   **Frontend (Interface Utilisateur)** : Une application Streamlit hébergée sur **Azure App Service**. Elle permet aux utilisateurs de se connecter, d'obtenir des recommandations, de noter des articles et de consulter leur historique.
 *   **Backend (API de Recommandation)** : Une **Azure Function** qui expose une API REST. Elle sert les recommandations générées par le modèle.
 *   **Stockage de Données et Modèles** : Un **Azure Blob Storage** qui centralise les données brutes (CSV) et les modèles de machine learning entraînés.
-*   **Gestion des Secrets** : **Azure Key Vault** stocke de manière centralisée et sécurisée les secrets de l'application. Pour le déploiement, les secrets sont injectés via **GitHub Actions**.
-*   **Authentification** : Le pipeline CI/CD s'authentifie à Azure via un **Principal de Service (Service Principal)** pour accéder au Key Vault et configurer les ressources.
+*   **Gestion des Secrets** : Les secrets (`API_URL`, `STORAGE_CONNECTION_STRING`) sont stockés de manière sécurisée dans les **GitHub Secrets**. Le pipeline CI/CD les injecte en tant que variables d'environnement dans l'App Service lors du déploiement.
+*   **Authentification** : Le pipeline CI/CD s'authentifie à Azure via un **Principal de Service (Service Principal)** pour configurer les ressources Azure.
 *   **CI/CD** : Les workflows **GitHub Actions** automatisent le déploiement du frontend, du backend, et l'entraînement des modèles.
 
 ## ✨ Fonctionnalités
@@ -81,21 +81,13 @@ Le déploiement est entièrement automatisé par les workflows GitHub Actions.
 
 ### Secrets Requis
 
-Pour que le déploiement fonctionne, les secrets suivants doivent être configurés dans les **Paramètres du dépôt GitHub** (`Settings > Secrets and variables > Actions`):
+Pour que les workflows fonctionnent, les secrets suivants doivent être configurés dans les **Paramètres du dépôt GitHub** (`Settings > Secrets and variables > Actions`):
 
 1.  `AZURE_CREDENTIALS` : Les informations d'identification d'un Principal de Service (Service Principal) Azure, au format JSON, ayant les permissions de contribuer sur le groupe de ressources.
 
-    ```json
-    {
-      "clientId": "...",
-      "clientSecret": "...",
-      "subscriptionId": "...",
-      "tenantId": "..."
-    }
-    ```
+2.  `STORAGE_CONNECTION_STRING` : La chaîne de connexion complète pour le compte de stockage Azure.
 
-2.  `KEY_VAULT_URL` : L'URL du coffre de secrets Azure (Key Vault) où sont stockés les secrets de l'application.
-    *   Exemple : `https://mon-coffre-secret.vault.azure.net/`
+3.  `API_URL` : L'URL de l'API de recommandation (Azure Function).
 
 ### Déclenchement du Workflow
 
@@ -105,8 +97,7 @@ Le workflow effectue les actions suivantes :
 1.  Se connecte à Azure.
 2.  Configure l'infrastructure (si `setup-infra.yml` est lancé) :
     *   Met à jour le plan App Service vers le SKU `S1`.
-    *   Active le Health Check sur l'application.
-    *   Récupère les secrets depuis Key Vault et les définit comme variables d'environnement dans l'App Service.
+    *   Active le Health Check et configure les variables d'environnement (`API_URL`, etc.) en utilisant les secrets GitHub.
     *   Configure les règles de mise à l'échelle automatique.
 3.  Installe les dépendances Python.
 4.  Empaquette et déploie l'application sur Azure App Service.
