@@ -64,8 +64,8 @@ jobs:
           echo "Activation du bilan de santé (Health Check) sur le point de terminaison personnalisé..."
           az webapp update --name ${{ env.AZURE_WEBAPP_NAME }} --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --set siteConfig.healthCheckPath="/health"
 
-          echo "Configuration des paramètres de l'application pour le Health Check..."
-          az webapp config appsettings set --name ${{ env.AZURE_WEBAPP_NAME }} --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --settings WEBSITES_HEALTH_CHECK_PORT=8080
+          echo "Configuration des paramètres de l'application (App Settings)..."
+          az webapp config appsettings set --name ${{ env.AZURE_WEBAPP_NAME }} --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --settings WEBSITES_HEALTH_CHECK_PORT=8080 SCM_DO_BUILD_DURING_DEPLOYMENT=true
           
           echo "Activation de la journalisation de l'application (sur le système de fichiers)..."
           az webapp log config --name ${{ env.AZURE_WEBAPP_NAME }} --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --application-logging filesystem --level verbose
@@ -94,7 +94,5 @@ jobs:
       with:
         app-name: ${{ env.AZURE_WEBAPP_NAME }}
         package: app.zip # Déploie le fichier zip
-        # Force le build sur Azure pour installer les dépendances de requirements.txt
-        scm-do-build-during-deployment: true
         # Commande pour démarrer l'application Streamlit sur le port dynamique fourni par Azure.
         startup-command: 'streamlit run ${{ env.STARTUP_SCRIPT }} --server.port $PORT --server.address 0.0.0.0 --server.enableCORS false'
