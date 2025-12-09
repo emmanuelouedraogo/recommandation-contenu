@@ -15,7 +15,7 @@ env:
   AZURE_WEBAPP_NAME: reco-contenu-interface   # Le nom de votre App Service
   AZURE_RESOURCE_GROUP: rg-recommandation-contenu # Remplacez par le nom de votre groupe de ressources
   PYTHON_VERSION: '3.11'                      # La version de Python utilisée
-  STARTUP_SCRIPT: 'frontend/interface.py'                    # Le nom de votre script Streamlit principal
+  STARTUP_SCRIPT: 'interface.py'              # Le nom de votre script Streamlit principal
 
 jobs:
   build-and-deploy:
