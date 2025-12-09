@@ -36,6 +36,17 @@ jobs:
           echo "Mise à jour du plan App Service vers S1 pour supporter le Health Check et l'Autoscaling..."
           az appservice plan update --name $PLAN_NAME --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --sku S1
 
+          echo "Activation de l'identité managée et attribution des permissions sur le Key Vault..."
+          # Activer l'identité managée assignée par le système (idempotent)
+          PRINCIPAL_ID=$(az webapp identity assign --name ${{ env.AZURE_WEBAPP_NAME }} --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --query "principalId" --output tsv)
+
+          # Extraire le nom du Key Vault depuis l'URL
+          KEY_VAULT_NAME=$(echo "${{ secrets.KEY_VAULT_URL }}" | sed -e 's,.*/\([^/]*\)\.vault.*,\1,')
+
+          # Attribuer les permissions de lecture des secrets à l'identité managée de l'App Service (idempotent)
+          az keyvault set-policy --name "$KEY_VAULT_NAME" --object-id "$PRINCIPAL_ID" --secret-permissions get list
+          echo "Permissions Key Vault configurées pour l'identité managée."
+
           echo "Activation du bilan de santé (Health Check) sur le point de terminaison personnalisé..."
           az webapp update --name ${{ env.AZURE_WEBAPP_NAME }} --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --set siteConfig.healthCheckPath="/health"
 
