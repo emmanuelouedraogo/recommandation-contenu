@@ -419,16 +419,15 @@ def main():
     choice = st.sidebar.selectbox("Menu", menu)
 
     if choice == "Recommandations":
-        if choice == "Recommandations":
-            afficher_page_recommandations(blob_service_client, api_url)
-        elif choice == "Mon Historique":
-            afficher_page_historique(blob_service_client)
-        elif choice == "Performance du Modèle":
-            afficher_page_performance(blob_service_client)
-        elif choice == "Créer un compte":
-            afficher_page_creation_compte(blob_service_client)
-        elif choice == "Ajouter un article":
-            afficher_page_ajout_article(blob_service_client)
+        afficher_page_recommandations(blob_service_client, api_url)
+    elif choice == "Mon Historique":
+        afficher_page_historique(blob_service_client)
+    elif choice == "Performance du Modèle":
+        afficher_page_performance(blob_service_client)
+    elif choice == "Créer un compte":
+        afficher_page_creation_compte(blob_service_client)
+    elif choice == "Ajouter un article":
+        afficher_page_ajout_article(blob_service_client)
 
 if __name__ == "__main__":
     main()

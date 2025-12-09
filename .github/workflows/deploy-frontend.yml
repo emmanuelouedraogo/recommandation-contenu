@@ -86,6 +86,11 @@ jobs:
           az monitor autoscale rule create --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --autoscale-name "autoscale-plan-cpu" --scale "out 1" --condition "CpuPercentage > 70 avg 5m"
           az monitor autoscale rule create --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --autoscale-name "autoscale-plan-cpu" --scale "in 1" --condition "CpuPercentage < 30 avg 5m"
 
+    - name: Attendre la stabilisation de l'App Service
+      run: |
+        echo "Attente de 45 secondes pour permettre à l'App Service de redémarrer après les changements de configuration..."
+        sleep 45
+
     - name: Créer l'archive de déploiement
       run: |
         cd frontend
