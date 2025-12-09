@@ -229,7 +229,7 @@ def afficher_page_recommandations():
                     st.write(str(row.get('content', 'Contenu non disponible.'))[:250] + "...")
                     
                     rating = st.slider("Notez cet article :", 1, 5, 3, key=f"rating_{row['article_id']}")
-                    if st.button("Envoyer ma note", key=f"btn_{row['article_id']}"):
+                    if st.button("Envoyer ma note", key=f"btn_{row['article_id']}", use_container_width=True):
                         ajouter_interaction(user_id, row['article_id'], rating)
                     st.divider()
         elif recommendations is not None:
@@ -273,7 +273,7 @@ def afficher_page_historique():
                         st.caption(f"Dernière modification : {pd.to_datetime(row['click_timestamp'], unit='s').strftime('%Y-%m-%d %H:%M')}")
                     with col2:
                         new_rating = st.number_input("Votre note", min_value=1, max_value=5, value=int(row.get('nb', 0)), key=f"update_rating_{row['article_id']}")
-                        if st.button("Modifier la note", key=f"update_btn_{row['article_id']}"):
+                        if st.button("Modifier la note", key=f"update_btn_{row['article_id']}", use_container_width=True):
                             mettre_a_jour_interaction(user_id, row['article_id'], new_rating)
                     st.divider()
 

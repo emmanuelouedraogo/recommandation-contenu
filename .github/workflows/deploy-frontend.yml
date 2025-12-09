@@ -89,4 +89,4 @@ jobs:
         # Force le build sur Azure pour installer les dépendances de requirements.txt
         scm-do-build-during-deployment: true
         # Commande pour démarrer l'application Streamlit sur le port dynamique fourni par Azure.
-        startup-command: 'gunicorn --bind=0.0.0.0:$PORT --workers=1 --threads=8 --timeout=0 "streamlit.cli:main" run ${{ env.STARTUP_SCRIPT }}'
+        startup-command: 'streamlit run ${{ env.STARTUP_SCRIPT }} --server.port $PORT --server.address 0.0.0.0 --server.enableCORS false'
