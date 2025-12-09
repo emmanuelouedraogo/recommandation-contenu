@@ -8,6 +8,9 @@ from azure.keyvault.secrets import SecretClient
 from io import StringIO
 from azure.core.exceptions import ResourceNotFoundError, ServiceRequestError
 import logging
+from flask import Flask
+from threading import Thread
+import time
 # --- Configuration de la Page ---
 # --- Configuration de la Page ---
 st.set_page_config(
@@ -22,6 +25,25 @@ st.set_page_config(
 # Azure App Service collecte ces logs automatiquement.
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+# --- Point de terminaison pour le Bilan de Santé (Health Check) ---
+# Crée une application Flask simple pour exposer un point de terminaison /health.
+# Cela permet à Azure de vérifier si l'application est "vivante", même si Streamlit est occupé.
+health_app = Flask(__name__)
+@health_app.route('/health')
+def health_check():
+    """Répond 200 OK pour indiquer que l'application est en vie."""
+    return "OK", 200
+
+def run_health_check_server():
+    """Exécute le serveur Flask sur un port différent (non exposé publiquement)."""
+    # Le port 8080 est accessible en interne par la plateforme Azure pour le Health Check.
+    health_app.run(host='0.0.0.0', port=8080)
+
+# Démarrer le serveur de bilan de santé dans un thread séparé.
+# Le 'daemon=True' assure que le thread s'arrêtera lorsque le script principal se terminera.
+health_thread = Thread(target=run_health_check_server, daemon=True)
+health_thread.start()
 
 # Autres constantes
 AZURE_CONTAINER_NAME = "reco-data"

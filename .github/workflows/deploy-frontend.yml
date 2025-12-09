@@ -61,8 +61,8 @@ jobs:
           echo "Mise à jour du plan App Service vers S1 pour supporter le Health Check et l'Autoscaling..."
           az appservice plan update --name $PLAN_NAME --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --sku S1
 
-          echo "Désactivation du bilan de santé (Health Check) car Streamlit ne l'expose pas par défaut..."
-          az webapp update --name ${{ env.AZURE_WEBAPP_NAME }} --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --set siteConfig.healthCheckPath=null
+          echo "Activation du bilan de santé (Health Check) sur le point de terminaison personnalisé..."
+          az webapp update --name ${{ env.AZURE_WEBAPP_NAME }} --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --set siteConfig.healthCheckPath="/health"
           
           echo "Activation de la journalisation de l'application (sur le système de fichiers)..."
           az webapp log config --name ${{ env.AZURE_WEBAPP_NAME }} --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --application-logging filesystem --level verbose
