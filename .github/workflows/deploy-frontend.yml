@@ -48,24 +48,6 @@ jobs:
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-    - name: Configurer les paramètres de l'application (App Settings)
-      uses: azure/cli@v2
-      with:
-        azcliversion: latest
-        inlineScript: |
-          echo "Injection des secrets GitHub dans les variables d'environnement de l'App Service..."
-          az webapp config appsettings set --name ${{ env.AZURE_WEBAPP_NAME }} --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --settings \
-            STORAGE_CONNECTION_STRING="${{ secrets.STORAGE_CONNECTION_STRING }}" \
-            API_URL="${{ secrets.API_URL }}"
-
-    - name: Attendre la stabilisation de l'App Service
-      # Une attente est conservée par précaution si des redémarrages sont initiés par Azure.
-      # Le risque est cependant bien plus faible sans les étapes de configuration.
-      # Si l'erreur persiste, augmenter ce délai (ex: 90s).
-      run: |
-        echo "Attente de 30 secondes pour permettre à l'App Service de se stabiliser avant le déploiement..."
-        sleep 30
-
     - name: Créer l'archive de déploiement
       run: |
         cd frontend
@@ -78,3 +60,14 @@ jobs:
         package: app.zip # Déploie le fichier zip
         # Commande pour démarrer l'application Streamlit sur le port dynamique fourni par Azure.
         startup-command: 'streamlit run ${{ env.STARTUP_SCRIPT }} --server.port $PORT --server.address 0.0.0.0 --server.enableCORS false'
+
+    - name: Configurer les paramètres de l'application (App Settings) après le déploiement
+      uses: azure/cli@v2
+      with:
+        azcliversion: latest
+        inlineScript: |
+          echo "Injection des secrets GitHub dans les variables d'environnement de l'App Service..."
+          echo "Cette étape déclenchera un redémarrage final avec la configuration correcte."
+          az webapp config appsettings set --name ${{ env.AZURE_WEBAPP_NAME }} --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --settings \
+            STORAGE_CONNECTION_STRING="${{ secrets.STORAGE_CONNECTION_STRING }}" \
+            API_URL="${{ secrets.API_URL }}"
