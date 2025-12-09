@@ -81,11 +81,16 @@ jobs:
           az monitor autoscale rule create --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --autoscale-name "autoscale-plan-cpu" --scale "out 1" --condition "CpuPercentage > 70 avg 5m"
           az monitor autoscale rule create --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --autoscale-name "autoscale-plan-cpu" --scale "in 1" --condition "CpuPercentage < 30 avg 5m"
 
+    - name: Empaqueter l'application dans un zip
+      run: |
+        cd frontend
+        zip -r ../app.zip .
+      
     - name: Déploiement sur Azure Web App
-      uses: azure/webapps-deploy@v2
+      uses: azure/webapps-deploy@v3
       with:
         app-name: ${{ env.AZURE_WEBAPP_NAME }}
-        package: ./frontend # Déploie uniquement le dossier frontend
+        package: app.zip # Déploie le fichier zip
         # Force le build sur Azure pour installer les dépendances de requirements.txt
         scm-do-build-during-deployment: true
         # Commande pour démarrer l'application Streamlit sur le port dynamique fourni par Azure.
