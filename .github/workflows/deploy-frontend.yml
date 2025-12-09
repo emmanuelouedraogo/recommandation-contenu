@@ -18,7 +18,7 @@ env:
 
 jobs:
   build-and-deploy:
-    name: Build and Deploy
+    name: Build and Deploy Streamlit App
     runs-on: ubuntu-latest
 
     steps:
@@ -61,7 +61,7 @@ jobs:
         cd frontend
         zip -r ../app.zip .
       
-    - name: Déploiement sur Azure Web App
+    - name: Déploiement sur Azure App Service
       uses: azure/webapps-deploy@v3
       with:
         app-name: ${{ env.AZURE_WEBAPP_NAME }}

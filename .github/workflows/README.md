@@ -5,7 +5,6 @@ Ce projet est une application web complète qui fournit des recommandations de c
 ## 🏛️ Architecture
 
 L'application est composée des services Azure suivants :
-
 -   **Frontend (Interface Utilisateur)** : Une application [Streamlit](https://streamlit.io/) hébergée sur **Azure App Service**. Elle permet aux utilisateurs de se connecter, d'obtenir des recommandations, de noter des articles et de consulter leur historique.
 -   **Backend (API de Recommandation)** : Une **Azure Function** qui expose une API REST. Elle sert les recommandations générées par le modèle.
 -   **Stockage de Données et Modèles** : Un **Azure Blob Storage** qui centralise les données brutes (CSV) et les modèles de machine learning entraînés (fichiers `.pkl`).
@@ -61,10 +60,11 @@ recommandation-contenu/
     ```
 
 4.  **Configurer les secrets locaux**
-    Créez un fichier `.streamlit/secrets.toml` et ajoutez-y l'URL de votre Key Vault. Votre compte utilisateur doit avoir les permissions "get" et "list" sur les secrets du Key Vault.
+    Créez un fichier `.streamlit/secrets.toml` à la racine du projet pour y stocker les secrets nécessaires au fonctionnement de l'application en local.
     ```toml
     # .streamlit/secrets.toml
-    KEY_VAULT_URL = "https://<NOM_DE_VOTRE_KEY_VAULT>.vault.azure.net/"
+    STORAGE_CONNECTION_STRING = "DefaultEndpointsProtocol=..."
+    API_URL = "http://localhost:7071/api/recommend"
     ```
 
 5.  **Lancer l'application**
