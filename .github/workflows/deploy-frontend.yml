@@ -15,6 +15,7 @@ env:
   AZURE_WEBAPP_NAME: reco-contenu-interface   # Le nom de votre App Service
   AZURE_RESOURCE_GROUP: rg-recommandation-contenu # Remplacez par le nom de votre groupe de ressources
   PYTHON_VERSION: '3.11'                      # La version de Python utilisée
+  STARTUP_SCRIPT: 'frontend/interface.py'                    # Le nom de votre script Streamlit principal
 
 jobs:
   build-and-deploy:
@@ -86,4 +87,4 @@ jobs:
         app-name: ${{ env.AZURE_WEBAPP_NAME }}
         package: ./frontend # Déploie uniquement le dossier frontend
         # Commande pour démarrer l'application Streamlit sur le port dynamique fourni par Azure.
-        startup-command: 'streamlit run app.py --server.port $PORT --server.address 0.0.0.0'
+        startup-command: 'streamlit run ${{ env.STARTUP_SCRIPT }} --server.port $PORT --server.address 0.0.0.0'
