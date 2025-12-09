@@ -1,17 +1,17 @@
 # 📚 Système de Recommandation de Contenu
 
-Ce projet est une application web complète pour un système de recommandation de contenu. L'interface, développée avec Streamlit, permet aux utilisateurs de recevoir des recommandations personnalisées, de noter des articles et de consulter l'historique de leurs interactions. L'ensemble est déployé sur Microsoft Azure et utilise une architecture cloud moderne et sécurisée.
+Ce projet est une application web complète qui fournit des recommandations de contenu personnalisées. Il est construit avec une architecture moderne et découplée, entièrement hébergée sur Microsoft Azure et déployée via des pipelines CI/CD avec GitHub Actions.
 
 ## 🏛️ Architecture
 
 L'application est conçue autour des services Azure et d'une automatisation via GitHub Actions.
 
-*   **Frontend** : Une application **Streamlit** interactive déployée sur **Azure App Service**. Elle constitue l'interface utilisateur principale.
-*   **Backend API** : Un service d'API (non inclus dans ce dépôt) qui calcule et fournit les recommandations en temps réel.
-*   **Stockage de Données** : **Azure Blob Storage** est utilisé pour stocker les fichiers CSV contenant les données des utilisateurs, des articles, et des interactions (clics).
-*   **Gestion des Secrets** : **Azure Key Vault** stocke de manière centralisée et sécurisée les secrets de l'application, comme l'URL du compte de stockage et l'URL de l'API.
-*   **Authentification Inter-Services** : Les **Identités Managées Azure** sont utilisées pour permettre à l'App Service de s'authentifier de manière sécurisée auprès du Key Vault et du Blob Storage, sans avoir besoin de stocker de mots de passe ou de clés dans le code.
-*   **CI/CD** : Un workflow **GitHub Actions** (`.github/workflows/deploy-frontend.yml`) automatise entièrement le processus de déploiement.
+*   **Frontend (Interface Utilisateur)** : Une application Streamlit hébergée sur **Azure App Service**. Elle permet aux utilisateurs de se connecter, d'obtenir des recommandations, de noter des articles et de consulter leur historique.
+*   **Backend (API de Recommandation)** : Une **Azure Function** qui expose une API REST. Elle sert les recommandations générées par le modèle.
+*   **Stockage de Données et Modèles** : Un **Azure Blob Storage** qui centralise les données brutes (CSV) et les modèles de machine learning entraînés.
+*   **Gestion des Secrets** : **Azure Key Vault** stocke de manière centralisée et sécurisée les secrets de l'application. Pour le déploiement, les secrets sont injectés via **GitHub Actions**.
+*   **Authentification** : Les **Identités Managées Azure** permettent à l'App Service de s'authentifier de manière sécurisée auprès du Key Vault.
+*   **CI/CD** : Les workflows **GitHub Actions** automatisent le déploiement du frontend, du backend, et l'entraînement des modèles.
 
 ## ✨ Fonctionnalités
 
@@ -36,10 +36,44 @@ L'application est conçue autour des services Azure et d'une automatisation via 
     *   Monitor (pour l'autoscaling)
 *   **CI/CD** : GitHub Actions
 
-## ⚙️ Configuration et Déploiement
+## 🚀 Démarrage Rapide (Développement Local)
 
-Le déploiement est entièrement automatisé par le workflow GitHub Actions défini dans `.github/workflows/deploy-frontend.yml`.
+### Prérequis
 
+*   Python 3.11 ou supérieur
+*   Un compte Azure
+*   Azure CLI
+
+### Étapes d'installation
+
+1.  **Cloner le dépôt**
+    ```bash
+    git clone <URL_DU_DEPOT>
+    cd recommandation-contenu
+    ```
+
+2.  **Installer les dépendances**
+    ```bash
+    pip install -r requirements.txt
+    ```
+
+3.  **Configurer les secrets locaux**
+    Créez un fichier `.streamlit/secrets.toml` à la racine du projet. Ce fichier contiendra les informations de connexion nécessaires pour faire tourner l'application sur votre machine.
+    ```toml
+    # .streamlit/secrets.toml
+    STORAGE_CONNECTION_STRING = "DefaultEndpointsProtocol=..."
+    API_URL = "http://localhost:7071/api/recommend"
+    ```
+
+4.  **Lancer l'application**
+    ```bash
+    streamlit run frontend/interface.py
+    ```
+
+## ☁️ Déploiement sur Azure
+
+Le déploiement est entièrement automatisé par les workflows GitHub Actions.
+ 
 ### Prérequis
 
 1.  Un compte Azure avec les permissions nécessaires pour créer et gérer des ressources.
@@ -72,17 +106,17 @@ Le Key Vault doit contenir les secrets suivants, auxquels l'Identité Managée d
 
 ### Déclenchement du Workflow
 
-Le workflow se déclenche automatiquement à chaque `push` sur la branche `main` si des fichiers dans le dossier `frontend/` ou le workflow lui-même ont été modifiés.
+Les workflows se déclenchent automatiquement à chaque `push` sur la branche `main`.
 
 Le workflow effectue les actions suivantes :
 1.  Se connecte à Azure.
-2.  Configure l'infrastructure :
+2.  Configure l'infrastructure (si `setup-infra.yml` est lancé) :
     *   Met à jour le plan App Service vers le SKU `S1`.
     *   Active le Health Check.
     *   Définit les variables d'environnement (`KEY_VAULT_URL`, etc.).
     *   Configure les règles de mise à l'échelle automatique.
-3.  Attend 45 secondes pour la stabilisation des services Azure.
-4.  Installe les dépendances Python, empaquette l'application et la déploie sur Azure App Service.
+3.  Installe les dépendances Python.
+4.  Empaquette et déploie l'application sur Azure App Service.
 
 ## 📖 Comment Utiliser l'Application
 
