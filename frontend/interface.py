@@ -65,9 +65,17 @@ def get_config_from_key_vault() -> dict:
     Récupère toutes les configurations nécessaires depuis Azure Key Vault.
     Cette fonction est mise en cache pour éviter les appels répétés.
     """
+    logger.info("Attempting to retrieve KEY_VAULT_URL...")
+    
+    # Check if the secret is available in st.secrets
+    if "KEY_VAULT_URL" in st.secrets:
+        logger.info("KEY_VAULT_URL found in st.secrets.")
+    else:
+        logger.warning("KEY_VAULT_URL not found in st.secrets.")
+    
     vault_url = st.secrets.get("KEY_VAULT_URL") or os.environ.get("KEY_VAULT_URL")
     if not vault_url:
-        raise ConfigError("Le secret 'KEY_VAULT_URL' n'est pas configuré.")
+        raise ConfigError("The secret 'KEY_VAULT_URL' is not configured.")
 
     try:
         credential = DefaultAzureCredential()
