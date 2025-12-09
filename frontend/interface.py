@@ -310,12 +310,12 @@ def afficher_page_performance(blob_service_client):
         st.subheader("Détail des entraînements")
         st.dataframe(log_df, width='stretch')
 
-def afficher_page_creation_compte():
+def afficher_page_creation_compte(blob_service_client):
     """Affiche la page de création de compte."""
     st.header("Créez votre compte")
     
     if st.button("Créer un nouvel identifiant"):
-        current_users_df = charger_df_depuis_blob(USERS_BLOB_NAME)
+        current_users_df = charger_df_depuis_blob(blob_service_client, USERS_BLOB_NAME)
         # Génère un nouvel ID unique (plus robuste qu'un simple incrément)
         if current_users_df.empty:
             new_user_id = 1
@@ -391,7 +391,7 @@ if st.session_state.user_id is None:
     if st.sidebar.button("Se connecter"):
         if login_user_id:
             try:
-                user_id_to_check = int(login_user_id)
+                user_id_to_check = int(login_user_id) # Cette ligne est maintenant dans main()
                 users_df = charger_df_depuis_blob(blob_service_client, USERS_BLOB_NAME)
                 if user_id_to_check in users_df['user_id'].unique():
                     st.session_state.user_id = user_id_to_check
@@ -413,6 +413,22 @@ def main():
         blob_service_client = recuperer_client_blob_service(config["connection_string"])
         api_url = config["api_url"]
 
+        # --- Logique de connexion déplacée ici pour avoir accès au blob_service_client ---
+        if st.session_state.user_id is None:
+            if st.session_state.get("login_button_pressed"):
+                login_user_id = st.session_state.get("login_input", "")
+                if login_user_id:
+                    try:
+                        user_id_to_check = int(login_user_id)
+                        users_df = charger_df_depuis_blob(blob_service_client, USERS_BLOB_NAME)
+                        if user_id_to_check in users_df['user_id'].unique():
+                            st.session_state.user_id = user_id_to_check
+                            st.rerun()
+                        else:
+                            st.sidebar.error("Cet utilisateur n'existe pas.")
+                    except ValueError:
+                        st.sidebar.error("L'ID doit être un nombre.")
+
         # --- Routeur de page principal ---
         if choice == "Recommandations":
             afficher_page_recommandations(blob_service_client, api_url)
@@ -430,4 +446,10 @@ def main():
         st.info("Veuillez vérifier les permissions de l'identité managée de l'App Service sur le Key Vault et la présence des secrets.")
 
 if __name__ == "__main__":
+    # --- Section de connexion dans la barre latérale ---
+    if st.session_state.user_id is None:
+        st.sidebar.header("Connexion")
+        st.sidebar.text_input("Entrez votre identifiant utilisateur", key="login_input")
+        st.sidebar.button("Se connecter", key="login_button_pressed")
+
     main()
