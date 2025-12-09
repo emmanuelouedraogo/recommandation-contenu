@@ -1,115 +1,92 @@
 # 📚 Système de Recommandation de Contenu
 
-Ce projet est une application web complète qui fournit des recommandations de contenu personnalisées aux utilisateurs. Il est construit avec une architecture moderne et découplée, entièrement hébergée sur Microsoft Azure.
+Ce projet est une application web complète pour un système de recommandation de contenu. L'interface, développée avec Streamlit, permet aux utilisateurs de recevoir des recommandations personnalisées, de noter des articles et de consulter l'historique de leurs interactions. L'ensemble est déployé sur Microsoft Azure et utilise une architecture cloud moderne et sécurisée.
 
 ## 🏛️ Architecture
 
-L'application est composée des services Azure suivants :
+L'application est conçue autour des services Azure et d'une automatisation via GitHub Actions.
 
--   **Frontend (Interface Utilisateur)** : Une application Streamlit hébergée sur **Azure App Service**. Elle permet aux utilisateurs de se connecter, d'obtenir des recommandations, de noter des articles et de consulter leur historique.
--   **Backend (API de Recommandation)** : Une **Azure Function** qui expose une API REST. Elle reçoit un ID utilisateur et retourne une liste de recommandations personnalisées.
--   **Stockage de Données** : Un **Azure Blob Storage** qui stocke toutes les données brutes sous forme de fichiers CSV (utilisateurs, articles, interactions, logs d'entraînement).
--   **Gestion des Secrets** : Un **Azure Key Vault** qui stocke de manière sécurisée les informations sensibles comme la chaîne de connexion au stockage et l'URL de l'API.
--   **Identité et Authentification** : Les **Identités Managées** d'Azure sont utilisées pour permettre à l'App Service et à l'Azure Function de s'authentifier de manière sécurisée auprès du Key Vault sans stocker de secrets dans le code.
--   **Déploiement Continu (CI/CD)** : **GitHub Actions** est utilisé pour automatiser le déploiement du frontend sur l'App Service à chaque modification du code sur la branche `main`.
+*   **Frontend** : Une application **Streamlit** interactive déployée sur **Azure App Service**. Elle constitue l'interface utilisateur principale.
+*   **Backend API** : Un service d'API (non inclus dans ce dépôt) qui calcule et fournit les recommandations en temps réel.
+*   **Stockage de Données** : **Azure Blob Storage** est utilisé pour stocker les fichiers CSV contenant les données des utilisateurs, des articles, et des interactions (clics).
+*   **Gestion des Secrets** : **Azure Key Vault** stocke de manière centralisée et sécurisée les secrets de l'application, comme l'URL du compte de stockage et l'URL de l'API.
+*   **Authentification Inter-Services** : Les **Identités Managées Azure** sont utilisées pour permettre à l'App Service de s'authentifier de manière sécurisée auprès du Key Vault et du Blob Storage, sans avoir besoin de stocker de mots de passe ou de clés dans le code.
+*   **CI/CD** : Un workflow **GitHub Actions** (`.github/workflows/deploy-frontend.yml`) automatise entièrement le processus de déploiement.
 
-## 📁 Structure du Projet
+## ✨ Fonctionnalités
 
-```
-recommandation-contenu/
-├── .github/workflows/
-│   └── deploy-frontend.yml   # Workflow de déploiement du frontend
-├── .streamlit/
-│   └── secrets.toml          # Fichier de secrets pour le développement local
-├── frontend/
-│   └── interface.py          # Code de l'application Streamlit
-├── backend/
-│   └── ...                   # (Emplacement pour le code de l'Azure Function)
-├── .gitignore
-├── README.md
-└── requirements.txt          # Dépendances Python du projet
-```
+- **Connexion Utilisateur** : Système simple de connexion basé sur un `user_id`.
+- **Recommandations Personnalisées** : Appel à une API backend pour récupérer et afficher une liste d'articles recommandés pour l'utilisateur connecté.
+- **Notation d'Articles** : Possibilité pour l'utilisateur de noter les articles sur une échelle de 1 à 5.
+- **Historique des Interactions** : Page dédiée où l'utilisateur peut consulter et modifier les notes qu'il a précédemment attribuées.
+- **Création de Compte et d'Article** : Interfaces pour ajouter de nouveaux utilisateurs et de nouveaux articles à la base de données.
+- **Performance du Modèle** : Visualisation de l'historique des entraînements du modèle de recommandation.
+- **Haute Disponibilité** : L'infrastructure Azure est configurée pour la mise à l'échelle automatique (autoscaling) en fonction de la charge CPU.
+- **Bilan de Santé (Health Check)** : Un point de terminaison `/health` permet à Azure de surveiller la disponibilité de l'application.
 
-## 🚀 Démarrage Rapide (Développement Local)
+## 🚀 Technologies Utilisées
+
+*   **Langage** : Python 3.11
+*   **Framework Frontend** : Streamlit
+*   **Librairies Principales** : Pandas, Requests, Flask
+*   **Plateforme Cloud** : Microsoft Azure
+    *   App Service
+    *   Blob Storage
+    *   Key Vault
+    *   Monitor (pour l'autoscaling)
+*   **CI/CD** : GitHub Actions
+
+## ⚙️ Configuration et Déploiement
+
+Le déploiement est entièrement automatisé par le workflow GitHub Actions défini dans `.github/workflows/deploy-frontend.yml`.
 
 ### Prérequis
 
--   Python 3.11 ou supérieur
--   Un compte Azure
--   Azure CLI
+1.  Un compte Azure avec les permissions nécessaires pour créer et gérer des ressources.
+2.  Un dépôt GitHub.
 
-### Étapes d'installation
+### Secrets Requis
 
-1.  **Cloner le dépôt**
-    ```bash
-    git clone <URL_DU_DEPOT>
-    cd recommandation-contenu
+Pour que le déploiement fonctionne, les secrets suivants doivent être configurés dans les **Paramètres du dépôt GitHub** (`Settings > Secrets and variables > Actions`):
+
+1.  `AZURE_CREDENTIALS` : Les informations d'identification d'un Principal de Service (Service Principal) Azure, au format JSON, ayant les permissions de contribuer sur le groupe de ressources.
+
+    ```json
+    {
+      "clientId": "...",
+      "clientSecret": "...",
+      "subscriptionId": "...",
+      "tenantId": "..."
+    }
     ```
 
-2.  **Installer les dépendances**
-    ```bash
-    pip install -r requirements.txt
-    ```
+2.  `KEY_VAULT_URL` : L'URL du coffre de secrets Azure (Key Vault) où sont stockés les secrets de l'application.
+    *   Exemple : `https://mon-coffre-secret.vault.azure.net/`
 
-3.  **S'authentifier sur Azure**
-    Pour que `DefaultAzureCredential` fonctionne localement, connectez-vous via l'Azure CLI.
-    ```bash
-    az login
-    ```
+### Secrets dans Azure Key Vault
 
-4.  **Configurer les secrets locaux**
-    Créez un fichier `.streamlit/secrets.toml` et ajoutez-y l'URL de votre Key Vault. Votre compte utilisateur doit avoir les permissions "get" et "list" sur les secrets du Key Vault.
-    ```toml
-    # .streamlit/secrets.toml
-    KEY_VAULT_URL = "https://<NOM_DE_VOTRE_KEY_VAULT>.vault.azure.net/"
-    ```
+Le Key Vault doit contenir les secrets suivants, auxquels l'Identité Managée de l'App Service doit avoir accès (rôle `Key Vault Secrets User`) :
 
-5.  **Lancer l'application**
-    ```bash
-    streamlit run frontend/interface.py
-    ```
+*   `STORAGE-ACCOUNT-URL` : L'URL du service Blob du compte de stockage Azure.
+*   `API-URL` : L'URL de base de l'API de recommandation.
 
-## ☁️ Déploiement sur Azure
+### Déclenchement du Workflow
 
-Le déploiement du frontend est entièrement automatisé via GitHub Actions.
+Le workflow se déclenche automatiquement à chaque `push` sur la branche `main` si des fichiers dans le dossier `frontend/` ou le workflow lui-même ont été modifiés.
 
-### 1. Préparation de l'infrastructure Azure
+Le workflow effectue les actions suivantes :
+1.  Se connecte à Azure.
+2.  Configure l'infrastructure :
+    *   Met à jour le plan App Service vers le SKU `S1`.
+    *   Active le Health Check.
+    *   Définit les variables d'environnement (`KEY_VAULT_URL`, etc.).
+    *   Configure les règles de mise à l'échelle automatique.
+3.  Attend 45 secondes pour la stabilisation des services Azure.
+4.  Installe les dépendances Python, empaquette l'application et la déploie sur Azure App Service.
 
-Assurez-vous que les ressources suivantes sont créées sur Azure :
+## 📖 Comment Utiliser l'Application
 
--   Un groupe de ressources (ex: `rg-recommandation-contenu`).
--   Un compte de stockage avec un conteneur (ex: `reco-data`).
--   Un Key Vault avec les secrets `STORAGE-CONNECTION-STRING` et `API-URL`.
--   Une Azure Function pour le backend.
--   Un **App Service** nommé `reco-contenu-interface` pour le frontend.
-
-### 2. Configuration de l'App Service
-
-L'App Service doit être configuré pour fonctionner correctement :
-
--   **Identité Managée** : Activez l'identité managée affectée par le système.
--   **Permissions Key Vault** : Donnez à cette identité le rôle `Utilisateur des secrets Key Vault` sur votre Key Vault.
--   **Commande de démarrage** : Dans la configuration de l'App Service, définissez la commande de démarrage :
-    ```
-    streamlit run frontend/interface.py --server.port 8000 --server.address 0.0.0.0
-    ```
--   **Variable d'environnement** : Ajoutez une variable d'environnement `KEY_VAULT_URL` avec l'URL de votre Key Vault.
-
-### 3. Configuration de GitHub Actions
-
-1.  **Créer un Principal de Service** : Suivez la documentation Azure pour créer un principal de service ayant le rôle `Contributeur` sur votre groupe de ressources.
-
-2.  **Ajouter le secret à GitHub** :
-    -   Allez dans `Settings` > `Secrets and variables` > `Actions` sur votre dépôt GitHub.
-    -   Créez un nouveau secret nommé `AZURE_CREDENTIALS`.
-    -   Collez le JSON de sortie de la commande de création du principal de service.
-
-### 4. Déployer
-
-Poussez simplement vos modifications sur la branche `main`. GitHub Actions se chargera de construire et de déployer automatiquement votre application sur l'App Service.
-
-```bash
-git push origin main
-```
-
----
+1.  Accédez à l'URL de l'application déployée (`https://reco-contenu-interface.azurewebsites.net`).
+2.  Utilisez la barre latérale pour vous connecter avec un `user_id` existant (une liste est affichée pour faciliter les tests) ou créez un nouveau compte via le menu "Créer un compte".
+3.  Une fois connecté, la page "Recommandations" affichera des articles personnalisés.
+4.  Vous pouvez noter chaque article. Vos notes apparaîtront dans la page "Mon Historique".
