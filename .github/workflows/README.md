@@ -1,17 +1,20 @@
 # 📚 Système de Recommandation de Contenu
 
-Ce projet est une application web complète qui fournit des recommandations de contenu personnalisées aux utilisateurs. Il est construit avec une architecture moderne et découplée, entièrement hébergée sur Microsoft Azure.
+Ce projet est une application web complète qui fournit des recommandations de contenu personnalisées. Il est construit avec une architecture moderne et découplée, entièrement hébergée sur Microsoft Azure et déployée via des pipelines CI/CD avec GitHub Actions.
 
 ## 🏛️ Architecture
 
 L'application est composée des services Azure suivants :
 
 -   **Frontend (Interface Utilisateur)** : Une application [Streamlit](https://streamlit.io/) hébergée sur **Azure App Service**. Elle permet aux utilisateurs de se connecter, d'obtenir des recommandations, de noter des articles et de consulter leur historique.
--   **Backend (API de Recommandation)** : Une **Azure Function** qui expose une API REST. Elle reçoit un ID utilisateur et retourne une liste de recommandations personnalisées.
--   **Stockage de Données** : Un **Azure Blob Storage** qui stocke toutes les données brutes sous forme de fichiers CSV (utilisateurs, articles, interactions, logs d'entraînement).
--   **Gestion des Secrets** : Un **Azure Key Vault** qui stocke de manière sécurisée les informations sensibles comme la chaîne de connexion au stockage et l'URL de l'API.
--   **Identité et Authentification** : Les **Identités Managées** d'Azure sont utilisées pour permettre à l'App Service et à l'Azure Function de s'authentifier de manière sécurisée auprès du Key Vault sans stocker de secrets dans le code.
--   **Déploiement Continu (CI/CD)** : **GitHub Actions** est utilisé pour automatiser le déploiement du frontend sur l'App Service à chaque modification du code sur la branche `main`.
+-   **Backend (API de Recommandation)** : Une **Azure Function** qui expose une API REST. Elle sert les recommandations générées par le modèle.
+-   **Stockage de Données et Modèles** : Un **Azure Blob Storage** qui centralise les données brutes (CSV) et les modèles de machine learning entraînés (fichiers `.pkl`).
+-   **Gestion des Secrets** : Les secrets de l'application (clés d'API, chaînes de connexion) sont stockés de manière sécurisée dans les **Secrets GitHub**. Ils sont injectés dans les services Azure en tant que variables d'environnement au moment du déploiement.
+-   **CI/CD et Automatisation** : **GitHub Actions** est utilisé pour automatiser l'ensemble du cycle de vie de l'application :
+    -   Déploiement continu du frontend (App Service).
+    -   Déploiement continu du backend (Azure Function).
+    -   Entraînement planifié et déploiement des modèles de ML.
+    -   Configuration de l'infrastructure (Infrastructure as Code).
 
 ## 📁 Structure du Projet
 
