@@ -51,7 +51,7 @@ USERS_BLOB_NAME = "users.csv"
 ARTICLES_BLOB_NAME = "articles_metadata.csv"  # Nom du blob pour les articles
 CLICKS_BLOB_NAME = "clicks_sample.csv"        # Nom du blob pour les interactions
 TRAINING_LOG_BLOB_NAME = "logs/training_log.csv"
-STORAGE_SECRET_NAME = "STORAGE-CONNECTION-STRING" # Le nom du secret pour la chaîne de connexion
+STORAGE_URL_SECRET_NAME = "STORAGE-ACCOUNT-URL"   # Le nom du secret pour l'URL du compte de stockage
 API_URL_SECRET_NAME = "API-URL"                   # Le nom du secret pour l'URL de l'API
 
 # --- Gestion des Secrets via Azure Key Vault ---
@@ -74,11 +74,11 @@ def get_config_from_key_vault() -> dict:
         secret_client = SecretClient(vault_url=vault_url, credential=credential)
 
         logger.info("Récupération des secrets depuis Key Vault...")
-        conn_str = secret_client.get_secret(STORAGE_SECRET_NAME).value
+        storage_url = secret_client.get_secret(STORAGE_URL_SECRET_NAME).value.strip().rstrip('/')
         api_url = secret_client.get_secret(API_URL_SECRET_NAME).value.strip().rstrip('/')
         logger.info("Tous les secrets ont été récupérés avec succès.")
 
-        return {"connection_string": conn_str, "api_url": api_url}
+        return {"storage_url": storage_url, "api_url": api_url}
     except Exception as e:
         logger.critical(f"Échec critique lors de la récupération des secrets depuis Key Vault. URL: {vault_url}. Erreur: {e}")
         raise ConfigError("Impossible de récupérer la configuration depuis Azure Key Vault.") from e
@@ -87,12 +87,13 @@ def get_config_from_key_vault() -> dict:
 # --- Fonctions de Chargement des Données ---
 # ==============================================================================
 @st.cache_resource(ttl=3600)
-def recuperer_client_blob_service(conn_str: str) -> BlobServiceClient:
-    """Crée un client de service blob. Mis en cache pour la performance."""
-    if not conn_str:
-        st.error("La chaîne de connexion Azure n'est pas configurée dans les secrets !")
+def recuperer_client_blob_service(storage_url: str) -> BlobServiceClient:
+    """Crée un client de service blob en utilisant l'URL et l'identité managée. Mis en cache pour la performance."""
+    if not storage_url:
+        st.error("L'URL du compte de stockage Azure n'est pas configurée dans les secrets !")
         st.stop()
-    return BlobServiceClient.from_connection_string(conn_str)
+    credential = DefaultAzureCredential()
+    return BlobServiceClient(account_url=storage_url, credential=credential)
 
 # Initialiser le client une seule fois
 @st.cache_data(ttl=3600) # Cache les données pendant 1 heure
@@ -372,64 +373,51 @@ def afficher_page_ajout_article(blob_service_client):
 # --- Interface Streamlit ---
 # ==============================================================================
 st.title("📚 Système de Recommandation de Contenu")
-
-# --- Gestion de la session utilisateur ---
-if 'user_id' not in st.session_state:
-    st.session_state.user_id = None
-
-# Menu dans la barre latérale
-st.sidebar.title("Navigation")
-menu = ["Recommandations", "Mon Historique", "Performance du Modèle", "Créer un compte", "Ajouter un article"]
-choice = st.sidebar.selectbox("Menu", menu)
-
-st.sidebar.divider()
-
-# --- Section de connexion dans la barre latérale ---
-if st.session_state.user_id is None:
-    st.sidebar.header("Connexion")
-    login_user_id = st.sidebar.text_input("Entrez votre identifiant utilisateur", key="login_input")
-    if st.sidebar.button("Se connecter"):
-        if login_user_id:
-            try:
-                user_id_to_check = int(login_user_id) # Cette ligne est maintenant dans main()
-                users_df = charger_df_depuis_blob(blob_service_client, USERS_BLOB_NAME)
-                if user_id_to_check in users_df['user_id'].unique():
-                    st.session_state.user_id = user_id_to_check
-                    st.rerun() # Recharge la page pour refléter l'état connecté
-                else:
-                    st.sidebar.error("Cet utilisateur n'existe pas.")
-            except ValueError:
-                st.sidebar.error("L'ID doit être un nombre.")
-else:
-    st.sidebar.success(f"Connecté en tant que : **{st.session_state.user_id}**")
-    if st.sidebar.button("Se déconnecter"):
-        st.session_state.user_id = None
-        st.rerun()
-
 def main():
     """Fonction principale de l'application Streamlit."""
+    # --- Initialisation globale des clients et de la configuration ---
     try:
         config = get_config_from_key_vault()
-        blob_service_client = recuperer_client_blob_service(config["connection_string"])
+        blob_service_client = recuperer_client_blob_service(config["storage_url"])
         api_url = config["api_url"]
+    except ConfigError as e:
+        st.error(f"Erreur de configuration critique : {e}")
+        st.info("Veuillez vérifier les permissions de l'identité managée de l'App Service sur le Key Vault et la présence des secrets.")
+        st.stop() # Arrête l'exécution si la configuration échoue
 
-        # --- Logique de connexion déplacée ici pour avoir accès au blob_service_client ---
-        if st.session_state.user_id is None:
-            if st.session_state.get("login_button_pressed"):
-                login_user_id = st.session_state.get("login_input", "")
-                if login_user_id:
-                    try:
-                        user_id_to_check = int(login_user_id)
-                        users_df = charger_df_depuis_blob(blob_service_client, USERS_BLOB_NAME)
-                        if user_id_to_check in users_df['user_id'].unique():
-                            st.session_state.user_id = user_id_to_check
-                            st.rerun()
-                        else:
-                            st.sidebar.error("Cet utilisateur n'existe pas.")
-                    except ValueError:
-                        st.sidebar.error("L'ID doit être un nombre.")
+    # --- Gestion de la session utilisateur ---
+    if 'user_id' not in st.session_state:
+        st.session_state.user_id = None
 
-        # --- Routeur de page principal ---
+    # --- Section de connexion dans la barre latérale ---
+    st.sidebar.divider()
+    if st.session_state.user_id is None:
+        st.sidebar.header("Connexion")
+        login_user_id = st.sidebar.text_input("Entrez votre identifiant utilisateur", key="login_input")
+        if st.sidebar.button("Se connecter"):
+            if login_user_id:
+                try:
+                    user_id_to_check = int(login_user_id)
+                    users_df = charger_df_depuis_blob(blob_service_client, USERS_BLOB_NAME)
+                    if user_id_to_check in users_df['user_id'].unique():
+                        st.session_state.user_id = user_id_to_check
+                        st.rerun()
+                    else:
+                        st.sidebar.error("Cet utilisateur n'existe pas.")
+                except ValueError:
+                    st.sidebar.error("L'ID doit être un nombre.")
+    else:
+        st.sidebar.success(f"Connecté en tant que : **{st.session_state.user_id}**")
+        if st.sidebar.button("Se déconnecter"):
+            st.session_state.user_id = None
+            st.rerun()
+
+    # --- Routeur de page principal ---
+    st.sidebar.title("Navigation")
+    menu = ["Recommandations", "Mon Historique", "Performance du Modèle", "Créer un compte", "Ajouter un article"]
+    choice = st.sidebar.selectbox("Menu", menu)
+
+    if choice == "Recommandations":
         if choice == "Recommandations":
             afficher_page_recommandations(blob_service_client, api_url)
         elif choice == "Mon Historique":
@@ -441,15 +429,5 @@ def main():
         elif choice == "Ajouter un article":
             afficher_page_ajout_article(blob_service_client)
 
-    except ConfigError as e:
-        st.error(f"Erreur de configuration critique : {e}")
-        st.info("Veuillez vérifier les permissions de l'identité managée de l'App Service sur le Key Vault et la présence des secrets.")
-
 if __name__ == "__main__":
-    # --- Section de connexion dans la barre latérale ---
-    if st.session_state.user_id is None:
-        st.sidebar.header("Connexion")
-        st.sidebar.text_input("Entrez votre identifiant utilisateur", key="login_input")
-        st.sidebar.button("Se connecter", key="login_button_pressed")
-
     main()
