@@ -63,6 +63,9 @@ jobs:
 
           echo "Activation du bilan de santé (Health Check) sur le point de terminaison personnalisé..."
           az webapp update --name ${{ env.AZURE_WEBAPP_NAME }} --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --set siteConfig.healthCheckPath="/health"
+
+          echo "Configuration des paramètres de l'application pour le Health Check..."
+          az webapp config appsettings set --name ${{ env.AZURE_WEBAPP_NAME }} --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --settings WEBSITES_HEALTH_CHECK_PORT=8080
           
           echo "Activation de la journalisation de l'application (sur le système de fichiers)..."
           az webapp log config --name ${{ env.AZURE_WEBAPP_NAME }} --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --application-logging filesystem --level verbose
