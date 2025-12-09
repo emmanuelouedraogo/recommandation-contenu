@@ -48,6 +48,16 @@ jobs:
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
 
+    - name: Configurer les paramètres de l'application (App Settings)
+      uses: azure/cli@v2
+      with:
+        azcliversion: latest
+        inlineScript: |
+          echo "Injection des secrets GitHub dans les variables d'environnement de l'App Service..."
+          az webapp config appsettings set --name ${{ env.AZURE_WEBAPP_NAME }} --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --settings \
+            STORAGE_CONNECTION_STRING="${{ secrets.STORAGE_CONNECTION_STRING }}" \
+            API_URL="${{ secrets.API_URL }}"
+
     - name: Attendre la stabilisation de l'App Service
       # Une attente est conservée par précaution si des redémarrages sont initiés par Azure.
       # Le risque est cependant bien plus faible sans les étapes de configuration.
