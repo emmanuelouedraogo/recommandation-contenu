@@ -10,7 +10,7 @@ L'application est conçue autour des services Azure et d'une automatisation via 
 *   **Backend (API de Recommandation)** : Une **Azure Function** qui expose une API REST. Elle sert les recommandations générées par le modèle.
 *   **Stockage de Données et Modèles** : Un **Azure Blob Storage** qui centralise les données brutes (CSV) et les modèles de machine learning entraînés.
 *   **Gestion des Secrets** : **Azure Key Vault** stocke de manière centralisée et sécurisée les secrets de l'application. Pour le déploiement, les secrets sont injectés via **GitHub Actions**.
-*   **Authentification** : Les **Identités Managées Azure** permettent à l'App Service de s'authentifier de manière sécurisée auprès du Key Vault.
+*   **Authentification** : Le pipeline CI/CD s'authentifie à Azure via un **Principal de Service (Service Principal)** pour accéder au Key Vault et configurer les ressources.
 *   **CI/CD** : Les workflows **GitHub Actions** automatisent le déploiement du frontend, du backend, et l'entraînement des modèles.
 
 ## ✨ Fonctionnalités
@@ -97,13 +97,6 @@ Pour que le déploiement fonctionne, les secrets suivants doivent être configur
 2.  `KEY_VAULT_URL` : L'URL du coffre de secrets Azure (Key Vault) où sont stockés les secrets de l'application.
     *   Exemple : `https://mon-coffre-secret.vault.azure.net/`
 
-### Secrets dans Azure Key Vault
-
-Le Key Vault doit contenir les secrets suivants, auxquels l'Identité Managée de l'App Service doit avoir accès (rôle `Key Vault Secrets User`) :
-
-*   `STORAGE-ACCOUNT-URL` : L'URL du service Blob du compte de stockage Azure.
-*   `API-URL` : L'URL de base de l'API de recommandation.
-
 ### Déclenchement du Workflow
 
 Les workflows se déclenchent automatiquement à chaque `push` sur la branche `main`.
@@ -112,8 +105,8 @@ Le workflow effectue les actions suivantes :
 1.  Se connecte à Azure.
 2.  Configure l'infrastructure (si `setup-infra.yml` est lancé) :
     *   Met à jour le plan App Service vers le SKU `S1`.
-    *   Active le Health Check.
-    *   Définit les variables d'environnement (`KEY_VAULT_URL`, etc.).
+    *   Active le Health Check sur l'application.
+    *   Récupère les secrets depuis Key Vault et les définit comme variables d'environnement dans l'App Service.
     *   Configure les règles de mise à l'échelle automatique.
 3.  Installe les dépendances Python.
 4.  Empaquette et déploie l'application sur Azure App Service.
