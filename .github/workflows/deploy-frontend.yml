@@ -86,5 +86,7 @@ jobs:
       with:
         app-name: ${{ env.AZURE_WEBAPP_NAME }}
         package: ./frontend # Déploie uniquement le dossier frontend
+        # Force le build sur Azure pour installer les dépendances de requirements.txt
+        scm-do-build-during-deployment: true
         # Commande pour démarrer l'application Streamlit sur le port dynamique fourni par Azure.
-        startup-command: 'streamlit run ${{ env.STARTUP_SCRIPT }} --server.port $PORT --server.address 0.0.0.0'
+        startup-command: 'gunicorn --bind=0.0.0.0:$PORT --workers=1 --threads=8 --timeout=0 "streamlit.cli:main" run ${{ env.STARTUP_SCRIPT }}'
