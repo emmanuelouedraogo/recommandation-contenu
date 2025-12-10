@@ -85,7 +85,7 @@ def timer_trigger_retrain(myTimer: func.TimerRequest) -> None:
     training_state = get_training_state(blob_service_client)
 
     last_training_count = training_state.get("last_training_click_count", 0)    
-    # 2. Compter le nombre actuel d'interactions
+    # 2. Compter le nombre actuel d'interactions 
     try:
         clicks_blob_client = blob_service_client.get_blob_client(container=CONTAINER_NAME, blob=CLICKS_BLOB_NAME)
         clicks_data = clicks_blob_client.download_blob().readall()

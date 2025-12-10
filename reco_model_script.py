@@ -13,7 +13,6 @@ from sklearn.model_selection import train_test_split
 # Configuration du logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-
 def load_data_from_azure(connect_str, container_name, blob_name):
     """Charge un fichier depuis Azure Blob Storage."""
     blob_service_client = BlobServiceClient.from_connection_string(connect_str)
@@ -28,7 +27,6 @@ def load_data_from_azure(connect_str, container_name, blob_name):
             f.write(downloader.readall())
         return joblib.load(local_path)
     return None
-
 
 def evaluate_precision_at_k(model, test_df, k=10):
     """Calcule la Précision@k moyenne pour les utilisateurs du jeu de test."""
@@ -51,7 +49,6 @@ def evaluate_precision_at_k(model, test_df, k=10):
         
     return sum(precisions) / len(precisions) if precisions else 0
 
-
 def log_training_metrics(connect_str, container_name, metrics, click_count):
     """Enregistre les métriques d'entraînement dans un fichier CSV sur Azure Blob Storage."""
     log_blob_name = "logs/training_log.csv"
@@ -73,7 +70,6 @@ def log_training_metrics(connect_str, container_name, metrics, click_count):
     updated_log_df = pd.concat([log_df, pd.DataFrame([log_entry])], ignore_index=True)
     blob_client.upload_blob(updated_log_df.to_csv(index=False), overwrite=True)
     logging.info(f"Métrique d'entraînement enregistrée dans {log_blob_name}")
-
 
 def train_and_save_model(connect_str, container_name, clicks_blob, articles_blob, embeddings_blob, model_output_blob):
     """Fonction principale pour entraîner et sauvegarder le modèle."""
@@ -126,5 +122,3 @@ def train_and_save_model(connect_str, container_name, clicks_blob, articles_blob
     with open(local_model_path, "rb") as data:
         blob_client.upload_blob(data, overwrite=True)
     logging.info(f"Modèle uploadé avec succès sur Azure Blob Storage : {model_output_blob}")
-
-# ... (le reste de votre script si vous avez une exécution via __main__)

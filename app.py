@@ -33,8 +33,8 @@ def health_check():
     return "OK", 200
 
 # --- Routes API pour le Frontend ---
-
 @app.route('/api/users', methods=['GET', 'POST'])
+
 
 def handle_users():
     """Gère la récupération et la création d'utilisateurs."""
@@ -56,7 +56,7 @@ def handle_users():
             return jsonify({"error": "Impossible de charger les utilisateurs"}), 500
 
 @app.route('/api/recommendations/<int:user_id>', methods=['GET'])
-
+ 
 def get_recommendations(user_id: int):
     """API pour obtenir les recommandations pour un utilisateur."""
     try:
@@ -78,7 +78,7 @@ def get_recommendations(user_id: int):
         return jsonify({"error": "Erreur interne du serveur"}), 500
 
 @app.route('/api/history/<int:user_id>', methods=['GET'])
-
+ 
 def get_user_history(user_id):
     """API pour obtenir l'historique de notation d'un utilisateur."""
     try:
@@ -92,7 +92,7 @@ def get_user_history(user_id):
         return jsonify({"error": "Impossible de charger l'historique"}), 500
 
 @app.route('/api/interactions', methods=['POST'])
-
+ 
 def add_interaction():
     """API pour ajouter ou mettre à jour une notation d'article."""
     data = request.get_json()
@@ -118,7 +118,7 @@ def add_interaction():
         return jsonify({"error": "Impossible d'enregistrer l'interaction"}), 500
 
 @app.route('/api/articles', methods=['POST'])
-
+ 
 def add_article():
     """API pour ajouter un nouvel article."""
     data = request.get_json()
@@ -144,7 +144,7 @@ def add_article():
         return jsonify({"error": "Impossible d'ajouter l'article"}), 500
 
 @app.route('/api/performance', methods=['GET'])
-
+ 
 def get_model_performance():
     """API pour obtenir les données de performance du modèle."""
     try:
@@ -157,7 +157,7 @@ def get_model_performance():
         return jsonify({"error": "Impossible de charger les données de performance"}), 500
 
 @app.route('/api/user_context/<int:user_id>', methods=['GET'])
-
+ 
 def get_user_context(user_id):
     """API pour obtenir le contexte (pays, appareil) du dernier clic d'un utilisateur."""
     try:
@@ -172,8 +172,7 @@ def get_user_context(user_id):
         app.logger.error(f"Erreur API GET /api/user_context/{user_id}: {e}")
         return jsonify({"error": "Impossible de charger le contexte utilisateur"}), 500
 
-# Permet de lancer l'application en mode débogage
-
+# Permet de lancer l'application en mode débogage 
 if __name__ == '__main__':
     # En production, utilisez un serveur WSGI comme Gunicorn
     app.run(debug=True)

@@ -29,6 +29,7 @@ def recuperer_client_blob_service() -> BlobServiceClient:
         st.stop()
     return BlobServiceClient.from_connection_string(connect_str)
 
+
 @st.cache_data(ttl=3600)
 def charger_df_depuis_blob(blob_name: str) -> pd.DataFrame:
     """Charge un DataFrame depuis un blob CSV."""
@@ -36,13 +37,15 @@ def charger_df_depuis_blob(blob_name: str) -> pd.DataFrame:
     try:
         downloader = blob_client.download_blob(encoding='utf-8')
         blob_data = downloader.readall()
-        return pd.read_csv(StringIO(blob_data))
+        df = pd.read_csv(StringIO(blob_data))
+        return df
     except ServiceRequestError as e:
         st.error(f"Erreur de connexion au stockage Azure. Vérifiez votre connexion internet et la chaîne de connexion. Erreur: {e}")
         return pd.DataFrame()
     except ResourceNotFoundError:
         st.warning(f"Le blob '{blob_name}' n'a pas été trouvé. Un nouveau sera créé si nécessaire.")
         return pd.DataFrame()
+
 
 def sauvegarder_df_vers_blob(df: pd.DataFrame, blob_name: str) -> bool:
     """Sauvegarde un DataFrame dans un blob CSV."""
@@ -58,6 +61,7 @@ def sauvegarder_df_vers_blob(df: pd.DataFrame, blob_name: str) -> bool:
         logger.error(error_msg)
         return False
 
+
 def ajouter_interaction(user_id, article_id, rating):
     """Ajoute une nouvelle interaction (note) et la sauvegarde."""
     clicks_df = charger_df_depuis_blob(CLICKS_BLOB_NAME)
@@ -70,7 +74,7 @@ def ajouter_interaction(user_id, article_id, rating):
     updated_clicks_df = pd.concat([clicks_df, new_interaction], ignore_index=True)
     if sauvegarder_df_vers_blob(updated_clicks_df, CLICKS_BLOB_NAME):
         st.cache_data.clear()
-        st.toast(f"Merci pour votre note de {rating}/5 !", icon="⭐")
+        st.toast(f"Merci pour votre note de {rating}/5 !", icon="⭐")  # noqa
 
 def mettre_a_jour_interaction(user_id, article_id, new_rating):
     """Met à jour la note la plus récente pour un article donné par un utilisateur."""
@@ -81,8 +85,8 @@ def mettre_a_jour_interaction(user_id, article_id, new_rating):
         clicks_df.loc[latest_interaction_index, 'nb'] = new_rating
         clicks_df.loc[latest_interaction_index, 'click_timestamp'] = int(pd.Timestamp.now().timestamp())
         if sauvegarder_df_vers_blob(clicks_df, CLICKS_BLOB_NAME):
-            st.cache_data.clear()
-            st.toast(f"Votre note a été mise à jour à {new_rating}/5 !", icon="👍")
+            st.cache_data.clear()  # noqa
+            st.toast(f"Votre note a été mise à jour à {new_rating}/5 !", icon="👍")  # noqa
 
 
 # ==============================================================================
@@ -103,7 +107,7 @@ def obtenir_recommandations(api_url, user_id):
     with st.spinner('Recherche de vos recommandations...'):
         try:
             headers = {'Accept': 'application/json'}
-            response = requests.get(f"{api_url}/api/recommend", params={"user_id": user_id}, headers=headers, timeout=20)
+            response = requests.get(f"{api_url}/api/recommend", params={"user_id": user_id}, headers=headers, timeout=20)  # noqa
             response.raise_for_status()
             try:
                 data = response.json()

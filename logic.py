@@ -3,7 +3,7 @@ from io import StringIO
 import requests
 import logging
 from azure.storage.blob import BlobServiceClient
-from azure.core.exceptions import ResourceNotFoundError
+from azure.core.exceptions import ResourceNotFoundError, ServiceRequestError
 from functools import lru_cache, wraps
 from datetime import datetime
 import time
@@ -30,7 +30,7 @@ def timed_lru_cache(seconds: int, maxsize: int = 128):
             # Utilise un timestamp arrondi pour créer des "fenêtres" de cache
             # et des arguments de la fonction pour la cle de cache.
             now = time.time()
-            ttl_hash = round(now / seconds)  # Crée une clé de cache basée sur les arguments pour vérifier le statut
+            ttl_hash = round(now / seconds)
             cache_key = (ttl_hash,) + args + tuple(sorted(kwargs.items()))  # noqa
             
             # Log pour savoir si on utilise le cache ou si on exécute la fonction
@@ -49,7 +49,7 @@ def timed_lru_cache(seconds: int, maxsize: int = 128):
 def recuperer_client_blob_service(connect_str: str) -> BlobServiceClient:
     """Crée un client de service blob en utilisant la chaîne de connexion."""
     if not connect_str:
-        raise ValueError("La chaîne de connexion au stockage ('STORAGE_CONNECTION_STRING') est vide.")
+        raise ValueError("La chaîne de connexion au stockage est vide.")
     return BlobServiceClient.from_connection_string(connect_str)
 
 
@@ -66,6 +66,9 @@ def charger_df_depuis_blob(ttl_hash, blob_service_client: BlobServiceClient, blo
         if "click_article_id" in df.columns:
             df.rename(columns={'click_article_id': 'article_id'}, inplace=True)
             
+        # Assurez-vous que 'article_id' est de type int pour les merges futurs
+        df['article_id'] = df['article_id'].astype(int)
+
         return df
     except ResourceNotFoundError:
         logger.warning(f"Le blob '{blob_name}' n'a pas été trouvé.")
@@ -81,7 +84,6 @@ def sauvegarder_df_vers_blob(blob_service_client: BlobServiceClient, df: pd.Data
     df.to_csv(output, index=False)
     blob_client = blob_service_client.get_blob_client(container=AZURE_CONTAINER_NAME, blob=blob_name)
     blob_client.upload_blob(output.getvalue(), overwrite=True)
-
 
 
 def obtenir_recommandations_pour_utilisateur(api_url: str, user_id: int, connect_str: str, country_filter: str = None, device_filter: str = None):
@@ -109,7 +111,7 @@ def obtenir_recommandations_pour_utilisateur(api_url: str, user_id: int, connect
             # Appliquer les filtres si fournis
             if country_filter or device_filter:
                 article_context = _get_article_context(
-                    ttl_hash=round(time.time() / 600),  # Utilise le même ttl_hash que charger_df_depuis_blob
+                    ttl_hash=round(time.time() / 600),
                     clicks_df=clicks_df
                 )
                 reco_details = reco_details.merge(article_context, on='article_id', how='left')
@@ -138,7 +140,6 @@ def obtenir_recommandations_pour_utilisateur(api_url: str, user_id: int, connect
         logger.error(f"Erreur inattendue pour user_id {user_id}: {e}")
         return {"error": "Une erreur inattendue est survenue."}
 
-
 def obtenir_historique_utilisateur(user_id: int, connect_str: str):
     """Récupère l'historique des notations pour un utilisateur."""
     blob_service_client = recuperer_client_blob_service(connect_str)
@@ -156,7 +157,6 @@ def obtenir_historique_utilisateur(user_id: int, connect_str: str):
     history_details = history_details.sort_values(by='click_timestamp', ascending=False)
     
     return history_details.to_dict(orient='records')
-
 
 def ajouter_ou_mettre_a_jour_interaction(user_id: int, article_id: int, rating: int, connect_str: str):
     """Ajoute ou met à jour une notation."""
@@ -183,7 +183,6 @@ def ajouter_ou_mettre_a_jour_interaction(user_id: int, article_id: int, rating: 
 
     sauvegarder_df_vers_blob(blob_service_client, clicks_df, CLICKS_BLOB_NAME)
 
-
 def creer_nouvel_utilisateur(connect_str: str):
     """Crée un nouvel utilisateur avec un ID unique."""
     blob_service_client = recuperer_client_blob_service(connect_str)
@@ -200,7 +199,6 @@ def creer_nouvel_utilisateur(connect_str: str):
     sauvegarder_df_vers_blob(blob_service_client, updated_users_df, USERS_BLOB_NAME)
     return new_user_id
 
-
 def obtenir_utilisateurs(connect_str: str):
     """Récupère la liste de tous les utilisateurs uniques à partir des clics."""
     blob_service_client = recuperer_client_blob_service(connect_str)
@@ -210,7 +208,6 @@ def obtenir_utilisateurs(connect_str: str):
     unique_users = clicks_df['user_id'].unique()
     users_df = pd.DataFrame(unique_users, columns=['user_id'])
     return users_df.to_dict(orient='records')
-
 
 def obtenir_contexte_utilisateur(user_id: int, connect_str: str):
     """Récupère le pays et le groupe d'appareils du dernier clic de l'utilisateur."""
@@ -229,7 +226,6 @@ def obtenir_contexte_utilisateur(user_id: int, connect_str: str):
 
     return {"country": latest_click.get('click_country', 'Inconnu'),
             "deviceGroup": latest_click.get('click_deviceGroup', 'Inconnu')}
-
 
 def creer_nouvel_article(title: str, content: str, category_id: int, connect_str: str) -> int:
     """Crée un nouvel article et le sauvegarde dans le blob."""
@@ -256,7 +252,6 @@ def creer_nouvel_article(title: str, content: str, category_id: int, connect_str
     
     return new_article_id
 
-
 def obtenir_performance_modele(connect_str: str):
     """Récupère les logs de performance de l'entraînement du modèle."""
     blob_service_client = recuperer_client_blob_service(connect_str)
@@ -264,7 +259,6 @@ def obtenir_performance_modele(connect_str: str):
     if performance_df.empty:
         return []
     return performance_df.to_dict(orient='records')
-
 
 def obtenir_tendances_globales_clics(connect_str: str):
     """
