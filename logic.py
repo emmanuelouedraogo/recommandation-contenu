@@ -1,10 +1,11 @@
 import pandas as pd
 from io import StringIO, BytesIO
 import requests
+import os
 import logging
 import time
-from azure.storage.blob import BlobServiceClient # type: ignore
-from azure.identity import DefaultAzureCredential # type: ignore
+from azure.storage.blob import BlobServiceClient  # type: ignore
+from azure.identity import DefaultAzureCredential  # type: ignore
 from functools import lru_cache, wraps
 from azure.core.exceptions import ResourceNotFoundError
 
@@ -17,6 +18,7 @@ USERS_BLOB_NAME = "users.csv"
 ARTICLES_BLOB_NAME = "articles_metadata.csv"
 CLICKS_BLOB_NAME = "clicks_sample.csv"
 TRAINING_LOG_BLOB_NAME = "logs/training_log.csv"
+CACHE_TTL_SECONDS = 600  # 10 minutes
 logger = logging.getLogger(__name__)
 
 
@@ -53,7 +55,7 @@ def timed_lru_cache(seconds: int, maxsize: int = 128):
 def recuperer_client_blob_service() -> BlobServiceClient:
     """Crée un client de service blob en utilisant la chaîne de connexion."""
     # Utilise DefaultAzureCredential pour l'authentification (Managed Identity en priorité)
-    return BlobServiceClient(account_url=f"https://{STORAGE_ACCOUNT_NAME}.blob.core.windows.net", credential=DefaultAzureCredential()) # type: ignore
+    return BlobServiceClient(account_url=f"https://{STORAGE_ACCOUNT_NAME}.blob.core.windows.net", credential=DefaultAzureCredential())  # type: ignore
 
 
 @timed_lru_cache(seconds=600)
@@ -70,10 +72,10 @@ def charger_df_depuis_blob(ttl_hash, blob_service_client: BlobServiceClient, blo
         df = pd.read_parquet(downloader.readall())
         logger.info(f"Chargé depuis le format Parquet optimisé : {parquet_blob_name}")
         return df
-    except Exception:
+    except ResourceNotFoundError:
         # Si le Parquet n'existe pas, se rabattre sur le CSV
         logger.warning(f"Blob Parquet non trouvé, tentative de chargement du CSV : {blob_name}")
-        downloader = blob_client.download_blob(encoding="utf-8")
+        downloader = blob_client.download_blob()
         blob_data = downloader.readall()
         df = pd.read_csv(StringIO(blob_data))
         # Renomme la colonne 'click_article_id' en 'article_id' si elle existe, pour la cohérence
@@ -106,7 +108,7 @@ def obtenir_recommandations_pour_utilisateur(
     """
     blob_service_client = recuperer_client_blob_service()
     clicks_df = charger_df_depuis_blob(blob_service_client=blob_service_client, blob_name=CLICKS_BLOB_NAME)
-    if clicks_df.empty or user_id not in clicks_df["user_id"].unique():
+    if clicks_df.empty or not clicks_df["user_id"].isin([user_id]).any():
         return {"error": f"L'utilisateur {user_id} n'existe pas."}
 
     try:  # type: ignore
@@ -124,7 +126,7 @@ def obtenir_recommandations_pour_utilisateur(
             # Appliquer les filtres si fournis
             if country_filter or device_filter:
                 article_context = _get_article_context(
-                    ttl_hash=round(time.time() / 600), clicks_df=clicks_df
+                    ttl_hash=round(time.time() / CACHE_TTL_SECONDS), clicks_df=clicks_df
                 )  # type: ignore
                 reco_details = reco_details.merge(article_context, on="article_id", how="left")
 
@@ -284,13 +286,10 @@ def obtenir_performance_modele():
     return performance_df.to_dict(orient="records")
 
 
-def obtenir_tendances_globales_clics(connect_str: str):
 def obtenir_tendances_globales_clics():
     """
-    Récupère et agrège les données de clics pour les tendances globales
-    par pays et par groupe d'appareils.
-    """
-    blob_service_client = recuperer_client_blob_service()
+    Récupère et agrège les données de clics pour les tendances globales par pays et par groupe d'appareils."""
+    blob_service_client = recuperer_client_blob_service()  # type: ignore
     clicks_df = charger_df_depuis_blob(blob_service_client=blob_service_client, blob_name=CLICKS_BLOB_NAME)
 
     if clicks_df.empty:
@@ -311,10 +310,8 @@ def obtenir_tendances_globales_clics():
 
 
 @timed_lru_cache(seconds=600)
-def _get_article_context(ttl_hash, clicks_df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Calcule et cache le contexte des articles (pays/appareils uniques) à partir des clics.
-    """
+def _get_article_context(ttl_hash, clicks_df: pd.DataFrame) -> pd.DataFrame:  # type: ignore
+    """Calcule et cache le contexte des articles (pays/appareils uniques) à partir des clics."""
     if clicks_df.empty:
         return pd.DataFrame(columns=["article_id", "unique_countries", "unique_devices"])
 

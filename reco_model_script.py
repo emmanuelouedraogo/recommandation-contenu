@@ -3,10 +3,10 @@
 import pandas as pd
 import joblib
 import os
-import logging # type: ignore
-from datetime import datetime, timezone # type: ignore
-from azure.storage.blob import BlobServiceClient # type: ignore
-from azure.identity import DefaultAzureCredential # type: ignore
+import logging  # type: ignore
+from datetime import datetime, timezone  # type: ignore
+from azure.storage.blob import BlobServiceClient  # type: ignore
+from azure.identity import DefaultAzureCredential  # type: ignore
 from io import StringIO
 from models import HybridRecommender  # Assurez-vous que vos classes de modèles sont importables
 from sklearn.model_selection import train_test_split
@@ -22,7 +22,9 @@ if not STORAGE_ACCOUNT_NAME:
 
 def load_df_from_parquet_blob(container_name: str, blob_name: str) -> pd.DataFrame:
     """Charge un DataFrame depuis un blob Parquet."""
-    blob_service_client = BlobServiceClient(account_url=f"https://{STORAGE_ACCOUNT_NAME}.blob.core.windows.net", credential=DefaultAzureCredential())
+    blob_service_client = BlobServiceClient(
+        account_url=f"https://{STORAGE_ACCOUNT_NAME}.blob.core.windows.net", credential=DefaultAzureCredential()
+    )
     blob_client = blob_service_client.get_blob_client(container=container_name, blob=blob_name)
     downloader = blob_client.download_blob(timeout=120)
     return pd.read_parquet(downloader.readall())
@@ -30,7 +32,9 @@ def load_df_from_parquet_blob(container_name: str, blob_name: str) -> pd.DataFra
 
 def load_csv_from_blob(container_name: str, blob_name: str) -> pd.DataFrame:
     """Charge un DataFrame depuis un blob CSV."""
-    blob_service_client = BlobServiceClient(account_url=f"https://{STORAGE_ACCOUNT_NAME}.blob.core.windows.net", credential=DefaultAzureCredential())
+    blob_service_client = BlobServiceClient(
+        account_url=f"https://{STORAGE_ACCOUNT_NAME}.blob.core.windows.net", credential=DefaultAzureCredential()
+    )
     blob_client = blob_service_client.get_blob_client(container=container_name, blob=blob_name)
     downloader = blob_client.download_blob(encoding="utf-8", timeout=120)
     return pd.read_csv(StringIO(downloader.readall()))
@@ -38,7 +42,9 @@ def load_csv_from_blob(container_name: str, blob_name: str) -> pd.DataFrame:
 
 def load_pickle_from_blob(container_name: str, blob_name: str):
     """Charge un objet Python depuis un blob Pickle."""
-    blob_service_client = BlobServiceClient(account_url=f"https://{STORAGE_ACCOUNT_NAME}.blob.core.windows.net", credential=DefaultAzureCredential())
+    blob_service_client = BlobServiceClient(
+        account_url=f"https://{STORAGE_ACCOUNT_NAME}.blob.core.windows.net", credential=DefaultAzureCredential()
+    )
     blob_client = blob_service_client.get_blob_client(container=container_name, blob=blob_name)
     downloader = blob_client.download_blob(timeout=120)
     # Azure Functions /tmp directory is suitable for temporary files
@@ -49,6 +55,8 @@ def load_pickle_from_blob(container_name: str, blob_name: str):
         with open(local_path, "wb") as f:
             f.write(downloader.readall())
         return joblib.load(local_path)
+    except Exception:
+        logging.error(f"Échec du chargement du pickle depuis {local_path}", exc_info=True)
     return None
 
 
@@ -80,7 +88,7 @@ def log_training_metrics(container_name, metrics, click_count):
     blob_service_client = BlobServiceClient.from_connection_string(connect_str)
     blob_client = blob_service_client.get_blob_client(container=container_name, blob=log_blob_name)
 
-    log_entry = { # type: ignore
+    log_entry = {  # type: ignore
         "timestamp": datetime.utcnow().isoformat(),
         "precision_at_10": metrics.get("precision_at_10", 0),
         "click_count": click_count,
@@ -88,7 +96,7 @@ def log_training_metrics(container_name, metrics, click_count):
 
     try:
         downloader = blob_client.download_blob()
-        log_df = pd.read_csv(StringIO(downloader.readall().decode("utf-8"))) # Log is still CSV
+        log_df = pd.read_csv(StringIO(downloader.readall().decode("utf-8")))  # Log is still CSV
     except Exception:
         log_df = pd.DataFrame(columns=log_entry.keys())
 
@@ -111,14 +119,14 @@ def train_and_save_model(container_name, clicks_blob, articles_blob, embeddings_
 
     clicks_df = load_df_from_parquet_blob(container_name, clicks_parquet_blob)
     articles_df = load_df_from_parquet_blob(container_name, articles_parquet_blob)
-    
+
     # Charger les composants des embeddings depuis leurs fichiers Parquet respectifs
     i2vec_df = load_df_from_parquet_blob(container_name, i2vec_parquet_blob)
     dic_ri_df = load_df_from_parquet_blob(container_name, dic_ri_parquet_blob)
     dic_ir_df = load_df_from_parquet_blob(container_name, dic_ir_parquet_blob)
 
     # Reconstruire les objets nécessaires
-    i2vec = i2vec_df.values # Convert DataFrame back to NumPy array
+    i2vec = i2vec_df.values  # Convert DataFrame back to NumPy array
     dic_ri = dict(zip(dic_ri_df["article_id"], dic_ri_df["index"]))
     dic_ir = dict(zip(dic_ir_df["index"], dic_ir_df["article_id"]))
 

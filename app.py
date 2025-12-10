@@ -13,8 +13,8 @@ app = Flask(__name__, template_folder="frontend/templates", static_folder="front
 
 # --- Configuration ---
 # Assurez-vous que ces variables d'environnement sont définies avant de lancer l'application
-app.config["API_URL"] = os.environ.get("API_URL") # type: ignore
-app.config["AZURE_STORAGE_ACCOUNT_NAME"] = os.environ.get("AZURE_STORAGE_ACCOUNT_NAME") # type: ignore
+app.config["API_URL"] = os.environ.get("API_URL")  # type: ignore
+app.config["AZURE_STORAGE_ACCOUNT_NAME"] = os.environ.get("AZURE_STORAGE_ACCOUNT_NAME")  # type: ignore
 
 logging.basicConfig(level=logging.INFO)
 

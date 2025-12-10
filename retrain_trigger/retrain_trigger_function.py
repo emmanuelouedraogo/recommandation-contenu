@@ -4,8 +4,8 @@ import azure.functions as func
 import logging
 import os
 import pandas as pd
-from azure.storage.blob import BlobServiceClient, BlobClient # type: ignore
-from azure.identity import DefaultAzureCredential # type: ignore
+from azure.storage.blob import BlobServiceClient, BlobClient  # type: ignore
+from azure.identity import DefaultAzureCredential  # type: ignore
 from io import StringIO
 from datetime import datetime, timezone
 
@@ -33,9 +33,10 @@ if not STORAGE_ACCOUNT_NAME:
     logging.error("AZURE_STORAGE_ACCOUNT_NAME n'est pas définie. Impossible de procéder.")
     exit(1)
 
+
 def get_training_state(blob_service_client: BlobServiceClient):
     """Récupère le dernier état d'entraînement (ex: le nombre de clics du dernier run)."""
-    state_blob_client = blob_service_client.get_blob_client(container=CONTAINER_NAME, blob=STATE_BLOB_NAME) # type: ignore
+    state_blob_client = blob_service_client.get_blob_client(container=CONTAINER_NAME, blob=STATE_BLOB_NAME)  # type: ignore
     try:
         state_data = state_blob_client.download_blob().readall()
         return pd.read_json(StringIO(state_data.decode("utf-8")), typ="series")
@@ -47,14 +48,14 @@ def get_training_state(blob_service_client: BlobServiceClient):
 def save_training_state(blob_service_client, new_count):
     """Sauvegarde le nouvel état d'entraînement."""
     state = pd.Series({"last_training_click_count": new_count})
-    state_blob_client = blob_service_client.get_blob_client(container=CONTAINER_NAME, blob=STATE_BLOB_NAME) # type: ignore
+    state_blob_client = blob_service_client.get_blob_client(container=CONTAINER_NAME, blob=STATE_BLOB_NAME)  # type: ignore
     state_blob_client.upload_blob(state.to_json(), overwrite=True)
 
 
 def update_retraining_status(blob_service_client, status: str, details: dict = None):
-    """Met à jour le statut du réentraînement dans un fichier JSON dédié.""" # type: ignore
-    status_data = {"status": status, "last_update": datetime.now(timezone.utc).isoformat(), **(details or {})} # type: ignore
-    blob_client = blob_service_client.get_blob_client(container=CONTAINER_NAME, blob=STATUS_BLOB_NAME) # type: ignore
+    """Met à jour le statut du réentraînement dans un fichier JSON dédié."""  # type: ignore
+    status_data = {"status": status, "last_update": datetime.now(timezone.utc).isoformat(), **(details or {})}  # type: ignore
+    blob_client = blob_service_client.get_blob_client(container=CONTAINER_NAME, blob=STATUS_BLOB_NAME)  # type: ignore
     blob_client.upload_blob(pd.Series(status_data).to_json(), overwrite=True)
 
 
@@ -83,7 +84,9 @@ def timer_trigger_retrain(myTimer: func.TimerRequest) -> None:
     if not STORAGE_ACCOUNT_NAME:
         logging.error("AZURE_STORAGE_ACCOUNT_NAME n'est pas configurée.")
         return
-    blob_service_client = BlobServiceClient(account_url=f"https://{STORAGE_ACCOUNT_NAME}.blob.core.windows.net", credential=DefaultAzureCredential())
+    blob_service_client = BlobServiceClient(
+        account_url=f"https://{STORAGE_ACCOUNT_NAME}.blob.core.windows.net", credential=DefaultAzureCredential()
+    )
 
     # 1. Obtenir l'état actuel
     training_state = get_training_state(blob_service_client)
@@ -92,7 +95,9 @@ def timer_trigger_retrain(myTimer: func.TimerRequest) -> None:
     # 2. Compter le nombre actuel d'interactions
     clicks_parquet_blob_name = CLICKS_BLOB_NAME.replace(".csv", ".parquet")
     try:
-        clicks_blob_client = blob_service_client.get_blob_client(container=CONTAINER_NAME, blob=clicks_parquet_blob_name)
+        clicks_blob_client = blob_service_client.get_blob_client(
+            container=CONTAINER_NAME, blob=clicks_parquet_blob_name
+        )
         clicks_data = clicks_blob_client.download_blob(timeout=120).readall()
         clicks_df = pd.read_parquet(BytesIO(clicks_data))
         current_click_count = len(clicks_df)

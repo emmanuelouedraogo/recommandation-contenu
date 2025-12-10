@@ -5,12 +5,12 @@ import os
 import joblib
 from azure.core.exceptions import ResourceNotFoundError
 from azure.storage.blob import BlobServiceClient
-from azure.identity import DefaultAzureCredential # type: ignore
+from azure.identity import DefaultAzureCredential  # type: ignore
 
 # --- Configuration ---
 # La chaîne de connexion est récupérée depuis les paramètres de l'application
 STORAGE_ACCOUNT_NAME = os.getenv("AZURE_STORAGE_ACCOUNT_NAME")
-container_name = os.getenv("AZURE_STORAGE_CONTAINER_NAME", "reco-data") # Define container_name here
+container_name = os.getenv("AZURE_STORAGE_CONTAINER_NAME", "reco-data")  # Define container_name here
 
 model_blob_name = os.getenv("AZURE_STORAGE_MODEL_BLOB", "models/hybrid_recommender_pipeline.pkl")
 local_model_path = "/tmp/hybrid_recommender_pipeline.pkl"
@@ -29,11 +29,13 @@ def load_model_from_blob(storage_account_name: str, container_name: str):
         if not storage_account_name:
             logging.warning("AZURE_STORAGE_ACCOUNT_NAME n'est pas définie. Le modèle ne peut pas être chargé.")
             return None
-        if not container_name: # type: ignore
+        if not container_name:  # type: ignore
             logging.warning("AZURE_STORAGE_CONTAINER_NAME n'est pas définie. Le modèle ne peut pas être chargé.")
             return None
 
-        blob_service_client = BlobServiceClient(account_url=f"https://{storage_account_name}.blob.core.windows.net", credential=DefaultAzureCredential())
+        blob_service_client = BlobServiceClient(
+            account_url=f"https://{storage_account_name}.blob.core.windows.net", credential=DefaultAzureCredential()
+        )
         blob_client = blob_service_client.get_blob_client(container=container_name, blob=model_blob_name)
 
         logging.info(f"Début du téléchargement du modèle depuis {container_name}/{model_blob_name}...")

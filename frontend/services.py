@@ -3,7 +3,7 @@ import pandas as pd
 import requests
 from azure.storage.blob import BlobServiceClient
 from io import StringIO
-from azure.identity import DefaultAzureCredential # type: ignore
+from azure.identity import DefaultAzureCredential  # type: ignore
 from azure.core.exceptions import ResourceNotFoundError, ServiceRequestError
 import logging
 
@@ -30,7 +30,9 @@ def recuperer_client_blob_service() -> BlobServiceClient:  # type: ignore
         st.error("Le nom du compte de stockage ('AZURE_STORAGE_ACCOUNT_NAME') n'est pas configuré !")
         st.stop()
     # Utilise DefaultAzureCredential pour l'authentification (Managed Identity en priorité)
-    return BlobServiceClient(account_url=f"https://{storage_account_name}.blob.core.windows.net", credential=DefaultAzureCredential())
+    return BlobServiceClient(
+        account_url=f"https://{storage_account_name}.blob.core.windows.net", credential=DefaultAzureCredential()
+    )
 
 
 @st.cache_data(ttl=3600)
