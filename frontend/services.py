@@ -107,7 +107,12 @@ def obtenir_recommandations(api_url, user_id):
     with st.spinner('Recherche de vos recommandations...'):
         try:
             headers = {'Accept': 'application/json'}
-            response = requests.get(f"{api_url}/api/recommend", params={"user_id": user_id}, headers=headers, timeout=20)  # noqa
+            response = requests.get(
+                f"{api_url}/api/recommend",
+                params={"user_id": user_id},
+                headers=headers,
+                timeout=20
+            )
             response.raise_for_status()
             try:
                 data = response.json()

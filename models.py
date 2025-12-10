@@ -43,7 +43,7 @@ class ContentBasedRecommender:
         if sum_of_strengths == 0:
             return np.zeros((1, self.items_embedding.shape[1]))
         user_item_strengths_weighted_avg = np.sum(user_item_profiles * user_item_strengths, axis=0) / sum_of_strengths
-        return preprocessing.normalize(user_item_strengths_weighted_avg.reshape(1, -1))  # noqa
+        return preprocessing.normalize(user_item_strengths_weighted_avg.reshape(1, -1))
 
     def get_model_name(self):
         return self.MODEL_NAME
@@ -51,6 +51,7 @@ class ContentBasedRecommender:
     def fit(self):
         for uid in tqdm(self.train_user_interact.user_id.unique(), desc="Building User Profiles"):
             self.user_profiles[uid] = self._build_users_profile(uid, self.train_user_interact, self.items_embedding, self.dic_ri)
+
     def recommend_items(self, uid, topn=10, items_to_filter=None):
         if uid not in self.user_profiles:
             return pd.DataFrame(columns=['article_id', 'cb_cosine_with_profile'])
@@ -72,6 +73,7 @@ class ContentBasedTimeDecayRecommender(ContentBasedRecommender):
         super().__init__(data_map, i2vec, dic_ri, dic_ir)
         self.decay_rate = decay_rate
         self.MODEL_NAME = f'Content-Based-Time-Decay(λ={decay_rate})'
+
     def _build_users_profile(self, uid, click_df, emb_matrix, dic_ri):
         click_uid_df = click_df.loc[click_df.user_id == uid]
         if click_uid_df.empty:
@@ -94,14 +96,17 @@ class CollabFiltRecommender:
     def __init__(self, data_map):
         self.train_user_interact = data_map
         self.algo = None
+
     def get_model_name(self):
         return self.MODEL_NAME
+
     def fit(self):
         reader = Reader(rating_scale=(0, 5))
         data = Dataset.load_from_df(self.train_user_interact[['user_id', 'article_id', 'nb']], reader)
         trainset = data.build_full_trainset()
         self.algo = SVDpp(n_epochs=20, lr_all=0.007, reg_all=0.1, random_state=42)
         self.algo.fit(trainset)
+
     def recommend_items(self, uid, topn=5):
         iid_to_ignore = set(self.train_user_interact.loc[self.train_user_interact.user_id == uid].article_id)
         all_items = set(self.train_user_interact.article_id)
@@ -137,6 +142,7 @@ class HybridRecommender:
 
     def get_model_name(self):
         return self.MODEL_NAME
+
     def fit(self, cf_model=None, cb_model=None, pf_model=None):
         self.cf_model = cf_model or CollabFiltRecommender(self.train_user_interact)
         self.cf_model.fit()
@@ -159,12 +165,12 @@ class HybridRecommender:
         
         # 2. Normaliser les scores
         if not reco_cf.empty:
-            reco_cf['norm_score'] = (reco_cf['pred'] - reco_cf['pred'].min()) / (reco_cf['pred'].max() - reco_cf['pred'].min() + 1e-5)  # noqa
+            reco_cf['norm_score'] = (reco_cf['pred'] - reco_cf['pred'].min()) / (reco_cf['pred'].max() - reco_cf['pred'].min() + 1e-5)
         else:
             reco_cf = pd.DataFrame(columns=['article_id', 'norm_score'])
         
         if not reco_cb.empty:
-            reco_cb['norm_score'] = (reco_cb['cb_cosine_with_profile'] - reco_cb['cb_cosine_with_profile'].min()) / (reco_cb['cb_cosine_with_profile'].max() - reco_cb['cb_cosine_with_profile'].min() + 1e-5)  # noqa
+            reco_cb['norm_score'] = (reco_cb['cb_cosine_with_profile'] - reco_cb['cb_cosine_with_profile'].min()) / (reco_cb['cb_cosine_with_profile'].max() - reco_cb['cb_cosine_with_profile'].min() + 1e-5)
         else:
             reco_cb = pd.DataFrame(columns=['article_id', 'norm_score'])
         
