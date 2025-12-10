@@ -6,6 +6,7 @@ import os
 import pandas as pd
 from azure.storage.blob import BlobServiceClient
 from io import StringIO
+from datetime import datetime
 
 # Importer les scripts de modélisation
 from reco_model_script import train_and_save_model 
@@ -69,8 +70,8 @@ def log_training_run(blob_service_client, metrics, click_count):
         logging.error(f"Erreur lors de la sauvegarde du log d'entraînement : {e}")
 
 # --- Déclencheur sur Minuteur ---
-# S'exécute toutes les heures : "0 0 * * *" (format CRON)
-@retrain_app.schedule(schedule="0 0 * * * *", arg_name="myTimer", run_on_startup=True, use_monitor=False) 
+# S'exécute toutes les heures : "0 * * * *" (format CRON)
+@retrain_app.schedule(schedule="0 * * * *", arg_name="myTimer", run_on_startup=True, use_monitor=False) 
 def timer_trigger_retrain(myTimer: func.TimerRequest) -> None:
     logging.info('Déclencheur de ré-entraînement activé.')
     
