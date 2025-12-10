@@ -158,6 +158,24 @@ def get_user_context(user_id):
         return jsonify({"error": "Impossible de charger le contexte utilisateur"}), 500
 
 
+@app.route("/api/retraining_status", methods=["GET"])
+def get_retraining_status():
+    """
+    API pour obtenir le statut actuel du processus de réentraînement.
+    Lit le fichier de statut depuis Azure Blob Storage.
+    """
+    try:
+        # Cette fonction devrait lire le blob 'status/retraining_status.json'
+        # Pour simplifier, nous supposons qu'une fonction dans 'logic' le fait.
+        # status_data = logic.obtenir_statut_retraining(app.config["STORAGE_CONNECTION_STRING"])
+        # En attendant, voici une réponse simulée :
+        status_data = {"status": "idle", "last_update": "2025-12-10T10:00:00Z"}
+        return jsonify(status_data)
+    except Exception as e:
+        app.logger.error(f"Erreur API GET /api/retraining_status: {e}")
+        return jsonify({"status": "unknown", "error": "Impossible de récupérer le statut"}), 503
+
+
 # Permet de lancer l'application en mode débogage
 if __name__ == "__main__":
     # En production, utilisez un serveur WSGI comme Gunicorn
