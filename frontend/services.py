@@ -40,7 +40,10 @@ def charger_df_depuis_blob(blob_name: str) -> pd.DataFrame:  # type: ignore
         blob_data = downloader.readall()
         df = pd.read_csv(StringIO(blob_data))
         return df
-    except ServiceRequestError as e:  # type: ignore
+    except ServiceRequestError as e:
+        st.error(
+            "Erreur de connexion au stockage Azure. Vérifiez votre connexion internet "
+            f"et la chaîne de connexion. Erreur: {e}"
         )
         return pd.DataFrame()
     except ResourceNotFoundError:

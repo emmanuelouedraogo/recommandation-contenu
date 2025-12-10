@@ -116,11 +116,15 @@ def obtenir_recommandations_pour_utilisateur(
                 reco_details = reco_details.merge(article_context, on="article_id", how="left")
 
                 if country_filter:
-                    reco_details = reco_details[reco_details["unique_countries"].apply(lambda x: country_filter in x if isinstance(x, list) else False)]
+                    reco_details = reco_details[
+                        reco_details["unique_countries"].apply(
+                            lambda x: country_filter in x if isinstance(x, list) else False
+                        )
+                    ]
                 if device_filter:
-                    reco_details = reco_details[reco_details["unique_devices"].apply(
-                        lambda x: device_filter in x if isinstance(x, list) else False
-                    )]
+                    reco_details = reco_details[
+                        reco_details["unique_devices"].apply(
+                            lambda x: device_filter in x if isinstance(x, list) else False
                         )
                     ]
             return reco_details.to_dict(orient="records")
@@ -134,6 +138,7 @@ def obtenir_recommandations_pour_utilisateur(
     except Exception as e:
         logger.error(f"Erreur inattendue pour user_id {user_id}: {e}")
         return {"error": "Une erreur inattendue est survenue."}
+
 
 def obtenir_historique_utilisateur(user_id: int, connect_str: str):
     """Récupère l'historique des notations pour un utilisateur."""
@@ -150,6 +155,7 @@ def obtenir_historique_utilisateur(user_id: int, connect_str: str):
     history_details = history_details.sort_values(by="click_timestamp", ascending=False)
 
     return history_details.to_dict(orient="records")
+
 
 def ajouter_ou_mettre_a_jour_interaction(user_id: int, article_id: int, rating: int, connect_str: str):
     """Ajoute ou met à jour une notation."""
@@ -227,6 +233,7 @@ def obtenir_contexte_utilisateur(user_id: int, connect_str: str):
         "deviceGroup": latest_click.get("click_deviceGroup", "Inconnu"),
     }
 
+
 def creer_nouvel_article(title: str, content: str, category_id: int, connect_str: str) -> int:
     """Crée un nouvel article et le sauvegarde dans le blob."""
     blob_service_client = recuperer_client_blob_service(connect_str)
@@ -254,6 +261,7 @@ def creer_nouvel_article(title: str, content: str, category_id: int, connect_str
     sauvegarder_df_vers_blob(blob_service_client, updated_articles_df, ARTICLES_BLOB_NAME)
     return new_article_id
 
+
 def obtenir_performance_modele(connect_str: str):
     """Récupère les logs de performance de l'entraînement du modèle."""
     blob_service_client = recuperer_client_blob_service(connect_str)
@@ -261,6 +269,7 @@ def obtenir_performance_modele(connect_str: str):
     if performance_df.empty:
         return []
     return performance_df.to_dict(orient="records")
+
 
 def obtenir_tendances_globales_clics(connect_str: str):
     """
@@ -285,6 +294,7 @@ def obtenir_tendances_globales_clics(connect_str: str):
         "clicks_by_country": clicks_by_country.to_dict(orient="records"),
         "clicks_by_device": clicks_by_device.to_dict(orient="records"),
     }
+
 
 @timed_lru_cache(seconds=600)
 def _get_article_context(ttl_hash, clicks_df: pd.DataFrame) -> pd.DataFrame:
