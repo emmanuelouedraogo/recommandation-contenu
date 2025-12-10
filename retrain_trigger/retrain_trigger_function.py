@@ -82,7 +82,8 @@ def log_training_run(blob_service_client, metrics, click_count):
         header = "timestamp,click_count," + ",".join(metrics.keys()) + "\n"
         append_blob_client.append_block(header.encode("utf-8"))
 
-    new_log_entry = f"{pd.Timestamp.now()},{click_count}," + ",".join(map(str, metrics.values())) + "\n"
+    metrics_values_str = ",".join(map(str, metrics.values()))
+    new_log_entry = f"{pd.Timestamp.now()},{click_count},{metrics_values_str}\n"
     append_blob_client.append_block(new_log_entry.encode("utf-8"))
 
 
@@ -143,9 +144,7 @@ def timer_trigger_retrain(myTimer: func.TimerRequest) -> None:
 
             # Fusionner les nouvelles interactions avec les clics existants
             # Ici, nous faisons une simple concaténation. Une logique de déduplication/mise à jour pourrait être ajoutée.
-            updated_clicks_df = pd.concat(
-                [existing_clicks_df, new_interactions_df], ignore_index=True
-            )
+            updated_clicks_df = pd.concat([existing_clicks_df, new_interactions_df], ignore_index=True)
 
             # Sauvegarder le DataFrame mis à jour en Parquet
             output_parquet = BytesIO()
