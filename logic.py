@@ -10,7 +10,7 @@ import time
 
 # --- Configuration ---
 AZURE_CONTAINER_NAME = "reco-data"
-#USERS_BLOB_NAME = "users.csv"
+USERS_BLOB_NAME = "users.csv"
 ARTICLES_BLOB_NAME = "articles_metadata.csv"
 CLICKS_BLOB_NAME = "clicks_sample.csv"
 TRAINING_LOG_BLOB_NAME = "logs/training_log.csv"

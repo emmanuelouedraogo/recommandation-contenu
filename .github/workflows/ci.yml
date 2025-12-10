@@ -31,12 +31,15 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip' # Met en cache les dépendances pip
 
       - name: Installation des dépendances
         run: |
           python -m pip install --upgrade pip
           pip install flake8
+          # Installe les dépendances pour que flake8 puisse vérifier les imports
           if [ -f api/requirements.txt ]; then pip install -r api/requirements.txt; fi
+          if [ -f retrain_trigger/requirements.txt ]; then pip install -r retrain_trigger/requirements.txt; fi
 
       - name: Linter le code avec flake8
         run: |
@@ -62,6 +65,7 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip' # Utilise le cache aussi pour le déploiement
 
       - name: Enregistrement du fournisseur de ressources Azure
         uses: azure/CLI@v1
