@@ -97,7 +97,7 @@ def train_and_save_model(connect_str, container_name, clicks_blob, articles_blob
     # 2. Entraîner le modèle hybride
     logging.info("Entraînement du modèle hybride...")
     hybrid_model = HybridRecommender(
-        data_map=train_df,  # Entraîner uniquement sur le jeu d'entraînement
+        data_map=train_df,
         i2vec=i2vec,
         dic_ri=dic_ri,
         dic_ir=dic_ir,

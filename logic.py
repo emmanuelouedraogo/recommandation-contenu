@@ -106,24 +106,17 @@ def obtenir_recommandations_pour_utilisateur(api_url: str, user_id: int, connect
 
             # Appliquer les filtres si fournis
             if country_filter or device_filter:
-                article_context = _get_article_context(
-                    ttl_hash=round(time.time() / 600),
-                    clicks_df=clicks_df
-                )
+                article_context = _get_article_context(ttl_hash=round(time.time() / 600), clicks_df=clicks_df)
                 reco_details = reco_details.merge(article_context, on='article_id', how='left')
 
                 if country_filter:
-                    reco_details = reco_details[
-                        reco_details['unique_countries'].apply(
-                            lambda x: country_filter in x if isinstance(x, list) else False
-                        )
-                    ]
+                    reco_details = reco_details[reco_details['unique_countries'].apply(
+                        lambda x: country_filter in x if isinstance(x, list) else False
+                    )]
                 if device_filter:
-                    reco_details = reco_details[
-                        reco_details['unique_devices'].apply(
-                            lambda x: device_filter in x if isinstance(x, list) else False
-                        )
-                    ]
+                    reco_details = reco_details[reco_details['unique_devices'].apply(
+                        lambda x: device_filter in x if isinstance(x, list) else False
+                    )]
             return reco_details.to_dict(orient='records')
         return []
     except requests.exceptions.RequestException as e:
@@ -180,6 +173,7 @@ def ajouter_ou_mettre_a_jour_interaction(user_id: int, article_id: int, rating: 
     sauvegarder_df_vers_blob(blob_service_client, clicks_df, CLICKS_BLOB_NAME)
 
 
+
 def creer_nouvel_utilisateur(connect_str: str):
     """Crée un nouvel utilisateur avec un ID unique."""
     blob_service_client = recuperer_client_blob_service(connect_str)
@@ -193,6 +187,7 @@ def creer_nouvel_utilisateur(connect_str: str):
     updated_users_df = pd.concat([users_df, new_user_df], ignore_index=True)
     sauvegarder_df_vers_blob(blob_service_client, updated_users_df, USERS_BLOB_NAME)
     return new_user_id
+
 
 def obtenir_utilisateurs(connect_str: str):
     """Récupère la liste de tous les utilisateurs uniques à partir des clics."""
