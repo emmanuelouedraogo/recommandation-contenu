@@ -62,7 +62,7 @@ def recuperer_client_blob_service() -> BlobServiceClient:
 def charger_df_depuis_blob(ttl_hash, blob_service_client: BlobServiceClient, blob_name: str) -> pd.DataFrame:
     """Charge un DataFrame depuis un blob CSV."""
     blob_client = blob_service_client.get_blob_client(container=AZURE_CONTAINER_NAME, blob=blob_name)
-    # Adapter le nom pour la version Parquet
+    # Adapter le nom pour la version Parquet.
     parquet_blob_name = blob_name.replace(".csv", ".parquet")
     parquet_blob_client = blob_service_client.get_blob_client(container=AZURE_CONTAINER_NAME, blob=parquet_blob_name)
 
