@@ -4,7 +4,7 @@ import requests
 import logging
 from azure.storage.blob import BlobServiceClient
 from azure.core.exceptions import ResourceNotFoundError
-from functools import lru_cache, wraps, partial
+from functools import lru_cache, wraps
 from datetime import datetime, timedelta
 import time
 
@@ -14,9 +14,9 @@ AZURE_CONTAINER_NAME = "reco-data"
 ARTICLES_BLOB_NAME = "articles_metadata.csv"
 CLICKS_BLOB_NAME = "clicks_sample.csv"
 TRAINING_LOG_BLOB_NAME = "logs/training_log.csv"
-
+# Configuration
 logger = logging.getLogger(__name__)
-
+# Mécanisme de Cache
 # --- Mécanisme de Cache ---
 def timed_lru_cache(seconds: int, maxsize: int = 128):
     """
@@ -29,11 +29,11 @@ def timed_lru_cache(seconds: int, maxsize: int = 128):
         @wraps(func)
         def wrapped_func(*args, **kwargs):
             # Utilise un timestamp arrondi pour créer des "fenêtres" de cache
-            # et des arguments de la fonction pour la clé de cache.
+            # et des arguments de la fonction pour la cle de cache.
             now = time.time()
             ttl_hash = round(now / seconds)
-            
             # Crée une clé de cache basée sur les arguments pour vérifier le statut
+
             cache_key = (ttl_hash,) + args + tuple(sorted(kwargs.items()))
             
             # Log pour savoir si on utilise le cache ou si on exécute la fonction
@@ -47,7 +47,6 @@ def timed_lru_cache(seconds: int, maxsize: int = 128):
         return wrapped_func
     return wrapper_cache
 
-# --- Fonctions de gestion des données Azure ---
 
 @lru_cache(maxsize=1) # Cache le BlobServiceClient pour éviter de le recréer inutilement
 def recuperer_client_blob_service(connect_str: str) -> BlobServiceClient:
@@ -56,6 +55,7 @@ def recuperer_client_blob_service(connect_str: str) -> BlobServiceClient:
         raise ValueError("La chaîne de connexion au stockage ('STORAGE_CONNECTION_STRING') est vide.")
     return BlobServiceClient.from_connection_string(connect_str)
 
+
 @timed_lru_cache(seconds=600) # Cache les dataframes pendant 10 minutes (600 secondes)
 def charger_df_depuis_blob(ttl_hash, blob_service_client: BlobServiceClient, blob_name: str) -> pd.DataFrame:
     """Charge un DataFrame depuis un blob CSV."""
@@ -63,10 +63,10 @@ def charger_df_depuis_blob(ttl_hash, blob_service_client: BlobServiceClient, blo
     try:
         downloader = blob_client.download_blob(encoding='utf-8')
         blob_data = downloader.readall()
+
         df = pd.read_csv(StringIO(blob_data))
-        
         # Renomme la colonne 'click_article_id' en 'article_id' si elle existe, pour la cohérence
-        if 'click_article_id' in df.columns:
+        if "click_article_id" in df.columns:
             df.rename(columns={'click_article_id': 'article_id'}, inplace=True)
             
         return df
@@ -77,6 +77,7 @@ def charger_df_depuis_blob(ttl_hash, blob_service_client: BlobServiceClient, blo
         logger.error(f"Erreur lors du chargement du blob '{blob_name}': {e}")
         raise
 
+
 def sauvegarder_df_vers_blob(blob_service_client: BlobServiceClient, df: pd.DataFrame, blob_name: str):
     """Sauvegarde un DataFrame dans un blob CSV."""
     output = StringIO()
@@ -84,7 +85,6 @@ def sauvegarder_df_vers_blob(blob_service_client: BlobServiceClient, df: pd.Data
     blob_client = blob_service_client.get_blob_client(container=AZURE_CONTAINER_NAME, blob=blob_name)
     blob_client.upload_blob(output.getvalue(), overwrite=True)
 
-# --- Fonctions de logique métier ---
 
 def obtenir_recommandations_pour_utilisateur(api_url: str, user_id: int, connect_str: str, country_filter: str = None, device_filter: str = None):
     """
@@ -252,6 +252,7 @@ def creer_nouvel_article(title: str, content: str, category_id: int, connect_str
     
     return new_article_id
 
+
 def obtenir_performance_modele(connect_str: str):
     """Récupère les logs de performance de l'entraînement du modèle."""
     blob_service_client = recuperer_client_blob_service(connect_str)
@@ -259,6 +260,7 @@ def obtenir_performance_modele(connect_str: str):
     if performance_df.empty:
         return []
     return performance_df.to_dict(orient='records')
+
 
 def obtenir_tendances_globales_clics(connect_str: str):
     """
@@ -283,6 +285,7 @@ def obtenir_tendances_globales_clics(connect_str: str):
         "clicks_by_country": clicks_by_country.to_dict(orient='records'),
         "clicks_by_device": clicks_by_device.to_dict(orient='records')
     }
+
 
 @timed_lru_cache(seconds=600)
 def _get_article_context(ttl_hash, clicks_df: pd.DataFrame) -> pd.DataFrame:

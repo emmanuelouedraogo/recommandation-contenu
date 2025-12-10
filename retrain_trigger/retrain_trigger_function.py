@@ -18,6 +18,7 @@ METADATA_BLOB_NAME = "articles_metadata.csv"
 EMBEDDINGS_BLOB_NAME = "articles_embeddings.pickle"
 MODEL_BLOB_NAME = "models/hybrid_recommender_pipeline.pkl"
 STATE_BLOB_NAME = "training_state.json" # Fichier pour suivre l'état
+
 STATUS_BLOB_NAME = "status/retraining_status.json" # Fichier pour le statut en direct
 TRAINING_LOG_BLOB_NAME = "logs/training_log.csv" # Fichier pour l'historique
 
@@ -25,6 +26,7 @@ TRAINING_LOG_BLOB_NAME = "logs/training_log.csv" # Fichier pour l'historique
 retrain_app = func.FunctionApp()
 
 def get_training_state(blob_service_client):
+
     """Récupère le dernier état d'entraînement (ex: le nombre de clics du dernier run)."""
     try:
         blob_client = blob_service_client.get_blob_client(container=CONTAINER_NAME, blob=STATE_BLOB_NAME)
@@ -34,17 +36,20 @@ def get_training_state(blob_service_client):
         # Si le fichier n'existe pas, on part de 0
         return pd.Series({"last_training_click_count": 0})
 
+
 def save_training_state(blob_service_client, new_count):
     """Sauvegarde le nouvel état d'entraînement."""
     state = pd.Series({"last_training_click_count": new_count})
     blob_client = blob_service_client.get_blob_client(container=CONTAINER_NAME, blob=STATE_BLOB_NAME)
     blob_client.upload_blob(state.to_json(), overwrite=True)
 
+
 def update_retraining_status(blob_service_client, status: str, details: dict = None):
     """Met à jour le statut du réentraînement dans un fichier JSON dédié."""
     status_data = {"status": status, "last_update": datetime.now().isoformat(), **(details or {})}
     blob_client = blob_service_client.get_blob_client(container=CONTAINER_NAME, blob=STATUS_BLOB_NAME)
     blob_client.upload_blob(pd.Series(status_data).to_json(), overwrite=True)
+
 
 def log_training_run(blob_service_client, metrics, click_count):
     """Ajoute une entrée à l'historique d'entraînement."""
@@ -64,7 +69,7 @@ def log_training_run(blob_service_client, metrics, click_count):
         logging.error(f"Erreur lors de la sauvegarde du log d'entraînement : {e}")
 
 # --- Déclencheur sur Minuteur ---
-# S'exécute toutes les heures : "0 0 * * * *" (format CRON)
+# S'exécute toutes les heures : "0 0 * * *" (format CRON)
 @retrain_app.schedule(schedule="0 0 * * * *", arg_name="myTimer", run_on_startup=True, use_monitor=False) 
 def timer_trigger_retrain(myTimer: func.TimerRequest) -> None:
     logging.info('Déclencheur de ré-entraînement activé.')
@@ -72,11 +77,11 @@ def timer_trigger_retrain(myTimer: func.TimerRequest) -> None:
     if not CONNECT_STR:
         logging.error("AZURE_CONNECTION_STRING n'est pas configurée.")
         return
-
     blob_service_client = BlobServiceClient.from_connection_string(CONNECT_STR)
     
     # 1. Obtenir l'état actuel
     training_state = get_training_state(blob_service_client)
+
     last_training_count = training_state.get("last_training_click_count", 0)
     
     # 2. Compter le nombre actuel d'interactions
@@ -90,7 +95,6 @@ def timer_trigger_retrain(myTimer: func.TimerRequest) -> None:
         return
 
     logging.info(f"Nombre de clics actuel : {current_click_count}. Dernier entraînement à : {last_training_count} clics.")
-
     # 3. Vérifier si le seuil est atteint
     # On vérifie si le nombre de clics a dépassé le prochain multiple de 1000
     if current_click_count // 1000 > last_training_count // 1000:

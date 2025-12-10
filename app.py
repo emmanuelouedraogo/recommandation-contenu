@@ -20,12 +20,14 @@ logging.basicConfig(level=logging.INFO)
 
 # --- Routes pour servir les pages HTML ---
 
+
 @app.route('/')
 def index():
     """Sert la page d'accueil principale."""
     return render_template('index.html') # Cherchera dans 'frontend/templates/index.html'
 
 @app.route('/health')
+
 def health_check():
     """Point de terminaison pour le bilan de santé (Health Check)."""
     return "OK", 200
@@ -33,6 +35,7 @@ def health_check():
 # --- Routes API pour le Frontend ---
 
 @app.route('/api/users', methods=['GET', 'POST'])
+
 def handle_users():
     """Gère la récupération et la création d'utilisateurs."""
     if request.method == 'POST':
@@ -53,6 +56,7 @@ def handle_users():
             return jsonify({"error": "Impossible de charger les utilisateurs"}), 500
 
 @app.route('/api/recommendations/<int:user_id>', methods=['GET'])
+
 def get_recommendations(user_id: int):
     """API pour obtenir les recommandations pour un utilisateur."""
     try:
@@ -74,6 +78,7 @@ def get_recommendations(user_id: int):
         return jsonify({"error": "Erreur interne du serveur"}), 500
 
 @app.route('/api/history/<int:user_id>', methods=['GET'])
+
 def get_user_history(user_id):
     """API pour obtenir l'historique de notation d'un utilisateur."""
     try:
@@ -87,6 +92,7 @@ def get_user_history(user_id):
         return jsonify({"error": "Impossible de charger l'historique"}), 500
 
 @app.route('/api/interactions', methods=['POST'])
+
 def add_interaction():
     """API pour ajouter ou mettre à jour une notation d'article."""
     data = request.get_json()
@@ -112,6 +118,7 @@ def add_interaction():
         return jsonify({"error": "Impossible d'enregistrer l'interaction"}), 500
 
 @app.route('/api/articles', methods=['POST'])
+
 def add_article():
     """API pour ajouter un nouvel article."""
     data = request.get_json()
@@ -137,6 +144,7 @@ def add_article():
         return jsonify({"error": "Impossible d'ajouter l'article"}), 500
 
 @app.route('/api/performance', methods=['GET'])
+
 def get_model_performance():
     """API pour obtenir les données de performance du modèle."""
     try:
@@ -149,6 +157,7 @@ def get_model_performance():
         return jsonify({"error": "Impossible de charger les données de performance"}), 500
 
 @app.route('/api/user_context/<int:user_id>', methods=['GET'])
+
 def get_user_context(user_id):
     """API pour obtenir le contexte (pays, appareil) du dernier clic d'un utilisateur."""
     try:
@@ -163,21 +172,8 @@ def get_user_context(user_id):
         app.logger.error(f"Erreur API GET /api/user_context/{user_id}: {e}")
         return jsonify({"error": "Impossible de charger le contexte utilisateur"}), 500
 
-@app.route('/api/retraining_status', methods=['GET'])
-def get_retraining_status():
-    """API pour obtenir le statut actuel du processus de réentraînement."""
-    try:
-        blob_service_client = logic.recuperer_client_blob_service(app.config['STORAGE_CONNECTION_STRING'])
-        status_blob_name = "status/retraining_status.json"
-        blob_client = blob_service_client.get_blob_client(container=logic.AZURE_CONTAINER_NAME, blob=status_blob_name)
-        status_data = blob_client.download_blob().readall()
-        return jsonify(pd.read_json(status_data, typ='series').to_dict())
-    except Exception:
-        # Si le fichier n'existe pas ou est inaccessible, on suppose que le système est inactif
-        return jsonify({"status": "unknown", "last_update": None})
-
-
 # Permet de lancer l'application en mode débogage
+
 if __name__ == '__main__':
     # En production, utilisez un serveur WSGI comme Gunicorn
     app.run(debug=True)
