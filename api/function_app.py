@@ -5,11 +5,13 @@ import os
 import joblib
 from azure.core.exceptions import ResourceNotFoundError
 from azure.storage.blob import BlobServiceClient
+from azure.identity import DefaultAzureCredential # type: ignore
 
 # --- Configuration ---
 # La chaîne de connexion est récupérée depuis les paramètres de l'application
-connect_str = os.getenv("AZURE_CONNECTION_STRING")
-container_name = os.getenv("AZURE_STORAGE_CONTAINER_NAME", "reco-data")
+STORAGE_ACCOUNT_NAME = os.getenv("AZURE_STORAGE_ACCOUNT_NAME")
+container_name = os.getenv("AZURE_STORAGE_CONTAINER_NAME", "reco-data") # Define container_name here
+
 model_blob_name = os.getenv("AZURE_STORAGE_MODEL_BLOB", "models/hybrid_recommender_pipeline.pkl")
 local_model_path = "/tmp/hybrid_recommender_pipeline.pkl"
 
@@ -18,17 +20,20 @@ model = None  # type: HybridRecommender | None
 model_load_lock = asyncio.Lock()
 
 
-def load_model_from_blob():
+def load_model_from_blob(storage_account_name: str, container_name: str):
     """
     Télécharge et charge le modèle depuis Azure Blob Storage.
     Retourne le modèle chargé ou None en cas d'erreur.
     """
     try:
-        if not connect_str:
-            logging.warning("AZURE_CONNECTION_STRING n'est pas définie. Le modèle ne peut pas être chargé.")
+        if not storage_account_name:
+            logging.warning("AZURE_STORAGE_ACCOUNT_NAME n'est pas définie. Le modèle ne peut pas être chargé.")
+            return None
+        if not container_name: # type: ignore
+            logging.warning("AZURE_STORAGE_CONTAINER_NAME n'est pas définie. Le modèle ne peut pas être chargé.")
             return None
 
-        blob_service_client = BlobServiceClient.from_connection_string(connect_str)
+        blob_service_client = BlobServiceClient(account_url=f"https://{storage_account_name}.blob.core.windows.net", credential=DefaultAzureCredential())
         blob_client = blob_service_client.get_blob_client(container=container_name, blob=model_blob_name)
 
         logging.info(f"Début du téléchargement du modèle depuis {container_name}/{model_blob_name}...")
@@ -67,7 +72,7 @@ async def recommend(req: func.HttpRequest) -> func.HttpResponse:  # type: ignore
         async with model_load_lock:
             if model is None:
                 logging.info("Le modèle n'est pas chargé. Tentative de chargement...")
-                model = load_model_from_blob()
+                model = load_model_from_blob(STORAGE_ACCOUNT_NAME, container_name)
 
     # Si le chargement a échoué, le modèle sera toujours None
     if model is None:

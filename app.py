@@ -13,8 +13,8 @@ app = Flask(__name__, template_folder="frontend/templates", static_folder="front
 
 # --- Configuration ---
 # Assurez-vous que ces variables d'environnement sont définies avant de lancer l'application
-app.config["API_URL"] = os.environ.get("API_URL")
-app.config["STORAGE_CONNECTION_STRING"] = os.environ.get("STORAGE_CONNECTION_STRING")
+app.config["API_URL"] = os.environ.get("API_URL") # type: ignore
+app.config["AZURE_STORAGE_ACCOUNT_NAME"] = os.environ.get("AZURE_STORAGE_ACCOUNT_NAME") # type: ignore
 
 logging.basicConfig(level=logging.INFO)
 
@@ -40,7 +40,7 @@ def handle_users():
     if request.method == "POST":
         # Créer un nouvel utilisateur
         try:
-            new_user_id = logic.creer_nouvel_utilisateur(app.config["STORAGE_CONNECTION_STRING"])
+            new_user_id = logic.creer_nouvel_utilisateur()
             return jsonify({"message": "Nouvel utilisateur créé avec succès", "user_id": new_user_id}), 201
         except Exception as e:
             app.logger.error(f"Erreur API POST /api/users: {e}")
@@ -48,7 +48,7 @@ def handle_users():
     else:  # GET
         # Obtenir la liste des utilisateurs
         try:
-            users = logic.obtenir_utilisateurs(app.config["STORAGE_CONNECTION_STRING"])
+            users = logic.obtenir_utilisateurs()
             return jsonify(users)
         except Exception as e:
             app.logger.error(f"Erreur API GET /api/users: {e}")
@@ -65,7 +65,7 @@ def get_recommendations(user_id: int):
         recos = logic.obtenir_recommandations_pour_utilisateur(
             app.config["API_URL"],
             user_id,
-            app.config["STORAGE_CONNECTION_STRING"],
+            # app.config["STORAGE_CONNECTION_STRING"], # Removed, using Managed Identity
             country_filter=country_filter,
             device_filter=device_filter,
         )
@@ -81,7 +81,7 @@ def get_recommendations(user_id: int):
 def get_user_history(user_id):
     """API pour obtenir l'historique de notation d'un utilisateur."""
     try:
-        history = logic.obtenir_historique_utilisateur(user_id, app.config["STORAGE_CONNECTION_STRING"])
+        history = logic.obtenir_historique_utilisateur(user_id)
         return jsonify(history)
     except Exception as e:
         app.logger.error(f"Erreur API /api/history/{user_id}: {e}")
@@ -99,10 +99,7 @@ def add_interaction():
         user_id = int(data["user_id"])
         article_id = int(data["article_id"])
         rating = int(data["rating"])
-
-        logic.ajouter_ou_mettre_a_jour_interaction(
-            user_id=user_id, article_id=article_id, rating=rating, connect_str=app.config["STORAGE_CONNECTION_STRING"]
-        )
+        logic.ajouter_ou_mettre_a_jour_interaction(user_id=user_id, article_id=article_id, rating=rating)
         return jsonify({"message": "Interaction enregistrée avec succès"}), 200
     except ValueError:
         return jsonify({"error": "Les IDs et la note doivent être des entiers"}), 400
@@ -122,10 +119,7 @@ def add_article():
         title = data["title"]
         content = data["content"]
         category_id = int(data["category_id"])
-
-        new_article_id = logic.creer_nouvel_article(
-            title=title, content=content, category_id=category_id, connect_str=app.config["STORAGE_CONNECTION_STRING"]
-        )
+        new_article_id = logic.creer_nouvel_article(title=title, content=content, category_id=category_id)
         return jsonify({"message": "Article ajouté avec succès", "article_id": new_article_id}), 201
     except ValueError:
         return jsonify({"error": "L'ID de catégorie doit être un nombre"}), 400
@@ -138,7 +132,7 @@ def add_article():
 def get_model_performance():
     """API pour obtenir les données de performance du modèle."""
     try:
-        performance_data = logic.obtenir_performance_modele(app.config["STORAGE_CONNECTION_STRING"])
+        performance_data = logic.obtenir_performance_modele()
         return jsonify(performance_data)
     except Exception as e:
         app.logger.error(f"Erreur API GET /api/performance: {e}")
@@ -149,7 +143,7 @@ def get_model_performance():
 def get_user_context(user_id):
     """API pour obtenir le contexte (pays, appareil) du dernier clic d'un utilisateur."""
     try:
-        user_context = logic.obtenir_contexte_utilisateur(user_id, app.config["STORAGE_CONNECTION_STRING"])
+        user_context = logic.obtenir_contexte_utilisateur(user_id)
         if user_context:
             return jsonify(user_context)
         return jsonify({"message": "Contexte utilisateur non trouvé"}), 404
@@ -166,7 +160,7 @@ def get_retraining_status():
     """
     try:
         # Cette fonction devrait lire le blob 'status/retraining_status.json'
-        # Pour simplifier, nous supposons qu'une fonction dans 'logic' le fait.
+        # Pour simplifier, nous supposons qu'une fonction dans 'logic' le fait. # type: ignore
         # status_data = logic.obtenir_statut_retraining(app.config["STORAGE_CONNECTION_STRING"])
         # En attendant, voici une réponse simulée :
         status_data = {"status": "idle", "last_update": "2025-12-10T10:00:00Z"}

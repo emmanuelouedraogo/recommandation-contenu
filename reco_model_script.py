@@ -3,27 +3,49 @@
 import pandas as pd
 import joblib
 import os
-import logging
-from datetime import datetime
-from azure.storage.blob import BlobServiceClient
+import logging # type: ignore
+from datetime import datetime, timezone # type: ignore
+from azure.storage.blob import BlobServiceClient # type: ignore
+from azure.identity import DefaultAzureCredential # type: ignore
 from io import StringIO
 from models import HybridRecommender  # Assurez-vous que vos classes de modèles sont importables
 from sklearn.model_selection import train_test_split
 
 # Configuration du logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+STORAGE_ACCOUNT_NAME = os.getenv("AZURE_STORAGE_ACCOUNT_NAME")
+
+if not STORAGE_ACCOUNT_NAME:
+    logging.error("AZURE_STORAGE_ACCOUNT_NAME n'est pas définie. Impossible de procéder.")
+    exit(1)
 
 
-def load_data_from_azure(connect_str, container_name, blob_name):
-    """Charge un fichier depuis Azure Blob Storage."""
-    blob_service_client = BlobServiceClient.from_connection_string(connect_str)
+def load_df_from_parquet_blob(container_name: str, blob_name: str) -> pd.DataFrame:
+    """Charge un DataFrame depuis un blob Parquet."""
+    blob_service_client = BlobServiceClient(account_url=f"https://{STORAGE_ACCOUNT_NAME}.blob.core.windows.net", credential=DefaultAzureCredential())
     blob_client = blob_service_client.get_blob_client(container=container_name, blob=blob_name)
     downloader = blob_client.download_blob(timeout=120)
+    return pd.read_parquet(downloader.readall())
 
-    if blob_name.endswith(".csv"):
-        return pd.read_csv(StringIO(downloader.readall().decode("utf-8")))
-    elif blob_name.endswith(".pickle"):
-        local_path = os.path.join("/tmp", os.path.basename(blob_name))
+
+def load_csv_from_blob(container_name: str, blob_name: str) -> pd.DataFrame:
+    """Charge un DataFrame depuis un blob CSV."""
+    blob_service_client = BlobServiceClient(account_url=f"https://{STORAGE_ACCOUNT_NAME}.blob.core.windows.net", credential=DefaultAzureCredential())
+    blob_client = blob_service_client.get_blob_client(container=container_name, blob=blob_name)
+    downloader = blob_client.download_blob(encoding="utf-8", timeout=120)
+    return pd.read_csv(StringIO(downloader.readall()))
+
+
+def load_pickle_from_blob(container_name: str, blob_name: str):
+    """Charge un objet Python depuis un blob Pickle."""
+    blob_service_client = BlobServiceClient(account_url=f"https://{STORAGE_ACCOUNT_NAME}.blob.core.windows.net", credential=DefaultAzureCredential())
+    blob_client = blob_service_client.get_blob_client(container=container_name, blob=blob_name)
+    downloader = blob_client.download_blob(timeout=120)
+    # Azure Functions /tmp directory is suitable for temporary files
+    # Ensure the directory exists
+    os.makedirs("/tmp", exist_ok=True)
+    local_path = os.path.join("/tmp", os.path.basename(blob_name))
+    try:
         with open(local_path, "wb") as f:
             f.write(downloader.readall())
         return joblib.load(local_path)
@@ -52,13 +74,13 @@ def evaluate_precision_at_k(model, test_df, k=10):
     return sum(precisions) / len(precisions) if precisions else 0
 
 
-def log_training_metrics(connect_str, container_name, metrics, click_count):
+def log_training_metrics(container_name, metrics, click_count):
     """Enregistre les métriques d'entraînement dans un fichier CSV sur Azure Blob Storage."""
     log_blob_name = "logs/training_log.csv"
     blob_service_client = BlobServiceClient.from_connection_string(connect_str)
     blob_client = blob_service_client.get_blob_client(container=container_name, blob=log_blob_name)
 
-    log_entry = {
+    log_entry = { # type: ignore
         "timestamp": datetime.utcnow().isoformat(),
         "precision_at_10": metrics.get("precision_at_10", 0),
         "click_count": click_count,
@@ -66,7 +88,7 @@ def log_training_metrics(connect_str, container_name, metrics, click_count):
 
     try:
         downloader = blob_client.download_blob()
-        log_df = pd.read_csv(StringIO(downloader.readall().decode("utf-8")))
+        log_df = pd.read_csv(StringIO(downloader.readall().decode("utf-8"))) # Log is still CSV
     except Exception:
         log_df = pd.DataFrame(columns=log_entry.keys())
 
@@ -75,24 +97,35 @@ def log_training_metrics(connect_str, container_name, metrics, click_count):
     logging.info(f"Métrique d'entraînement enregistrée dans {log_blob_name}")
 
 
-def train_and_save_model(connect_str, container_name, clicks_blob, articles_blob, embeddings_blob, model_output_blob):
+def train_and_save_model(container_name, clicks_blob, articles_blob, embeddings_blob, model_output_blob):
     """Fonction principale pour entraîner et sauvegarder le modèle."""
 
-    # 1. Charger toutes les données nécessaires depuis Azure
+    # 1. Charger toutes les données nécessaires depuis Azure (maintenant en Parquet)
     logging.info("Chargement des données...")
-    clicks_df = load_data_from_azure(connect_str, container_name, clicks_blob)
-    articles_df = load_data_from_azure(connect_str, container_name, articles_blob)
-    embeddings_data = load_data_from_azure(connect_str, container_name, embeddings_blob)
+    # Assurez-vous que les noms de blobs sont corrects pour les fichiers Parquet
+    clicks_parquet_blob = clicks_blob.replace(".csv", ".parquet")
+    articles_parquet_blob = articles_blob.replace(".csv", ".parquet")
+    i2vec_parquet_blob = embeddings_blob.replace(".pickle", "_i2vec.parquet")
+    dic_ri_parquet_blob = embeddings_blob.replace(".pickle", "_dic_ri.parquet")
+    dic_ir_parquet_blob = embeddings_blob.replace(".pickle", "_dic_ir.parquet")
+
+    clicks_df = load_df_from_parquet_blob(container_name, clicks_parquet_blob)
+    articles_df = load_df_from_parquet_blob(container_name, articles_parquet_blob)
+    
+    # Charger les composants des embeddings depuis leurs fichiers Parquet respectifs
+    i2vec_df = load_df_from_parquet_blob(container_name, i2vec_parquet_blob)
+    dic_ri_df = load_df_from_parquet_blob(container_name, dic_ri_parquet_blob)
+    dic_ir_df = load_df_from_parquet_blob(container_name, dic_ir_parquet_blob)
+
+    # Reconstruire les objets nécessaires
+    i2vec = i2vec_df.values # Convert DataFrame back to NumPy array
+    dic_ri = dict(zip(dic_ri_df["article_id"], dic_ri_df["index"]))
+    dic_ir = dict(zip(dic_ir_df["index"], dic_ir_df["article_id"]))
 
     if clicks_df.empty or len(clicks_df) < 10:
         raise ValueError("Pas assez de données de clics pour l'entraînement.")
 
     train_df, test_df = train_test_split(clicks_df, test_size=0.2, random_state=42)  # noqa
-
-    # Extraire les données du pickle d'embeddings
-    i2vec = embeddings_data["i2vec"]
-    dic_ri = embeddings_data["dic_ri"]
-    dic_ir = embeddings_data["dic_ir"]
 
     # 2. Entraîner le modèle hybride
     logging.info("Entraînement du modèle hybride...")

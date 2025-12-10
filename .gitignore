@@ -41,3 +41,6 @@ CODEAZURE.md
 *.bak
 *~
 *.swap
+
+#data
+data/

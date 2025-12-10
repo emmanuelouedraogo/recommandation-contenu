@@ -3,6 +3,7 @@ import pandas as pd
 import requests
 from azure.storage.blob import BlobServiceClient
 from io import StringIO
+from azure.identity import DefaultAzureCredential # type: ignore
 from azure.core.exceptions import ResourceNotFoundError, ServiceRequestError
 import logging
 
@@ -24,11 +25,12 @@ TRAINING_LOG_BLOB_NAME = "logs/training_log.csv"
 @st.cache_resource(ttl=3600)
 def recuperer_client_blob_service() -> BlobServiceClient:  # type: ignore
     """Crée un client de service blob en utilisant la chaîne de connexion des secrets."""
-    connect_str = st.secrets.get("STORAGE_CONNECTION_STRING")
-    if not connect_str:
-        st.error("La chaîne de connexion au stockage ('STORAGE_CONNECTION_STRING') n'est pas configurée !")
+    storage_account_name = st.secrets.get("AZURE_STORAGE_ACCOUNT_NAME")
+    if not storage_account_name:
+        st.error("Le nom du compte de stockage ('AZURE_STORAGE_ACCOUNT_NAME') n'est pas configuré !")
         st.stop()
-    return BlobServiceClient.from_connection_string(connect_str)
+    # Utilise DefaultAzureCredential pour l'authentification (Managed Identity en priorité)
+    return BlobServiceClient(account_url=f"https://{storage_account_name}.blob.core.windows.net", credential=DefaultAzureCredential())
 
 
 @st.cache_data(ttl=3600)

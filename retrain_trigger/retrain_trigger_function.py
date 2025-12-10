@@ -4,13 +4,16 @@ import azure.functions as func
 import logging
 import os
 import pandas as pd
-from azure.storage.blob import BlobServiceClient
+from azure.storage.blob import BlobServiceClient, BlobClient # type: ignore
+from azure.identity import DefaultAzureCredential # type: ignore
 from io import StringIO
-from datetime import datetime
+from datetime import datetime, timezone
 
 # Importer les scripts de modélisation
 from reco_model_script import train_and_save_model
 
+# --- Configuration ---
+STORAGE_ACCOUNT_NAME = os.getenv("AZURE_STORAGE_ACCOUNT_NAME")
 # --- Configuration ---
 CONNECT_STR = os.getenv("AZURE_CONNECTION_STRING")
 CONTAINER_NAME = "reco-data"
@@ -26,13 +29,16 @@ TRAINING_LOG_BLOB_NAME = "logs/training_log.csv"  # Fichier pour l'historique
 # Définition de l'application de fonction
 retrain_app = func.FunctionApp()
 
+if not STORAGE_ACCOUNT_NAME:
+    logging.error("AZURE_STORAGE_ACCOUNT_NAME n'est pas définie. Impossible de procéder.")
+    exit(1)
 
-def get_training_state(blob_service_client):
+def get_training_state(blob_service_client: BlobServiceClient):
     """Récupère le dernier état d'entraînement (ex: le nombre de clics du dernier run)."""
+    state_blob_client = blob_service_client.get_blob_client(container=CONTAINER_NAME, blob=STATE_BLOB_NAME) # type: ignore
     try:
-        blob_client = blob_service_client.get_blob_client(container=CONTAINER_NAME, blob=STATE_BLOB_NAME)
-        state_data = blob_client.download_blob().readall()
-        return pd.read_json(StringIO(state_data), typ="series")
+        state_data = state_blob_client.download_blob().readall()
+        return pd.read_json(StringIO(state_data.decode("utf-8")), typ="series")
     except Exception:
         # Si le fichier n'existe pas, on part de 0
         return pd.Series({"last_training_click_count": 0})
@@ -41,14 +47,14 @@ def get_training_state(blob_service_client):
 def save_training_state(blob_service_client, new_count):
     """Sauvegarde le nouvel état d'entraînement."""
     state = pd.Series({"last_training_click_count": new_count})
-    blob_client = blob_service_client.get_blob_client(container=CONTAINER_NAME, blob=STATE_BLOB_NAME)
-    blob_client.upload_blob(state.to_json(), overwrite=True)
+    state_blob_client = blob_service_client.get_blob_client(container=CONTAINER_NAME, blob=STATE_BLOB_NAME) # type: ignore
+    state_blob_client.upload_blob(state.to_json(), overwrite=True)
 
 
 def update_retraining_status(blob_service_client, status: str, details: dict = None):
-    """Met à jour le statut du réentraînement dans un fichier JSON dédié."""
-    status_data = {"status": status, "last_update": datetime.now().isoformat(), **(details or {})}
-    blob_client = blob_service_client.get_blob_client(container=CONTAINER_NAME, blob=STATUS_BLOB_NAME)
+    """Met à jour le statut du réentraînement dans un fichier JSON dédié.""" # type: ignore
+    status_data = {"status": status, "last_update": datetime.now(timezone.utc).isoformat(), **(details or {})} # type: ignore
+    blob_client = blob_service_client.get_blob_client(container=CONTAINER_NAME, blob=STATUS_BLOB_NAME) # type: ignore
     blob_client.upload_blob(pd.Series(status_data).to_json(), overwrite=True)
 
 
@@ -71,25 +77,24 @@ def log_training_run(blob_service_client, metrics, click_count):
     blob_client.upload_blob(updated_log_df.to_csv(index=False), overwrite=True)
 
 
-# --- Déclencheur sur Minuteur ---
-# S'exécute toutes les heures : "0 * * * *" (format CRON)
 @retrain_app.schedule(schedule="0 * * * *", arg_name="myTimer", run_on_startup=True, use_monitor=False)
 def timer_trigger_retrain(myTimer: func.TimerRequest) -> None:
     logging.info("Déclencheur de ré-entraînement activé.")
-    if not CONNECT_STR:
-        logging.error("AZURE_CONNECTION_STRING n'est pas configurée.")
+    if not STORAGE_ACCOUNT_NAME:
+        logging.error("AZURE_STORAGE_ACCOUNT_NAME n'est pas configurée.")
         return
-    blob_service_client = BlobServiceClient.from_connection_string(CONNECT_STR)
+    blob_service_client = BlobServiceClient(account_url=f"https://{STORAGE_ACCOUNT_NAME}.blob.core.windows.net", credential=DefaultAzureCredential())
 
     # 1. Obtenir l'état actuel
     training_state = get_training_state(blob_service_client)
 
     last_training_count = training_state.get("last_training_click_count", 0)
     # 2. Compter le nombre actuel d'interactions
+    clicks_parquet_blob_name = CLICKS_BLOB_NAME.replace(".csv", ".parquet")
     try:
-        clicks_blob_client = blob_service_client.get_blob_client(container=CONTAINER_NAME, blob=CLICKS_BLOB_NAME)
-        clicks_data = clicks_blob_client.download_blob().readall()
-        clicks_df = pd.read_csv(StringIO(clicks_data.decode("utf-8")))
+        clicks_blob_client = blob_service_client.get_blob_client(container=CONTAINER_NAME, blob=clicks_parquet_blob_name)
+        clicks_data = clicks_blob_client.download_blob(timeout=120).readall()
+        clicks_df = pd.read_parquet(BytesIO(clicks_data))
         current_click_count = len(clicks_df)
     except Exception as e:
         logging.error(f"Impossible de lire le fichier des clics : {e}")
@@ -106,21 +111,18 @@ def timer_trigger_retrain(myTimer: func.TimerRequest) -> None:
 
         try:
             update_retraining_status(blob_service_client, "in_progress")
-            # 4. Exécuter le script d'entraînement
-            # La fonction retourne maintenant le chemin du modèle ET les métriques
-            local_model_path, metrics = train_and_save_model(
-                connect_str=CONNECT_STR,
+            # 4. Exécuter le script d'entraînement. Il sauvegarde le modèle directement.
+            metrics = train_and_save_model(
+                # connect_str=CONNECT_STR, # Removed, using Managed Identity
                 container_name=CONTAINER_NAME,
                 clicks_blob=CLICKS_BLOB_NAME,
                 articles_blob=METADATA_BLOB_NAME,
                 embeddings_blob=EMBEDDINGS_BLOB_NAME,
+                model_output_blob=MODEL_BLOB_NAME,
             )
-
-            # 5. Charger le nouveau modèle sur Azure Blob Storage
-            model_blob_client = blob_service_client.get_blob_client(container=CONTAINER_NAME, blob=MODEL_BLOB_NAME)
-            with open(local_model_path, "rb") as data:
-                model_blob_client.upload_blob(data, overwrite=True)
-            logging.info(f"Nouveau modèle '{MODEL_BLOB_NAME}' chargé avec succès sur Azure.")
+            # The train_and_save_model function now handles saving the model to blob storage directly.
+            # So, we don't need to re-upload it here.
+            logging.info(f"Modèle entraîné et sauvegardé avec succès sur Azure.")
 
             # 6. Mettre à jour l'état d'entraînement
             save_training_state(blob_service_client, current_click_count)
