@@ -24,6 +24,7 @@ STATE_BLOB_NAME = "training_state.json"  # Fichier pour suivre l'état
 STATUS_BLOB_NAME = "status/retraining_status.json"  # Fichier pour le statut en direct
 TRAINING_LOG_BLOB_NAME = "logs/training_log.csv"  # Fichier pour l'historique
 RETRAIN_THRESHOLD_INCREMENT = 1000  # Seuil configurable pour le ré-entraînement
+INTERACTIONS_LOG_BLOB_NAME = "interactions/new_interactions_log.csv"  # Log des nouvelles interactions
 
 # Définition de l'application de fonction
 retrain_app = func.FunctionApp()
@@ -116,6 +117,49 @@ def timer_trigger_retrain(myTimer: func.TimerRequest) -> None:
     )
     # 3. Vérifier si le seuil est atteint
     # On vérifie si le nombre de clics a dépassé le prochain multiple du seuil
+
+    # --- NOUVEAU : Traiter les nouvelles interactions avant de vérifier le seuil ---
+    new_interactions_blob_client = blob_service_client.get_blob_client(
+        container=CONTAINER_NAME, blob=INTERACTIONS_LOG_BLOB_NAME
+    )
+    try:
+        new_interactions_data = new_interactions_blob_client.download_blob().readall()
+        new_interactions_df = pd.read_csv(StringIO(new_interactions_data.decode("utf-8")))
+        # Supprimer la ligne d'en-tête si elle est présente dans le log d'append
+        if not new_interactions_df.empty and "user_id" not in new_interactions_df.columns:
+            new_interactions_df = new_interactions_df[1:]
+            new_interactions_df.columns = ["user_id", "article_id", "rating", "timestamp"]
+
+        if not new_interactions_df.empty:
+            logging.info(f"Traitement de {len(new_interactions_df)} nouvelles interactions.")
+            # Charger le DataFrame principal des clics
+            clicks_parquet_blob_client = blob_service_client.get_blob_client(
+                container=CONTAINER_NAME, blob=clicks_parquet_blob_name
+            )
+            existing_clicks_data = clicks_parquet_blob_client.download_blob(timeout=120).readall()
+            existing_clicks_df = pd.read_parquet(BytesIO(existing_clicks_data))
+
+            # Fusionner les nouvelles interactions avec les clics existants
+            # Ici, nous faisons une simple concaténation. Une logique de déduplication/mise à jour pourrait être ajoutée.
+            updated_clicks_df = pd.concat([existing_clicks_df, new_interactions_df], ignore_index=True)
+
+            # Sauvegarder le DataFrame mis à jour en Parquet
+            output_parquet = BytesIO()
+            updated_clicks_df.to_parquet(output_parquet, index=False)
+            clicks_parquet_blob_client.upload_blob(output_parquet.getvalue(), overwrite=True)
+            logging.info(f"Mise à jour de {clicks_parquet_blob_name} avec les nouvelles interactions.")
+
+            # Vider le log des nouvelles interactions après traitement
+            new_interactions_blob_client.delete_blob()
+            logging.info("Log des nouvelles interactions vidé.")
+            current_click_count = len(updated_clicks_df)  # Mettre à jour le compte après fusion
+
+    except ResourceNotFoundError:
+        logging.info("Aucun nouveau log d'interactions à traiter.")
+    except Exception as e:
+        logging.error(f"Erreur lors du traitement des nouvelles interactions : {e}", exc_info=True)
+        # Continuer avec le compte de clics existant si le traitement échoue
+
     next_threshold = (last_training_count // RETRAIN_THRESHOLD_INCREMENT + 1) * RETRAIN_THRESHOLD_INCREMENT
     if current_click_count >= next_threshold:
         logging.info(f"Seuil de {next_threshold} clics dépassé. Démarrage du ré-entraînement.")

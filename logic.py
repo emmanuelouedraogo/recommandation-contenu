@@ -18,6 +18,7 @@ USERS_BLOB_NAME = "users.csv"
 ARTICLES_BLOB_NAME = "articles_metadata.csv"
 CLICKS_BLOB_NAME = "clicks_sample.csv"
 TRAINING_LOG_BLOB_NAME = "logs/training_log.csv"
+INTERACTIONS_LOG_BLOB_NAME = "interactions/new_interactions_log.csv"  # For appending new interactions
 CACHE_TTL_SECONDS = 600  # 10 minutes
 logger = logging.getLogger(__name__)
 
@@ -175,32 +176,29 @@ def obtenir_historique_utilisateur(user_id: int):
 
 def ajouter_ou_mettre_a_jour_interaction(user_id: int, article_id: int, rating: int):
     """Ajoute ou met à jour une notation."""
+    # --- Refactoring for Performance: Use an Append-Only Log ---
+    # Instead of reading and rewriting the entire clicks dataset for each interaction,
+    # we append new interactions to a log file. This is much faster and more scalable.
+    # A separate batch process (like the existing retrain trigger) can then merge these logs.
     blob_service_client = recuperer_client_blob_service()
-    clicks_df = charger_df_depuis_blob(blob_service_client=blob_service_client, blob_name=CLICKS_BLOB_NAME)
+    append_blob_client = blob_service_client.get_blob_client(
+        container=AZURE_CONTAINER_NAME, blob=INTERACTIONS_LOG_BLOB_NAME
+    )
 
-    # Vérifie s'il existe une interaction pour ce couple user/article
-    user_article_interactions = clicks_df[(clicks_df["user_id"] == user_id) & (clicks_df["article_id"] == article_id)]
+    # Create the append blob with a header if it doesn't exist
+    try:
+        append_blob_client.get_blob_properties()
+    except ResourceNotFoundError:
+        logger.info(f"Creating new interaction log blob: {INTERACTIONS_LOG_BLOB_NAME}")
+        append_blob_client.create_blob(metadata={"blob_type": "AppendBlob"})
+        header = "user_id,article_id,rating,timestamp\n"
+        append_blob_client.append_block(header.encode("utf-8"))
 
-    if not user_article_interactions.empty:
-        # Mise à jour : trouve l'index de la dernière interaction
-        latest_interaction_index = user_article_interactions["click_timestamp"].idxmax()
-        clicks_df.loc[latest_interaction_index, "nb"] = rating
-        clicks_df.loc[latest_interaction_index, "click_timestamp"] = int(pd.Timestamp.now().timestamp())
-    else:
-        # Ajout : crée une nouvelle ligne
-        new_interaction = pd.DataFrame(
-            [
-                {
-                    "user_id": user_id,
-                    "article_id": article_id,
-                    "click_timestamp": int(pd.Timestamp.now().timestamp()),
-                    "nb": rating,
-                }
-            ]
-        )
-        clicks_df = pd.concat([clicks_df, new_interaction], ignore_index=True)
-
-    sauvegarder_df_vers_blob(blob_service_client, clicks_df, CLICKS_BLOB_NAME)
+    # Append the new interaction as a single line of CSV
+    timestamp = int(pd.Timestamp.now().timestamp())
+    log_entry = f"{user_id},{article_id},{rating},{timestamp}\n"
+    append_blob_client.append_block(log_entry.encode("utf-8"))
+    logger.info(f"Logged new interaction for user {user_id}, article {article_id}.")
 
 
 def creer_nouvel_utilisateur():
@@ -288,9 +286,8 @@ def obtenir_performance_modele():
 
 
 def obtenir_tendances_globales_clics():
-    """
-    Récupère et agrège les données de clics pour les tendances globales par pays et par groupe d'appareils."""
-    blob_service_client = recuperer_client_blob_service()  # type: ignore
+    """Récupère et agrège les données de clics pour les tendances globales par pays et par groupe d'appareils."""
+    blob_service_client = recuperer_client_blob_service()
     clicks_df = charger_df_depuis_blob(blob_service_client=blob_service_client, blob_name=CLICKS_BLOB_NAME)
 
     if clicks_df.empty:

@@ -11,8 +11,7 @@ from io import StringIO
 from models import HybridRecommender  # Assurez-vous que vos classes de modèles sont importables
 from sklearn.model_selection import train_test_split
 
-# Configuration du logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logger = logging.getLogger(__name__)
 STORAGE_ACCOUNT_NAME = os.getenv("AZURE_STORAGE_ACCOUNT_NAME")
 
 if not STORAGE_ACCOUNT_NAME:
@@ -88,7 +87,7 @@ def log_training_metrics(container_name, metrics, click_count):
     blob_service_client = BlobServiceClient(
         account_url=f"https://{STORAGE_ACCOUNT_NAME}.blob.core.windows.net", credential=DefaultAzureCredential()
     )
-    blob_client = blob_service_client.get_blob_client(container=container_name, blob=log_blob_name)
+    append_blob_client = blob_service_client.get_blob_client(container=container_name, blob=log_blob_name)
 
     log_entry = {  # type: ignore
         "timestamp": datetime.utcnow().isoformat(),
@@ -96,15 +95,19 @@ def log_training_metrics(container_name, metrics, click_count):
         "click_count": click_count,
     }
 
+    # S'assurer que le blob existe et est bien un Append Blob
     try:
-        downloader = blob_client.download_blob()
-        log_df = pd.read_csv(StringIO(downloader.readall().decode("utf-8")))  # Log is still CSV
-    except Exception:
-        log_df = pd.DataFrame(columns=log_entry.keys())
+        append_blob_client.get_blob_properties()
+    except Exception:  # Si le blob n'existe pas, le créer
+        append_blob_client.create_blob()
+        # Ajouter l'en-tête CSV au nouveau fichier
+        header = "timestamp,precision_at_10,click_count\n"
+        append_blob_client.append_block(header.encode("utf-8"))
 
-    updated_log_df = pd.concat([log_df, pd.DataFrame([log_entry])], ignore_index=True)
-    blob_client.upload_blob(updated_log_df.to_csv(index=False), overwrite=True)
-    logging.info(f"Métrique d'entraînement enregistrée dans {log_blob_name}")
+    # Ajouter la nouvelle entrée au blob
+    new_log_line = f"{log_entry['timestamp']},{log_entry['precision_at_10']},{log_entry['click_count']}\n"
+    append_blob_client.append_block(new_log_line.encode("utf-8"))
+    logging.info(f"Métrique d'entraînement enregistrée dans {log_blob_name} via Append Blob.")
 
 
 def train_and_save_model(container_name, clicks_blob, articles_blob, embeddings_blob, model_output_blob):
