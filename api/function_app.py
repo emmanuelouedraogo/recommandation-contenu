@@ -58,8 +58,9 @@ app = func.FunctionApp()
 
 @app.route(route="recommend", methods=[func.HttpMethod.GET])
 async def recommend(req: func.HttpRequest) -> func.HttpResponse:
+    global model
     logging.info('Requête de recommandation reçue.')
-    
+
     # Chargement paresseux (lazy loading) du modèle au premier appel pour optimiser le démarrage à froid.
     # Le verrou (lock) garantit que même si plusieurs requêtes arrivent en même temps,
     # le modèle ne sera chargé qu'une seule fois.
