@@ -7,6 +7,7 @@ import pandas as pd
 from azure.storage.blob import BlobServiceClient  # type: ignore
 from azure.identity import DefaultAzureCredential  # type: ignore
 from io import StringIO, BytesIO
+from azure.core.exceptions import ResourceNotFoundError  # type: ignore
 from datetime import datetime, timezone
 
 # Importer les scripts de modélisation
@@ -136,7 +137,8 @@ def timer_trigger_retrain(myTimer: func.TimerRequest) -> None:
             clicks_parquet_blob_client = blob_service_client.get_blob_client(
                 container=CONTAINER_NAME, blob=clicks_parquet_blob_name
             )
-            existing_clicks_data = clicks_parquet_blob_client.download_blob(timeout=120).readall()
+            downloader = clicks_parquet_blob_client.download_blob(timeout=120)
+            existing_clicks_data = downloader.readall()
             existing_clicks_df = pd.read_parquet(BytesIO(existing_clicks_data))
 
             # Fusionner les nouvelles interactions avec les clics existants
