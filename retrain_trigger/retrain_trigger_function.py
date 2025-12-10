@@ -54,21 +54,21 @@ def update_retraining_status(blob_service_client, status: str, details: dict = N
 
 def log_training_run(blob_service_client, metrics, click_count):
     """Ajoute une entrée à l'historique d'entraînement."""
-        blob_client = blob_service_client.get_blob_client(container=CONTAINER_NAME, blob=TRAINING_LOG_BLOB_NAME)
-        try:
-            log_data = blob_client.download_blob().readall()
-            log_content = log_data.decode('utf-8')
-            if log_content:
-                log_df = pd.read_csv(StringIO(log_content))
-            else:
-                log_df = pd.DataFrame()
-        except Exception:  # Catches if blob does not exist
+    blob_client = blob_service_client.get_blob_client(container=CONTAINER_NAME, blob=TRAINING_LOG_BLOB_NAME)
+    try:
+        log_data = blob_client.download_blob().readall()
+        log_content = log_data.decode('utf-8')
+        if log_content:
+            log_df = pd.read_csv(StringIO(log_content))
+        else:
             log_df = pd.DataFrame()
+    except Exception:  # Catches if blob does not exist
+        log_df = pd.DataFrame()
 
-        new_log_entry = pd.DataFrame([{"timestamp": pd.Timestamp.now(), "click_count": click_count, **metrics}])
-        updated_log_df = pd.concat([log_df, new_log_entry], ignore_index=True)
-        
-        blob_client.upload_blob(updated_log_df.to_csv(index=False), overwrite=True)
+    new_log_entry = pd.DataFrame([{"timestamp": pd.Timestamp.now(), "click_count": click_count, **metrics}])
+    updated_log_df = pd.concat([log_df, new_log_entry], ignore_index=True)
+    
+    blob_client.upload_blob(updated_log_df.to_csv(index=False), overwrite=True)
 
 
 # --- Déclencheur sur Minuteur ---
