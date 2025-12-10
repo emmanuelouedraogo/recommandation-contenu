@@ -9,38 +9,38 @@ import logic as logic
 # Crée une instance de l'application Flask.
 # En spécifiant template_folder et static_folder, on indique à Flask
 # où trouver les fichiers frontend, même si app.py est à la racine.
-app = Flask(__name__, template_folder='frontend/templates', static_folder='frontend/static')
+app = Flask(__name__, template_folder="frontend/templates", static_folder="frontend/static")
 
 # --- Configuration ---
 # Assurez-vous que ces variables d'environnement sont définies avant de lancer l'application
-app.config['API_URL'] = os.environ.get('API_URL')
-app.config['STORAGE_CONNECTION_STRING'] = os.environ.get('STORAGE_CONNECTION_STRING')
+app.config["API_URL"] = os.environ.get("API_URL")
+app.config["STORAGE_CONNECTION_STRING"] = os.environ.get("STORAGE_CONNECTION_STRING")
 
 logging.basicConfig(level=logging.INFO)
 
 # --- Routes pour servir les pages HTML ---
 
 
-@app.route('/')
+@app.route("/")
 def index():
     """Sert la page d'accueil principale."""
-    return render_template('index.html')  # Cherchera dans 'frontend/templates/index.html'
+    return render_template("index.html")  # Cherchera dans 'frontend/templates/index.html'
 
 
-@app.route('/health')
+@app.route("/health")
 def health_check():
     """Point de terminaison pour le bilan de santé (Health Check)."""
     return "OK", 200
 
 
 # --- Routes API pour le Frontend ---
-@app.route('/api/users', methods=['GET', 'POST'])
+@app.route("/api/users", methods=["GET", "POST"])
 def handle_users():
     """Gère la récupération et la création d'utilisateurs."""
-    if request.method == 'POST':
+    if request.method == "POST":
         # Créer un nouvel utilisateur
         try:
-            new_user_id = logic.creer_nouvel_utilisateur(app.config['STORAGE_CONNECTION_STRING'])
+            new_user_id = logic.creer_nouvel_utilisateur(app.config["STORAGE_CONNECTION_STRING"])
             return jsonify({"message": "Nouvel utilisateur créé avec succès", "user_id": new_user_id}), 201
         except Exception as e:
             app.logger.error(f"Erreur API POST /api/users: {e}")
@@ -48,26 +48,26 @@ def handle_users():
     else:  # GET
         # Obtenir la liste des utilisateurs
         try:
-            users = logic.obtenir_utilisateurs(app.config['STORAGE_CONNECTION_STRING'])
+            users = logic.obtenir_utilisateurs(app.config["STORAGE_CONNECTION_STRING"])
             return jsonify(users)
         except Exception as e:
             app.logger.error(f"Erreur API GET /api/users: {e}")
             return jsonify({"error": "Impossible de charger les utilisateurs"}), 500
 
 
-@app.route('/api/recommendations/<int:user_id>', methods=['GET'])
+@app.route("/api/recommendations/<int:user_id>", methods=["GET"])
 def get_recommendations(user_id: int):
     """API pour obtenir les recommandations pour un utilisateur."""
     try:
-        country_filter = request.args.get('country')
-        device_filter = request.args.get('deviceGroup')
+        country_filter = request.args.get("country")
+        device_filter = request.args.get("deviceGroup")
 
         recos = logic.obtenir_recommandations_pour_utilisateur(
-            app.config['API_URL'],
+            app.config["API_URL"],
             user_id,
-            app.config['STORAGE_CONNECTION_STRING'],
+            app.config["STORAGE_CONNECTION_STRING"],
             country_filter=country_filter,
-            device_filter=device_filter
+            device_filter=device_filter,
         )
         if "error" in recos:
             return jsonify(recos), 404
@@ -77,37 +77,31 @@ def get_recommendations(user_id: int):
         return jsonify({"error": "Erreur interne du serveur"}), 500
 
 
-@app.route('/api/history/<int:user_id>', methods=['GET'])
+@app.route("/api/history/<int:user_id>", methods=["GET"])
 def get_user_history(user_id):
     """API pour obtenir l'historique de notation d'un utilisateur."""
     try:
-        history = logic.obtenir_historique_utilisateur(
-            user_id,
-            app.config['STORAGE_CONNECTION_STRING']
-        )
+        history = logic.obtenir_historique_utilisateur(user_id, app.config["STORAGE_CONNECTION_STRING"])
         return jsonify(history)
     except Exception as e:
         app.logger.error(f"Erreur API /api/history/{user_id}: {e}")
         return jsonify({"error": "Impossible de charger l'historique"}), 500
 
 
-@app.route('/api/interactions', methods=['POST'])
+@app.route("/api/interactions", methods=["POST"])
 def add_interaction():
     """API pour ajouter ou mettre à jour une notation d'article."""
     data = request.get_json()
-    if not data or 'user_id' not in data or 'article_id' not in data or 'rating' not in data:
+    if not data or "user_id" not in data or "article_id" not in data or "rating" not in data:
         return jsonify({"error": "Données manquantes (user_id, article_id, rating)"}), 400
 
     try:
-        user_id = int(data['user_id'])
-        article_id = int(data['article_id'])
-        rating = int(data['rating'])
+        user_id = int(data["user_id"])
+        article_id = int(data["article_id"])
+        rating = int(data["rating"])
 
         logic.ajouter_ou_mettre_a_jour_interaction(
-            user_id=user_id,
-            article_id=article_id,
-            rating=rating,
-            connect_str=app.config['STORAGE_CONNECTION_STRING']
+            user_id=user_id, article_id=article_id, rating=rating, connect_str=app.config["STORAGE_CONNECTION_STRING"]
         )
         return jsonify({"message": "Interaction enregistrée avec succès"}), 200
     except ValueError:
@@ -117,23 +111,20 @@ def add_interaction():
         return jsonify({"error": "Impossible d'enregistrer l'interaction"}), 500
 
 
-@app.route('/api/articles', methods=['POST'])
+@app.route("/api/articles", methods=["POST"])
 def add_article():
     """API pour ajouter un nouvel article."""
     data = request.get_json()
-    if not data or not data.get('title') or not data.get('content') or 'category_id' not in data:
+    if not data or not data.get("title") or not data.get("content") or "category_id" not in data:
         return jsonify({"error": "Données manquantes (title, content, category_id)"}), 400
 
     try:
-        title = data['title']
-        content = data['content']
-        category_id = int(data['category_id'])
+        title = data["title"]
+        content = data["content"]
+        category_id = int(data["category_id"])
 
         new_article_id = logic.creer_nouvel_article(
-            title=title,
-            content=content,
-            category_id=category_id,
-            connect_str=app.config['STORAGE_CONNECTION_STRING']
+            title=title, content=content, category_id=category_id, connect_str=app.config["STORAGE_CONNECTION_STRING"]
         )
         return jsonify({"message": "Article ajouté avec succès", "article_id": new_article_id}), 201
     except ValueError:
@@ -143,27 +134,22 @@ def add_article():
         return jsonify({"error": "Impossible d'ajouter l'article"}), 500
 
 
-@app.route('/api/performance', methods=['GET'])
+@app.route("/api/performance", methods=["GET"])
 def get_model_performance():
     """API pour obtenir les données de performance du modèle."""
     try:
-        performance_data = logic.obtenir_performance_modele(
-            app.config['STORAGE_CONNECTION_STRING']
-        )
+        performance_data = logic.obtenir_performance_modele(app.config["STORAGE_CONNECTION_STRING"])
         return jsonify(performance_data)
     except Exception as e:
         app.logger.error(f"Erreur API GET /api/performance: {e}")
         return jsonify({"error": "Impossible de charger les données de performance"}), 500
 
 
-@app.route('/api/user_context/<int:user_id>', methods=['GET'])
+@app.route("/api/user_context/<int:user_id>", methods=["GET"])
 def get_user_context(user_id):
     """API pour obtenir le contexte (pays, appareil) du dernier clic d'un utilisateur."""
     try:
-        user_context = logic.obtenir_contexte_utilisateur(
-            user_id,
-            app.config['STORAGE_CONNECTION_STRING']
-        )
+        user_context = logic.obtenir_contexte_utilisateur(user_id, app.config["STORAGE_CONNECTION_STRING"])
         if user_context:
             return jsonify(user_context)
         return jsonify({"message": "Contexte utilisateur non trouvé"}), 404
@@ -173,6 +159,6 @@ def get_user_context(user_id):
 
 
 # Permet de lancer l'application en mode débogage
-if __name__ == '__main__':
+if __name__ == "__main__":
     # En production, utilisez un serveur WSGI comme Gunicorn
     app.run(debug=True)

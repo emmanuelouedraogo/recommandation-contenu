@@ -46,6 +46,7 @@ class ContentBasedRecommender:
         return preprocessing.normalize(user_item_strengths_weighted_avg.reshape(1, -1))
 
 
+
     def get_model_name(self):
         return self.MODEL_NAME
 
@@ -88,8 +89,7 @@ class ContentBasedTimeDecayRecommender(ContentBasedRecommender):
         if sum_of_weights == 0:
             return np.zeros((1, self.items_embedding.shape[1]))
         weighted_avg_profile = np.sum(user_item_profiles * final_weights, axis=0) / sum_of_weights
-        return preprocessing.normalize(weighted_avg_profile.reshape(1, -1))
-
+        return preprocessing.normalize(weighted_avg_profile.reshape(1, -1))  # type: ignore
 
 
 class CollabFiltRecommender:
@@ -167,30 +167,24 @@ class HybridRecommender:
         
         # 2. Normaliser les scores
         if not reco_cf.empty:
-            reco_cf['norm_score'] = (reco_cf['pred'] - reco_cf['pred'].min()) / (
-                reco_cf['pred'].max() - reco_cf['pred'].min() + 1e-5
+            reco_cf["norm_score"] = (reco_cf["pred"] - reco_cf["pred"].min()) / (
+                reco_cf["pred"].max() - reco_cf["pred"].min() + 1e-5
             )
         else:
             reco_cf = pd.DataFrame(columns=['article_id', 'norm_score'])
         
         if not reco_cb.empty:
-            reco_cb['norm_score'] = (reco_cb['cb_cosine_with_profile'] - reco_cb['cb_cosine_with_profile'].min()) / (
-                reco_cb['cb_cosine_with_profile'].max() - reco_cb['cb_cosine_with_profile'].min() + 1e-5
-            )
+            reco_cb['norm_score'] = ((reco_cb['cb_cosine_with_profile'] - reco_cb['cb_cosine_with_profile'].min()) /
+                                     (reco_cb['cb_cosine_with_profile'].max() - reco_cb['cb_cosine_with_profile'].min() + 1e-5))
         else:
             reco_cb = pd.DataFrame(columns=['article_id', 'norm_score'])
         
         # 3. Fusionner les recommandations
-        reco = pd.merge(
-            reco_cf[['article_id', 'norm_score']],
-            reco_cb[['article_id', 'norm_score']],
-            on='article_id', how='outer', suffixes=('_cf', '_cb')
-        )
+        reco = pd.merge(reco_cf[['article_id', 'norm_score']], reco_cb[['article_id', 'norm_score']], on='article_id', how='outer', suffixes=('_cf', '_cb'))
         reco.fillna(0, inplace=True)
         
         # 4. Calculer le score final pondéré
-        reco['final_score'] = (self.cf_weight * reco['norm_score_cf']) + \
-                              (self.cb_weight * reco['norm_score_cb'])
+        reco['final_score'] = (self.cf_weight * reco['norm_score_cf']) + (self.cb_weight * reco['norm_score_cb'])
         
         # 5. Trier et filtrer les articles déjà vus
         reco = reco.sort_values('final_score', ascending=False)

@@ -1,6 +1,7 @@
 import azure.functions as func
 import logging
 import asyncio
+import asyncio
 import os
 import joblib
 from azure.core.exceptions import ResourceNotFoundError
@@ -14,7 +15,7 @@ model_blob_name = os.getenv("AZURE_STORAGE_MODEL_BLOB", "models/hybrid_recommend
 local_model_path = "/tmp/hybrid_recommender_pipeline.pkl"
 
 # Variable globale pour stocker le modèle et un verrou pour gérer le chargement concurrent
-model = None
+model = None  # type: HybridRecommender | None
 model_load_lock = asyncio.Lock()
 
 
@@ -40,14 +41,13 @@ def load_model_from_blob():
         logging.info("Modèle chargé avec succès.")
         return loaded_model
     except ResourceNotFoundError:
-        logging.critical(
-            f"Le modèle blob '{model_blob_name}' n'a pas été trouvé dans le conteneur '{container_name}'."
-        )
+        logging.critical(f"Le modèle blob '{model_blob_name}' n'a pas été trouvé dans le conteneur '{container_name}'.")
         return None
     except Exception as e:
         logging.critical(
             "Erreur critique lors du chargement du modèle, l'application ne pourra pas servir de recommandations : "
-            f"{e}", exc_info=True
+            f"{e}",
+            exc_info=True,
         )
         return None
 
@@ -57,9 +57,9 @@ app = func.FunctionApp()
 
 
 @app.route(route="recommend", methods=[func.HttpMethod.GET])
-async def recommend(req: func.HttpRequest) -> func.HttpResponse:
+async def recommend(req: func.HttpRequest) -> func.HttpResponse:  # type: ignore
     global model
-    logging.info('Requête de recommandation reçue.')
+    logging.info("Requête de recommandation reçue.")
 
     # Chargement paresseux (lazy loading) du modèle au premier appel pour optimiser le démarrage à froid.
     # Le verrou (lock) garantit que même si plusieurs requêtes arrivent en même temps,
@@ -72,15 +72,13 @@ async def recommend(req: func.HttpRequest) -> func.HttpResponse:
 
     # Si le chargement a échoué, le modèle sera toujours None
     if model is None:
-        logging.error(
-            "Le chargement du modèle a échoué. Impossible de servir la requête."
-        )
+        logging.error("Le chargement du modèle a échoué. Impossible de servir la requête.")
         return func.HttpResponse(
             "Erreur: Le service de recommandation n'est pas disponible (échec du chargement du modèle).",
-            status_code=503
+            status_code=503,
         )
 
-    user_id = req.params.get('user_id')
+    user_id = req.params.get("user_id")
     if not user_id:
         return func.HttpResponse("Le paramètre 'user_id' est manquant.", status_code=400)
 
@@ -101,7 +99,6 @@ async def recommend(req: func.HttpRequest) -> func.HttpResponse:
         return func.HttpResponse(body=result_json, mimetype="application/json", status_code=200)
     except Exception as e:
         logging.error(
-            f"Erreur lors de la génération des recommandations pour user_id {user_id_int}: {e}",
-            exc_info=True
+            f"Erreur lors de la génération des recommandations pour user_id {user_id_int}: {e}", exc_info=True
         )
         return func.HttpResponse("Erreur interne du serveur lors de la prédiction.", status_code=500)
