@@ -29,7 +29,7 @@ def get_users():
     return jsonify(users)
 
 
-@app.route("/api/users/new", methods=["POST"])
+@app.route("/api/users", methods=["POST"])  # Corrigé pour correspondre au JS
 def create_user():
     """Crée un nouvel utilisateur."""
     new_user_id = logic.creer_nouvel_utilisateur()
@@ -52,7 +52,7 @@ def get_history(user_id):
     return jsonify(history)
 
 
-@app.route("/api/interaction", methods=["POST"])
+@app.route("/api/interactions", methods=["POST"])  # Corrigé pour correspondre au JS
 def post_interaction():
     """Enregistre une nouvelle interaction (notation)."""
     data = request.json
@@ -67,18 +67,49 @@ def post_interaction():
     return jsonify({"message": "Interaction enregistrée avec succès."}), 201
 
 
-@app.route("/api/trends", methods=["GET"])
+@app.route("/api/global_trends", methods=["GET"])  # Corrigé pour correspondre au JS
 def get_trends():
     """Obtient les tendances globales."""
     trends = logic.obtenir_tendances_globales_clics()
     return jsonify(trends)
 
 
-@app.route("/api/model/performance", methods=["GET"])
+@app.route("/api/performance", methods=["GET"])  # Corrigé pour correspondre au JS
 def get_model_performance():
     """Obtient les métriques de performance du modèle."""
     performance = logic.obtenir_performance_modele()
     return jsonify(performance)
+
+
+@app.route("/api/user_context/<int:user_id>", methods=["GET"])  # Ajouté
+def get_user_context(user_id):
+    """Obtient le contexte (pays, appareil) d'un utilisateur."""
+    context = logic.obtenir_contexte_utilisateur(user_id)
+    if context:
+        return jsonify(context)
+    return jsonify({"error": "Contexte non trouvé pour cet utilisateur."}), 404
+
+
+@app.route("/api/articles", methods=["POST"])  # Ajouté
+def add_article():
+    """Crée un nouvel article."""
+    data = request.json
+    title = data.get("title")
+    content = data.get("content")
+    category_id = data.get("category_id")
+
+    if not all([title, content, category_id is not None]):
+        return jsonify({"error": "Données manquantes : title, content et category_id sont requis."}), 400
+
+    new_article_id = logic.creer_nouvel_article(title, content, int(category_id))
+    return jsonify({"article_id": new_article_id, "message": f"Article {new_article_id} créé."}), 201
+
+
+@app.route("/api/retraining_status", methods=["GET"])  # Ajouté
+def get_retraining_status():
+    """Obtient le statut du processus de ré-entraînement."""
+    status = logic.obtenir_statut_reentrainement()
+    return jsonify(status)
 
 
 if __name__ == "__main__":

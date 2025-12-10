@@ -198,8 +198,7 @@
             userSelect.addEventListener('change', function() {
                 loadUserContext(userSelect.value);
                 // Optionnel: Effacer le contenu principal ou recharger les recommandations par défaut
-                    });
-                });
+            });
 
             // Gérer le clic sur le bouton
             recoButton.addEventListener('click', function() {
@@ -225,23 +224,7 @@
                     .then(recommendations => {
                         mainContentArea.innerHTML = '<h2>Vos Recommandations</h2>';
                         if (Array.isArray(recommendations) && recommendations.length > 0) {
-                            recommendations.forEach(reco => {
-                                mainContentArea.innerHTML += `
-                                    <div class="reco-card" data-article-id="${reco.article_id}">
-                                        <h3>${reco.title || 'Titre non disponible'}</h3>
-                                        <p>${(reco.content || 'Contenu non disponible').substring(0, 200)}...</p>
-                                        <div class="rating-controls">
-                                            <select class="rating-select">
-                                                <option value="1">⭐</option>
-                                                <option value="2">⭐⭐</option>
-                                                <option value="3" selected>⭐⭐⭐</option>
-                                                <option value="4">⭐⭐⭐⭐</option>
-                                                <option value="5">⭐⭐⭐⭐⭐</option>
-                                            </select>
-                                            <button class="rate-button">Noter</button>
-                                        </div>
-                                    </div>`;
-                            });
+                            recommendations.forEach(reco => mainContentArea.appendChild(createRecoCard(reco)));
                         } else {
                             mainContentArea.innerHTML += '<p>Aucune recommandation trouvée pour cet utilisateur ou pour les filtres sélectionnés.</p>';
                         }
@@ -253,6 +236,35 @@
                         mainContentArea.innerHTML = `<div class="reco-card" style="border-color: #e74c3c;"><h3 style="color: #c0392b;">Erreur</h3><p>${error.error || 'Impossible de contacter le service de recommandation.'}</p></div>`;
                     });
             });
+
+            // Helper function to safely create a recommendation card element
+            function createRecoCard(reco) {
+                const card = document.createElement('div');
+                card.className = 'reco-card';
+                card.dataset.articleId = reco.article_id;
+
+                const title = document.createElement('h3');
+                title.textContent = reco.title || 'Titre non disponible';
+
+                const content = document.createElement('p');
+                content.textContent = (reco.content || 'Contenu non disponible').substring(0, 200) + '...';
+
+                const controls = document.createElement('div');
+                controls.className = 'rating-controls';
+                controls.innerHTML = `
+                    <select class="rating-select">
+                        <option value="1">⭐</option>
+                        <option value="2">⭐⭐</option>
+                        <option value="3" selected>⭐⭐⭐</option>
+                        <option value="4">⭐⭐⭐⭐</option>
+                        <option value="5">⭐⭐⭐⭐⭐</option>
+                    </select>
+                    <button class="rate-button">Noter</button>
+                `;
+
+                card.append(title, content, controls);
+                return card;
+            }
 
             // Gérer la soumission d'une note (délégation d'événement)
             contentDiv.addEventListener('click', function(event) {

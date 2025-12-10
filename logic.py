@@ -19,6 +19,7 @@ ARTICLES_BLOB_NAME = "articles_metadata.csv"
 CLICKS_BLOB_NAME = "clicks_sample.csv"
 TRAINING_LOG_BLOB_NAME = "logs/training_log.csv"
 INTERACTIONS_LOG_BLOB_NAME = "interactions/new_interactions_log.csv"  # For appending new interactions
+STATUS_BLOB_NAME = "status/retraining_status.json"  # Fichier pour le statut en direct
 CACHE_TTL_SECONDS = 600  # 10 minutes
 logger = logging.getLogger(__name__)
 
@@ -209,7 +210,9 @@ def creer_nouvel_utilisateur():
     if users_df.empty:
         new_user_id = 1
     else:
-        new_user_id = int(users_df["user_id"].max()) + 1
+        # Assurer que la colonne est numérique avant de calculer le max
+        numeric_user_ids = pd.to_numeric(users_df["user_id"], errors="coerce").dropna()
+        new_user_id = int(numeric_user_ids.max()) + 1 if not numeric_user_ids.empty else 1
     new_user_df = pd.DataFrame([{"user_id": new_user_id}])
     updated_users_df = pd.concat([users_df, new_user_df], ignore_index=True)
     sauvegarder_df_vers_blob(blob_service_client, updated_users_df, USERS_BLOB_NAME)
@@ -274,6 +277,22 @@ def creer_nouvel_article(title: str, content: str, category_id: int) -> int:
     updated_articles_df = pd.concat([articles_df, new_article], ignore_index=True)
     sauvegarder_df_vers_blob(blob_service_client, updated_articles_df, ARTICLES_BLOB_NAME)
     return new_article_id
+
+
+def obtenir_statut_reentrainement():
+    """Récupère le statut actuel du processus de ré-entraînement."""
+    blob_service_client = recuperer_client_blob_service()
+    blob_client = blob_service_client.get_blob_client(container=AZURE_CONTAINER_NAME, blob=STATUS_BLOB_NAME)
+    try:
+        downloader = blob_client.download_blob()
+        status_data = downloader.readall()
+        return pd.read_json(StringIO(status_data.decode("utf-8")), typ="series").to_dict()
+    except ResourceNotFoundError:
+        # Si le fichier n'existe pas, retourner un statut par défaut
+        return {"status": "idle", "last_update": "N/A"}
+    except Exception as e:
+        logger.error(f"Impossible de lire le statut de ré-entraînement : {e}")
+        return {"status": "unknown", "error": str(e)}
 
 
 def obtenir_performance_modele():
