@@ -135,7 +135,7 @@ def timer_trigger_retrain(myTimer: func.TimerRequest) -> None:
             )
             # The train_and_save_model function now handles saving the model to blob storage directly.
             # So, we don't need to re-upload it here.
-            logging.info(f"Modèle entraîné et sauvegardé avec succès sur Azure.")
+            logging.info("Modèle entraîné et sauvegardé avec succès sur Azure.")
 
             # 6. Mettre à jour l'état d'entraînement
             save_training_state(blob_service_client, current_click_count)
