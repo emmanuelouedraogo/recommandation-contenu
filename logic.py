@@ -4,13 +4,13 @@ import requests
 import logging
 from azure.storage.blob import BlobServiceClient
 from azure.core.exceptions import ResourceNotFoundError
-from functools import lru_cache, wraps
+from functools import lru_cache, wraps, partial
 from datetime import datetime, timedelta
 import time
 
 # --- Configuration ---
 AZURE_CONTAINER_NAME = "reco-data"
-USERS_BLOB_NAME = "users.csv"
+#USERS_BLOB_NAME = "users.csv"
 ARTICLES_BLOB_NAME = "articles_metadata.csv"
 CLICKS_BLOB_NAME = "clicks_sample.csv"
 TRAINING_LOG_BLOB_NAME = "logs/training_log.csv"
@@ -49,6 +49,7 @@ def timed_lru_cache(seconds: int, maxsize: int = 128):
 
 # --- Fonctions de gestion des données Azure ---
 
+@lru_cache(maxsize=1) # Cache le BlobServiceClient pour éviter de le recréer inutilement
 def recuperer_client_blob_service(connect_str: str) -> BlobServiceClient:
     """Crée un client de service blob en utilisant la chaîne de connexion."""
     if not connect_str:
@@ -109,17 +110,24 @@ def obtenir_recommandations_pour_utilisateur(api_url: str, user_id: int, connect
 
             # Appliquer les filtres si fournis
             if country_filter or device_filter:
-                # Pour chaque article recommandé, trouver les pays/appareils associés dans les clics
-                article_context = clicks_df.groupby('article_id').agg(
-                    unique_countries=('click_country', lambda x: list(x.unique())),
-                    unique_devices=('click_deviceGroup', lambda x: list(x.unique()))
-                ).reset_index()
+                article_context = _get_article_context(
+                    ttl_hash=round(time.time()/600), # Utilise le même ttl_hash que charger_df_depuis_blob
+                    clicks_df=clicks_df
+                )
                 reco_details = reco_details.merge(article_context, on='article_id', how='left')
 
                 if country_filter:
-                    reco_details = reco_details[reco_details['unique_countries'].apply(lambda x: country_filter in x if isinstance(x, list) else False)]
+                    reco_details = reco_details[
+                        reco_details['unique_countries'].apply(
+                            lambda x: country_filter in x if isinstance(x, list) else False
+                        )
+                    ]
                 if device_filter:
-                    reco_details = reco_details[reco_details['unique_devices'].apply(lambda x: device_filter in x if isinstance(x, list) else False)]
+                    reco_details = reco_details[
+                        reco_details['unique_devices'].apply(
+                            lambda x: device_filter in x if isinstance(x, list) else False
+                        )
+                    ]
             return reco_details.to_dict(orient='records')
         return []
     except requests.exceptions.RequestException as e:
@@ -275,3 +283,18 @@ def obtenir_tendances_globales_clics(connect_str: str):
         "clicks_by_country": clicks_by_country.to_dict(orient='records'),
         "clicks_by_device": clicks_by_device.to_dict(orient='records')
     }
+
+@timed_lru_cache(seconds=600)
+def _get_article_context(ttl_hash, clicks_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Calcule et cache le contexte des articles (pays/appareils uniques) à partir des clics.
+    """
+    if clicks_df.empty:
+        return pd.DataFrame(columns=['article_id', 'unique_countries', 'unique_devices'])
+
+    article_context = clicks_df.groupby('article_id').agg(
+        unique_countries=('click_country', lambda x: list(x.unique())),
+        unique_devices=('click_deviceGroup', lambda x: list(x.unique()))
+    ).reset_index()
+    logger.info(f"Calculé et mis en cache le contexte des articles à partir de {len(clicks_df)} clics.")
+    return article_context
