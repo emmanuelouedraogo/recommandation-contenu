@@ -57,7 +57,18 @@ def recuperer_client_blob_service(connect_str: str) -> BlobServiceClient:
 def charger_df_depuis_blob(ttl_hash, blob_service_client: BlobServiceClient, blob_name: str) -> pd.DataFrame:
     """Charge un DataFrame depuis un blob CSV."""
     blob_client = blob_service_client.get_blob_client(container=AZURE_CONTAINER_NAME, blob=blob_name)
+    # Adapter le nom pour la version Parquet
+    parquet_blob_name = blob_name.replace(".csv", ".parquet")
+    parquet_blob_client = blob_service_client.get_blob_client(container=AZURE_CONTAINER_NAME, blob=parquet_blob_name)
+
     try:
+        # Essayer de charger le Parquet en priorité
+        downloader = parquet_blob_client.download_blob()
+        df = pd.read_parquet(StringIO(downloader.readall().decode("utf-8")))
+        logger.info(f"Chargé depuis le format Parquet optimisé : {parquet_blob_name}")
+    except ResourceNotFoundError:
+        # Si le Parquet n'existe pas, se rabattre sur le CSV
+        logger.warning(f"Blob Parquet non trouvé, tentative de chargement du CSV : {blob_name}")
         downloader = blob_client.download_blob(encoding="utf-8")
         blob_data = downloader.readall()
         df = pd.read_csv(StringIO(blob_data))
@@ -79,10 +90,13 @@ def charger_df_depuis_blob(ttl_hash, blob_service_client: BlobServiceClient, blo
 
 def sauvegarder_df_vers_blob(blob_service_client: BlobServiceClient, df: pd.DataFrame, blob_name: str):
     """Sauvegarde un DataFrame dans un blob CSV."""
-    output = StringIO()
-    df.to_csv(output, index=False)
-    blob_client = blob_service_client.get_blob_client(container=AZURE_CONTAINER_NAME, blob=blob_name)
-    blob_client.upload_blob(output.getvalue(), overwrite=True)
+    # Sauvegarder au format Parquet pour la performance
+    parquet_blob_name = blob_name.replace(".csv", ".parquet")
+    output_parquet = StringIO()
+    df.to_parquet(output_parquet, index=False)
+    parquet_blob_client = blob_service_client.get_blob_client(container=AZURE_CONTAINER_NAME, blob=parquet_blob_name)
+    parquet_blob_client.upload_blob(output_parquet.getvalue(), overwrite=True)
+    logger.info(f"DataFrame sauvegardé au format Parquet : {parquet_blob_name}")
 
 
 def obtenir_recommandations_pour_utilisateur(
