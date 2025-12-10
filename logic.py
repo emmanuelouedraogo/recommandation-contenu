@@ -5,6 +5,7 @@ import os
 import logging
 import time
 from azure.storage.blob import BlobServiceClient  # type: ignore
+from azure.core.exceptions import ResourceNotFoundError
 from azure.identity import DefaultAzureCredential  # type: ignore
 from functools import lru_cache, wraps
 from azure.core.exceptions import ResourceNotFoundError
@@ -12,7 +13,7 @@ from azure.core.exceptions import ResourceNotFoundError
 # --- Configuration ---
 STORAGE_ACCOUNT_NAME = os.getenv("AZURE_STORAGE_ACCOUNT_NAME")
 if not STORAGE_ACCOUNT_NAME:
-    logging.error("AZURE_STORAGE_ACCOUNT_NAME n'est pas définie. Impossible de procéder.")
+    logging.error("AZURE_STORAGE_ACCOUNT_NAME is not set. Unable to proceed.")
 AZURE_CONTAINER_NAME = "reco-data"
 USERS_BLOB_NAME = "users.csv"
 ARTICLES_BLOB_NAME = "articles_metadata.csv"
@@ -106,7 +107,7 @@ def obtenir_recommandations_pour_utilisateur(
     """
     Vérifie l'utilisateur et appelle l'API externe pour obtenir des recommandations.
     Retourne un dictionnaire avec les résultats ou une erreur.
-    """
+    """ # type: ignore
     blob_service_client = recuperer_client_blob_service()
     clicks_df = charger_df_depuis_blob(blob_service_client=blob_service_client, blob_name=CLICKS_BLOB_NAME)
     if clicks_df.empty or not clicks_df["user_id"].isin([user_id]).any():

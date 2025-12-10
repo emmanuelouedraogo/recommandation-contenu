@@ -16,7 +16,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 STORAGE_ACCOUNT_NAME = os.getenv("AZURE_STORAGE_ACCOUNT_NAME")
 
 if not STORAGE_ACCOUNT_NAME:
-    logging.error("AZURE_STORAGE_ACCOUNT_NAME n'est pas définie. Impossible de procéder.")
+    logging.error("AZURE_STORAGE_ACCOUNT_NAME is not set. Unable to proceed.")
     exit(1)
 
 
@@ -112,25 +112,24 @@ def train_and_save_model(container_name, clicks_blob, articles_blob, embeddings_
 
     # 1. Charger toutes les données nécessaires depuis Azure (maintenant en Parquet)
     logging.info("Chargement des données...")
-    # Assurez-vous que les noms de blobs sont corrects pour les fichiers Parquet
-    clicks_parquet_blob = clicks_blob.replace(".csv", ".parquet")
-    articles_parquet_blob = articles_blob.replace(".csv", ".parquet")
-    i2vec_parquet_blob = embeddings_blob.replace(".pickle", "_i2vec.parquet")
-    dic_ri_parquet_blob = embeddings_blob.replace(".pickle", "_dic_ri.parquet")
-    dic_ir_parquet_blob = embeddings_blob.replace(".pickle", "_dic_ir.parquet")
+    try:
+        # Assurez-vous que les noms de blobs sont corrects pour les fichiers Parquet
+        clicks_parquet_blob = clicks_blob.replace(".csv", ".parquet")
+        articles_parquet_blob = articles_blob.replace(".csv", ".parquet")
+        i2vec_parquet_blob = embeddings_blob.replace(".pickle", "_i2vec.parquet")
+        dic_ri_parquet_blob = embeddings_blob.replace(".pickle", "_dic_ri.parquet")
+        dic_ir_parquet_blob = embeddings_blob.replace(".pickle", "_dic_ir.parquet")
 
-    clicks_df = load_df_from_parquet_blob(container_name, clicks_parquet_blob)
-    articles_df = load_df_from_parquet_blob(container_name, articles_parquet_blob)
+        clicks_df = load_df_from_parquet_blob(container_name, clicks_parquet_blob)
+        articles_df = load_df_from_parquet_blob(container_name, articles_parquet_blob)
 
-    # Charger les composants des embeddings depuis leurs fichiers Parquet respectifs
-    i2vec_df = load_df_from_parquet_blob(container_name, i2vec_parquet_blob)
-    dic_ri_df = load_df_from_parquet_blob(container_name, dic_ri_parquet_blob)
-    dic_ir_df = load_df_from_parquet_blob(container_name, dic_ir_parquet_blob)
-
-    # Reconstruire les objets nécessaires
-    i2vec = i2vec_df.values  # Convert DataFrame back to NumPy array
-    dic_ri = dict(zip(dic_ri_df["article_id"], dic_ri_df["index"]))
-    dic_ir = dict(zip(dic_ir_df["index"], dic_ir_df["article_id"]))
+        # Reconstruire les objets nécessaires à partir des fichiers Parquet
+        i2vec = load_df_from_parquet_blob(container_name, i2vec_parquet_blob).values
+        dic_ri = dict(load_df_from_parquet_blob(container_name, dic_ri_parquet_blob).itertuples(index=False, name=None))
+        dic_ir = dict(load_df_from_parquet_blob(container_name, dic_ir_parquet_blob).itertuples(index=False, name=None))
+    except Exception as e:
+        logging.error(f"Échec du chargement des données d'entraînement depuis Azure. Erreur : {e}", exc_info=True)
+        raise  # Propage l'exception pour que la fonction appelante puisse la gérer
 
     if clicks_df.empty or len(clicks_df) < 10:
         raise ValueError("Pas assez de données de clics pour l'entraînement.")
@@ -166,3 +165,5 @@ def train_and_save_model(container_name, clicks_blob, articles_blob, embeddings_
     with open(local_model_path, "rb") as data:
         blob_client.upload_blob(data, overwrite=True)
     logging.info(f"Modèle uploadé avec succès sur Azure Blob Storage : {model_output_blob}")
+
+    return metrics

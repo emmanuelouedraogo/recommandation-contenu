@@ -14,8 +14,6 @@ from reco_model_script import train_and_save_model
 
 # --- Configuration ---
 STORAGE_ACCOUNT_NAME = os.getenv("AZURE_STORAGE_ACCOUNT_NAME")
-# --- Configuration ---
-CONNECT_STR = os.getenv("AZURE_CONNECTION_STRING")
 CONTAINER_NAME = "reco-data"
 CLICKS_BLOB_NAME = "clicks_sample.csv"
 METADATA_BLOB_NAME = "articles_metadata.csv"
@@ -25,12 +23,13 @@ STATE_BLOB_NAME = "training_state.json"  # Fichier pour suivre l'état
 
 STATUS_BLOB_NAME = "status/retraining_status.json"  # Fichier pour le statut en direct
 TRAINING_LOG_BLOB_NAME = "logs/training_log.csv"  # Fichier pour l'historique
+RETRAIN_THRESHOLD_INCREMENT = 1000  # Seuil configurable pour le ré-entraînement
 
 # Définition de l'application de fonction
 retrain_app = func.FunctionApp()
 
 if not STORAGE_ACCOUNT_NAME:
-    logging.error("AZURE_STORAGE_ACCOUNT_NAME n'est pas définie. Impossible de procéder.")
+    logging.error("AZURE_STORAGE_ACCOUNT_NAME is not set. Unable to proceed.")
     exit(1)
 
 
@@ -69,21 +68,22 @@ def update_retraining_status(blob_service_client, status: str, details: dict = N
 
 def log_training_run(blob_service_client, metrics, click_count):
     """Ajoute une entrée à l'historique d'entraînement."""
-    blob_client = blob_service_client.get_blob_client(container=CONTAINER_NAME, blob=TRAINING_LOG_BLOB_NAME)
+    # Utiliser un Append Blob pour une journalisation efficace
+    append_blob_client = blob_service_client.get_blob_client(
+        container=CONTAINER_NAME, blob=TRAINING_LOG_BLOB_NAME
+    )
+
+    # S'assurer que le blob existe et est bien un Append Blob
     try:
-        log_data = blob_client.download_blob().readall()
-        log_content = log_data.decode("utf-8")
-        if log_content:
-            log_df = pd.read_csv(StringIO(log_content))
-        else:
-            log_df = pd.DataFrame()
-    except Exception:  # Catches if blob does not exist
-        log_df = pd.DataFrame()
+        append_blob_client.get_blob_properties()
+    except Exception:  # Si le blob n'existe pas, le créer
+        append_blob_client.create_blob()
+        # Ajouter l'en-tête CSV au nouveau fichier
+        header = "timestamp,click_count," + ",".join(metrics.keys()) + "\n"
+        append_blob_client.append_block(header.encode("utf-8"))
 
-    new_log_entry = pd.DataFrame([{"timestamp": pd.Timestamp.now(), "click_count": click_count, **metrics}])
-    updated_log_df = pd.concat([log_df, new_log_entry], ignore_index=True)
-
-    blob_client.upload_blob(updated_log_df.to_csv(index=False), overwrite=True)
+    new_log_entry = f"{pd.Timestamp.now()},{click_count}," + ",".join(map(str, metrics.values())) + "\n"
+    append_blob_client.append_block(new_log_entry.encode("utf-8"))
 
 
 @retrain_app.schedule(schedule="0 * * * *", arg_name="myTimer", run_on_startup=True, use_monitor=False)
@@ -117,8 +117,8 @@ def timer_trigger_retrain(myTimer: func.TimerRequest) -> None:
         f"Nombre de clics actuel : {current_click_count}. " f"Dernier entraînement à : {last_training_count} clics."
     )
     # 3. Vérifier si le seuil est atteint
-    # On vérifie si le nombre de clics a dépassé le prochain multiple de 1000
-    next_threshold = (last_training_count // 1000 + 1) * 1000
+    # On vérifie si le nombre de clics a dépassé le prochain multiple du seuil
+    next_threshold = (last_training_count // RETRAIN_THRESHOLD_INCREMENT + 1) * RETRAIN_THRESHOLD_INCREMENT
     if current_click_count >= next_threshold:
         logging.info(f"Seuil de {next_threshold} clics dépassé. Démarrage du ré-entraînement.")
 
