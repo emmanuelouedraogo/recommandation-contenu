@@ -4,7 +4,7 @@ import pandas as pd
 import joblib
 import os
 import logging  # type: ignore
-from datetime import datetime, timezone  # type: ignore
+from datetime import datetime  # type: ignore
 from azure.storage.blob import BlobServiceClient  # type: ignore
 from azure.identity import DefaultAzureCredential  # type: ignore
 from io import StringIO
@@ -85,7 +85,9 @@ def evaluate_precision_at_k(model, test_df, k=10):
 def log_training_metrics(container_name, metrics, click_count):
     """Enregistre les métriques d'entraînement dans un fichier CSV sur Azure Blob Storage."""
     log_blob_name = "logs/training_log.csv"
-    blob_service_client = BlobServiceClient.from_connection_string(connect_str)
+    blob_service_client = BlobServiceClient(
+        account_url=f"https://{STORAGE_ACCOUNT_NAME}.blob.core.windows.net", credential=DefaultAzureCredential()
+    )
     blob_client = blob_service_client.get_blob_client(container=container_name, blob=log_blob_name)
 
     log_entry = {  # type: ignore
@@ -147,16 +149,19 @@ def train_and_save_model(container_name, clicks_blob, articles_blob, embeddings_
     logging.info(f"Précision@10 obtenue : {precision:.4f}")
     metrics = {"precision_at_10": precision}
 
-    # Enregistrer les métriques
-    log_training_metrics(connect_str, container_name, metrics, len(clicks_df))
+    # Enregistrer les métriques.
+    # Note: La fonction log_training_metrics utilise maintenant DefaultAzureCredential.
+    log_training_metrics(container_name, metrics, len(clicks_df))
 
     # 4. Sauvegarder le modèle entraîné dans un fichier local temporaire
     local_model_path = os.path.join("/tmp", os.path.basename(model_output_blob))
     joblib.dump(hybrid_model, local_model_path)
     logging.info(f"Modèle sauvegardé localement dans '{local_model_path}'.")
 
-    # 5. Uploader le modèle sur Azure
-    blob_service_client = BlobServiceClient.from_connection_string(connect_str)
+    # 5. Uploader le modèle sur Azure en utilisant DefaultAzureCredential
+    blob_service_client = BlobServiceClient(
+        account_url=f"https://{STORAGE_ACCOUNT_NAME}.blob.core.windows.net", credential=DefaultAzureCredential()
+    )
     blob_client = blob_service_client.get_blob_client(container=container_name, blob=model_output_blob)
     with open(local_model_path, "rb") as data:
         blob_client.upload_blob(data, overwrite=True)

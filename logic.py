@@ -54,8 +54,9 @@ def timed_lru_cache(seconds: int, maxsize: int = 128):
 @lru_cache(maxsize=1)
 def recuperer_client_blob_service() -> BlobServiceClient:
     """Crée un client de service blob en utilisant la chaîne de connexion."""
-    # Utilise DefaultAzureCredential pour l'authentification (Managed Identity en priorité)
-    return BlobServiceClient(account_url=f"https://{STORAGE_ACCOUNT_NAME}.blob.core.windows.net", credential=DefaultAzureCredential())  # type: ignore
+    # Utilise DefaultAzureCredential pour l'authentification (Managed Identity en priorité).
+    account_url = f"https://{STORAGE_ACCOUNT_NAME}.blob.core.windows.net"
+    return BlobServiceClient(account_url=account_url, credential=DefaultAzureCredential())  # type: ignore
 
 
 @timed_lru_cache(seconds=600)

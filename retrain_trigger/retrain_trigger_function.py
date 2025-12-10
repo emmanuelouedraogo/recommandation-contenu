@@ -4,9 +4,9 @@ import azure.functions as func
 import logging
 import os
 import pandas as pd
-from azure.storage.blob import BlobServiceClient, BlobClient  # type: ignore
+from azure.storage.blob import BlobServiceClient  # type: ignore
 from azure.identity import DefaultAzureCredential  # type: ignore
-from io import StringIO
+from io import StringIO, BytesIO
 from datetime import datetime, timezone
 
 # Importer les scripts de modélisation
@@ -36,10 +36,12 @@ if not STORAGE_ACCOUNT_NAME:
 
 def get_training_state(blob_service_client: BlobServiceClient):
     """Récupère le dernier état d'entraînement (ex: le nombre de clics du dernier run)."""
-    state_blob_client = blob_service_client.get_blob_client(container=CONTAINER_NAME, blob=STATE_BLOB_NAME)  # type: ignore
+    state_blob_client = blob_service_client.get_blob_client(
+        container=CONTAINER_NAME, blob=STATE_BLOB_NAME
+    )  # type: ignore
     try:
         state_data = state_blob_client.download_blob().readall()
-        return pd.read_json(StringIO(state_data.decode("utf-8")), typ="series")
+        return pd.read_json(StringIO(state_data.decode("utf-8")), typ="series")  # type: ignore
     except Exception:
         # Si le fichier n'existe pas, on part de 0
         return pd.Series({"last_training_click_count": 0})
@@ -48,13 +50,19 @@ def get_training_state(blob_service_client: BlobServiceClient):
 def save_training_state(blob_service_client, new_count):
     """Sauvegarde le nouvel état d'entraînement."""
     state = pd.Series({"last_training_click_count": new_count})
-    state_blob_client = blob_service_client.get_blob_client(container=CONTAINER_NAME, blob=STATE_BLOB_NAME)  # type: ignore
+    state_blob_client = blob_service_client.get_blob_client(
+        container=CONTAINER_NAME, blob=STATE_BLOB_NAME
+    )  # type: ignore
     state_blob_client.upload_blob(state.to_json(), overwrite=True)
 
 
 def update_retraining_status(blob_service_client, status: str, details: dict = None):
     """Met à jour le statut du réentraînement dans un fichier JSON dédié."""  # type: ignore
-    status_data = {"status": status, "last_update": datetime.now(timezone.utc).isoformat(), **(details or {})}  # type: ignore
+    status_data = {
+        "status": status,
+        "last_update": datetime.now(timezone.utc).isoformat(),
+        **(details or {}),
+    }  # type: ignore
     blob_client = blob_service_client.get_blob_client(container=CONTAINER_NAME, blob=STATUS_BLOB_NAME)  # type: ignore
     blob_client.upload_blob(pd.Series(status_data).to_json(), overwrite=True)
 
@@ -135,7 +143,7 @@ def timer_trigger_retrain(myTimer: func.TimerRequest) -> None:
             # 7. Enregistrer les métriques et le statut de cet entraînement
             try:
                 log_training_run(blob_service_client, metrics, current_click_count)
-                update_retraining_status(blob_service_client, "idle", {"last_run_metrics": metrics})
+                update_retraining_status(blob_service_client, "idle", {"last_run_metrics": metrics})  # type: ignore
             except Exception as log_e:
                 logging.error(f"Erreur lors de la sauvegarde du log d'entraînement : {log_e}")
                 # Même si le logging échoue, on met à jour le statut principal
