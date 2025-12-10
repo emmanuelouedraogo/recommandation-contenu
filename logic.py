@@ -30,14 +30,12 @@ def timed_lru_cache(seconds: int, maxsize: int = 128):
             # et des arguments de la fonction pour la cle de cache.
             now = time.time()
             ttl_hash = round(now / seconds)
-            cache_key = (ttl_hash,) + args + tuple(sorted(kwargs.items()))  # noqa
-            
+            cache_key = (ttl_hash,) + args + tuple(sorted(kwargs.items()))
             # Log pour savoir si on utilise le cache ou si on exécute la fonction
             if cache_key in cached_func.cache_info().keys():
                 logger.info(f"Cache HIT for {func.__name__} with key {cache_key}")
             else:
                 logger.info(f"Cache MISS for {func.__name__} with key {cache_key}. Executing function.")
-                
             return cached_func(ttl_hash, *args, **kwargs)
         wrapped_func.cache_clear = cached_func.cache_clear
         return wrapped_func
@@ -64,7 +62,6 @@ def charger_df_depuis_blob(ttl_hash, blob_service_client: BlobServiceClient, blo
         # Renomme la colonne 'click_article_id' en 'article_id' si elle existe, pour la cohérence
         if "click_article_id" in df.columns:
             df.rename(columns={'click_article_id': 'article_id'}, inplace=True)
-            
         # Assurez-vous que 'article_id' est de type int pour les merges futurs
         df['article_id'] = df['article_id'].astype(int)
 
@@ -144,14 +141,12 @@ def obtenir_historique_utilisateur(user_id: int, connect_str: str):
     """Récupère l'historique des notations pour un utilisateur."""
     blob_service_client = recuperer_client_blob_service(connect_str)
     clicks_df = charger_df_depuis_blob(blob_service_client=blob_service_client, blob_name=CLICKS_BLOB_NAME)
-    
     if clicks_df.empty:
         return []
 
     user_history = clicks_df[clicks_df['user_id'] == user_id]
     if user_history.empty:
         return []
-
     articles_df = charger_df_depuis_blob(blob_service_client=blob_service_client, blob_name=ARTICLES_BLOB_NAME)
     history_details = user_history.merge(articles_df, on='article_id', how='left').fillna({'title': 'Titre inconnu'})
     history_details = history_details.sort_values(by='click_timestamp', ascending=False)
@@ -194,13 +189,10 @@ def creer_nouvel_utilisateur(connect_str: str):
         new_user_id = 1
     else:
         new_user_id = int(users_df['user_id'].max()) + 1
-    
     new_user_df = pd.DataFrame([{'user_id': new_user_id}])
     updated_users_df = pd.concat([users_df, new_user_df], ignore_index=True)
-    
     sauvegarder_df_vers_blob(blob_service_client, updated_users_df, USERS_BLOB_NAME)
     return new_user_id
-
 
 def obtenir_utilisateurs(connect_str: str):
     """Récupère la liste de tous les utilisateurs uniques à partir des clics."""
@@ -211,7 +203,6 @@ def obtenir_utilisateurs(connect_str: str):
     unique_users = clicks_df['user_id'].unique()
     users_df = pd.DataFrame(unique_users, columns=['user_id'])
     return users_df.to_dict(orient='records')
-
 
 def obtenir_contexte_utilisateur(user_id: int, connect_str: str):
     """Récupère le pays et le groupe d'appareils du dernier clic de l'utilisateur."""
@@ -251,10 +242,8 @@ def creer_nouvel_article(title: str, content: str, category_id: int, connect_str
         'category_id': category_id,
         'created_at_ts': int(pd.Timestamp.now().timestamp())
     }])
-
     updated_articles_df = pd.concat([articles_df, new_article], ignore_index=True)
     sauvegarder_df_vers_blob(blob_service_client, updated_articles_df, ARTICLES_BLOB_NAME)
-    
     return new_article_id
 
 

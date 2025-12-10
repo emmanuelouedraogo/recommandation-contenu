@@ -43,7 +43,8 @@ class ContentBasedRecommender:
         if sum_of_strengths == 0:
             return np.zeros((1, self.items_embedding.shape[1]))
         user_item_strengths_weighted_avg = np.sum(user_item_profiles * user_item_strengths, axis=0) / sum_of_strengths
-        return preprocessing.normalize(user_item_strengths_weighted_avg.reshape(1, -1))
+        return preprocessing.normalize(
+            user_item_strengths_weighted_avg.reshape(1, -1))
 
     def get_model_name(self):
         return self.MODEL_NAME
@@ -87,7 +88,7 @@ class ContentBasedTimeDecayRecommender(ContentBasedRecommender):
         if sum_of_weights == 0:
             return np.zeros((1, self.items_embedding.shape[1]))
         weighted_avg_profile = np.sum(user_item_profiles * final_weights, axis=0) / sum_of_weights
-        return preprocessing.normalize(weighted_avg_profile.reshape(1, -1))  # noqa
+        return preprocessing.normalize(weighted_avg_profile.reshape(1, -1))
 
 
 class CollabFiltRecommender:
@@ -113,7 +114,7 @@ class CollabFiltRecommender:
         items2pred_ids = all_items - iid_to_ignore
         try:
             # Vérifier si l'utilisateur est connu du modèle
-            self.algo.trainset.to_inner_uid(uid) # Lève une ValueError si l'utilisateur est inconnu
+            self.algo.trainset.to_inner_uid(uid)  # Lève une ValueError si l'utilisateur est inconnu
         except ValueError:
             # L'utilisateur est inconnu (cold start), retourner un DataFrame vide
             return pd.DataFrame(columns=['article_id', 'pred'])
@@ -165,12 +166,14 @@ class HybridRecommender:
         
         # 2. Normaliser les scores
         if not reco_cf.empty:
-            reco_cf['norm_score'] = (reco_cf['pred'] - reco_cf['pred'].min()) / (reco_cf['pred'].max() - reco_cf['pred'].min() + 1e-5)
+            reco_cf['norm_score'] = ((reco_cf['pred'] - reco_cf['pred'].min()) /
+                                     (reco_cf['pred'].max() - reco_cf['pred'].min() + 1e-5))
         else:
             reco_cf = pd.DataFrame(columns=['article_id', 'norm_score'])
         
         if not reco_cb.empty:
-            reco_cb['norm_score'] = (reco_cb['cb_cosine_with_profile'] - reco_cb['cb_cosine_with_profile'].min()) / (reco_cb['cb_cosine_with_profile'].max() - reco_cb['cb_cosine_with_profile'].min() + 1e-5)
+            reco_cb['norm_score'] = ((reco_cb['cb_cosine_with_profile'] - reco_cb['cb_cosine_with_profile'].min()) /
+                                     (reco_cb['cb_cosine_with_profile'].max() - reco_cb['cb_cosine_with_profile'].min() + 1e-5))
         else:
             reco_cb = pd.DataFrame(columns=['article_id', 'norm_score'])
         

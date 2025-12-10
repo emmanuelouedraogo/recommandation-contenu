@@ -171,6 +171,7 @@ def get_user_context(user_id):
         app.logger.error(f"Erreur API GET /api/user_context/{user_id}: {e}")
         return jsonify({"error": "Impossible de charger le contexte utilisateur"}), 500
 
+
 # Permet de lancer l'application en mode débogage
 if __name__ == '__main__':
     # En production, utilisez un serveur WSGI comme Gunicorn

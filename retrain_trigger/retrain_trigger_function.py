@@ -100,8 +100,8 @@ def timer_trigger_retrain(myTimer: func.TimerRequest) -> None:
     # 3. Vérifier si le seuil est atteint
     # On vérifie si le nombre de clics a dépassé le prochain multiple de 1000
     next_threshold = (last_training_count // 1000 + 1) * 1000
-    if current_click_count >= next_threshold: 
-        logging.info(f"Seuil de {next_threshold} clics dépassé. Démarrage du ré-entraînement.") 
+    if current_click_count >= next_threshold:
+        logging.info(f"Seuil de {next_threshold} clics dépassé. Démarrage du ré-entraînement.")
 
         try:
             update_retraining_status(blob_service_client, "in_progress")
