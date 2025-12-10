@@ -144,7 +144,9 @@ def timer_trigger_retrain(myTimer: func.TimerRequest) -> None:
 
             # Fusionner les nouvelles interactions avec les clics existants
             # Ici, nous faisons une simple concaténation. Une logique de déduplication/mise à jour pourrait être ajoutée.
-            updated_clicks_df = pd.concat([existing_clicks_df, new_interactions_df], ignore_index=True)
+            updated_clicks_df = pd.concat(
+                [existing_clicks_df, new_interactions_df], ignore_index=True
+            )
 
             # Sauvegarder le DataFrame mis à jour en Parquet
             output_parquet = BytesIO()
