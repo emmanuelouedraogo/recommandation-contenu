@@ -107,7 +107,7 @@ def obtenir_recommandations_pour_utilisateur(
     """
     Vérifie l'utilisateur et appelle l'API externe pour obtenir des recommandations.
     Retourne un dictionnaire avec les résultats ou une erreur.
-    """ # type: ignore
+    """  # type: ignore
     blob_service_client = recuperer_client_blob_service()
     clicks_df = charger_df_depuis_blob(blob_service_client=blob_service_client, blob_name=CLICKS_BLOB_NAME)
     if clicks_df.empty or not clicks_df["user_id"].isin([user_id]).any():
