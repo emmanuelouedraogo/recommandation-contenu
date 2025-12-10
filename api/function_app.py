@@ -105,5 +105,3 @@ async def recommend(req: func.HttpRequest) -> func.HttpResponse:
             exc_info=True
         )
         return func.HttpResponse("Erreur interne du serveur lors de la prédiction.", status_code=500)
-    
-    
