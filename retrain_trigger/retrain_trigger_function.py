@@ -57,7 +57,11 @@ def save_training_state(blob_service_client, new_count):
 
 def update_retraining_status(blob_service_client, status: str, details: dict = None):
     """Met à jour le statut du réentraînement dans un fichier JSON dédié."""  # type: ignore
-    status_data = {"status": status, "last_update": datetime.now(timezone.utc).isoformat(), **(details or {})}  # type: ignore
+    status_data = {
+        "status": status,
+        "last_update": datetime.now(timezone.utc).isoformat(),
+        **(details or {}),
+    }  # type: ignore
     blob_client = blob_service_client.get_blob_client(container=CONTAINER_NAME, blob=STATUS_BLOB_NAME)  # type: ignore
     blob_client.upload_blob(pd.Series(status_data).to_json(), overwrite=True)
 

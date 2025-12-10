@@ -5,7 +5,6 @@ import os
 import logging
 import time
 from azure.storage.blob import BlobServiceClient  # type: ignore
-from azure.core.exceptions import ResourceNotFoundError
 from azure.identity import DefaultAzureCredential  # type: ignore
 from functools import lru_cache, wraps
 from azure.core.exceptions import ResourceNotFoundError
