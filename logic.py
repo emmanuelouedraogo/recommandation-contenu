@@ -254,7 +254,7 @@ def creer_nouvel_article(title: str, content: str, category_id: int) -> int:
     articles_df = charger_df_depuis_blob(blob_service_client=blob_service_client, blob_name=ARTICLES_BLOB_NAME)
 
     if articles_df.empty:
-        new_article_id = 1
+        new_article_id = 1  # Démarrer à 1 si aucun article n'existe
     else:
         # Assure que 'article_id' est numérique pour max()
         articles_df["article_id"] = pd.to_numeric(articles_df["article_id"], errors="coerce").fillna(0)
