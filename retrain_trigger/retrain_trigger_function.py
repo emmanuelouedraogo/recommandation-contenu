@@ -115,7 +115,7 @@ def timer_trigger_retrain(myTimer: func.TimerRequest) -> None:
         return
 
     logging.info(
-        f"Nombre de clics actuel : {current_click_count}. " f"Dernier entraînement à : {last_training_count} clics."
+        f"Nombre de clics actuel : {current_click_count}. Dernier entraînement à : {last_training_count} clics."
     )
     # 3. Vérifier si le seuil est atteint
     # On vérifie si le nombre de clics a dépassé le prochain multiple du seuil
@@ -144,9 +144,7 @@ def timer_trigger_retrain(myTimer: func.TimerRequest) -> None:
 
             # Fusionner les nouvelles interactions avec les clics existants
             # Ici, nous faisons une simple concaténation. Une logique de déduplication/mise à jour pourrait être ajoutée.
-            updated_clicks_df = pd.concat(
-                [existing_clicks_df, new_interactions_df], ignore_index=True
-            )
+            updated_clicks_df = pd.concat([existing_clicks_df, new_interactions_df], ignore_index=True)
 
             # Sauvegarder le DataFrame mis à jour en Parquet
             output_parquet = BytesIO()

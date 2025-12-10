@@ -12,7 +12,7 @@ from azure.core.exceptions import ResourceNotFoundError
 # --- Configuration ---
 STORAGE_ACCOUNT_NAME = os.getenv("AZURE_STORAGE_ACCOUNT_NAME")
 if not STORAGE_ACCOUNT_NAME:
-    logging.error("AZURE_STORAGE_ACCOUNT_NAME is not set. Unable to proceed.")
+    raise ValueError("AZURE_STORAGE_ACCOUNT_NAME environment variable is not set. Application cannot start.")
 AZURE_CONTAINER_NAME = "reco-data"
 USERS_BLOB_NAME = "users.csv"
 ARTICLES_BLOB_NAME = "articles_metadata.csv"

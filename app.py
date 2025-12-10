@@ -1,13 +1,20 @@
 import os
 from flask import Flask, render_template, jsonify, request
-import logic
 
+# --- Configuration and Initialization ---
+# We wrap the import in a try-except block to provide a user-friendly error
+# if the essential configuration is missing.
+try:
+    import logic
+except ValueError as e:
+    # This will stop the app from starting and print a clear error message.
+    raise SystemExit(f"FATAL: Configuration error - {e}") from e
 # Initialisation de l'application Flask
 app = Flask(__name__)
 
 # --- Configuration ---
 # L'URL de l'API de recommandation (le modèle déployé comme une fonction Azure)
-API_RECO_URL = os.getenv("API_RECO_URL", "http://localhost:7071")
+API_RECO_URL = os.getenv("API_URL", "http://localhost:7071")
 
 
 # --- Routes pour servir l'interface utilisateur (Frontend) ---
