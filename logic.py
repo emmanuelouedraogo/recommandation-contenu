@@ -6,7 +6,6 @@ import time
 from azure.storage.blob import BlobServiceClient
 from functools import lru_cache, wraps
 from azure.core.exceptions import ResourceNotFoundError
-import time
 
 # --- Configuration ---
 AZURE_CONTAINER_NAME = "reco-data"
@@ -112,7 +111,9 @@ def obtenir_recommandations_pour_utilisateur(
 
             # Appliquer les filtres si fournis
             if country_filter or device_filter:
-                article_context = _get_article_context(ttl_hash=round(time.time() / 600), clicks_df=clicks_df)  # type: ignore
+                article_context = _get_article_context(
+                    ttl_hash=round(time.time() / 600), clicks_df=clicks_df
+                )  # type: ignore
                 reco_details = reco_details.merge(article_context, on="article_id", how="left")
 
                 if country_filter:

@@ -1,7 +1,6 @@
 import azure.functions as func
 import logging
 import asyncio
-import asyncio
 import os
 import joblib
 from azure.core.exceptions import ResourceNotFoundError
