@@ -18,6 +18,7 @@ METADATA_BLOB_NAME = "articles_metadata.csv"
 EMBEDDINGS_BLOB_NAME = "articles_embeddings.pickle"
 MODEL_BLOB_NAME = "models/hybrid_recommender_pipeline.pkl"
 STATE_BLOB_NAME = "training_state.json" # Fichier pour suivre l'état
+STATUS_BLOB_NAME = "status/retraining_status.json" # Fichier pour le statut en direct
 TRAINING_LOG_BLOB_NAME = "logs/training_log.csv" # Fichier pour l'historique
 
 # Définition de l'application de fonction
@@ -38,6 +39,12 @@ def save_training_state(blob_service_client, new_count):
     state = pd.Series({"last_training_click_count": new_count})
     blob_client = blob_service_client.get_blob_client(container=CONTAINER_NAME, blob=STATE_BLOB_NAME)
     blob_client.upload_blob(state.to_json(), overwrite=True)
+
+def update_retraining_status(blob_service_client, status: str, details: dict = None):
+    """Met à jour le statut du réentraînement dans un fichier JSON dédié."""
+    status_data = {"status": status, "last_update": datetime.now().isoformat(), **(details or {})}
+    blob_client = blob_service_client.get_blob_client(container=CONTAINER_NAME, blob=STATUS_BLOB_NAME)
+    blob_client.upload_blob(pd.Series(status_data).to_json(), overwrite=True)
 
 def log_training_run(blob_service_client, metrics, click_count):
     """Ajoute une entrée à l'historique d'entraînement."""
@@ -90,6 +97,7 @@ def timer_trigger_retrain(myTimer: func.TimerRequest) -> None:
         logging.info(f"Seuil de {last_training_count // 1000 * 1000 + 1000} clics dépassé. Démarrage du ré-entraînement.")
         
         try:
+            update_retraining_status(blob_service_client, "in_progress")
             # 4. Exécuter le script d'entraînement
             # La fonction retourne maintenant le chemin du modèle ET les métriques
             local_model_path, metrics = train_and_save_model(
@@ -111,9 +119,14 @@ def timer_trigger_retrain(myTimer: func.TimerRequest) -> None:
 
             # 7. Enregistrer les métriques de cet entraînement
             log_training_run(blob_service_client, metrics, current_click_count)
+            
+            update_retraining_status(blob_service_client, "idle", {"last_run_metrics": metrics})
             logging.info(f"État d'entraînement mis à jour à {current_click_count} clics.")
             
         except Exception as e:
+            update_retraining_status(blob_service_client, "failed", {"error": str(e)})
             logging.error(f"Une erreur est survenue pendant le ré-entraînement : {e}")
     else:
         logging.info("Le seuil de ré-entraînement n'est pas encore atteint.")
+        # S'assurer que le statut est bien 'idle' s'il n'y a rien à faire
+        update_retraining_status(blob_service_client, "idle")

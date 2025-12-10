@@ -67,7 +67,7 @@ L'application est conçue autour des services Azure et d'une automatisation via 
 
 4.  **Lancer l'application**
     ```bash
-    streamlit run frontend/interface.py
+    streamlit run frontend/Accueil.py
     ```
 
 ## ☁️ Déploiement sur Azure

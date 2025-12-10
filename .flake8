@@ -1,7 +1,9 @@
 [flake8]
 max-line-length = 120
-# E203: Espace blanc avant ':', E266: Trop de '#' pour un commentaire de bloc, E501: Ligne trop longue, W503: Rupture de ligne avant un opérateur binaire
-# F401: Module importé mais non utilisé, E302/E305: Lignes vides attendues
-# W291/W292/W293: Espaces superflus, E261: Espace avant commentaire, E701: Plusieurs instructions, E111/E117: Indentation, F541: f-string vide, E301: Ligne vide attendue
-ignore = E203, E266, E501, W503, F401, E302, E305, W291, W292, W293, E261, E701, E111, E117, F541, E301
+
+# Ignorer les règles qui entrent en conflit avec le formateur de code 'black'
+# E203: Espace blanc avant ':'
+# W503: Rupture de ligne avant un opérateur binaire
+ignore = E203, W503
+
 exclude = .venv,.git,__pycache__

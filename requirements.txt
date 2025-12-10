@@ -1,0 +1,6 @@
+flask
+gunicorn
+pandas
+requests
+azure-storage-blob
+python-dotenv

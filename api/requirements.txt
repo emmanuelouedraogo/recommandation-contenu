@@ -1,9 +1,6 @@
 azure-functions
-azure-storage-blob
 pandas
-numpy==1.26.4
-scikit-learn
-scikit-surprise
-implicit
+azure-storage-blob
+requests
 joblib
-lz4
+scikit-learn
