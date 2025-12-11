@@ -2,7 +2,8 @@ name: Build et Déploiement de l'App Web Flask sur Azure
 
 # --- Déclencheurs du Workflow ---
 env:
-  AZURE_WEBAPP_NAME: content-recommendation-function # Nom de votre application web sur Azure
+  # Nom unique pour votre nouvelle application web Flask. Ne réutilisez pas le nom d'une Azure Function existante.
+  AZURE_WEBAPP_NAME: reco-contenu-flask-app
   AZURE_APP_PLAN: plan-reco-contenu # Nom pour le plan App Service
   PYTHON_VERSION: '3.11'
   AZURE_RESOURCE_GROUP: rg-recommandation-contenu # Nom du groupe de ressources
