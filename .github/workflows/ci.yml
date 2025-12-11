@@ -37,7 +37,9 @@ jobs:
           pip install -r requirements.txt
 
       - name: Exécution des tests avec pytest
-        run: python -m pytest tests/
+        # On lance pytest sans argument pour qu'il auto-détecte les fichiers de test
+        # (comme `test_logic.py`) à la racine du projet.
+        run: python -m pytest
 
       - name: Préparation de l'artefact de déploiement
         run: |
