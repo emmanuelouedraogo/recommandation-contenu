@@ -39,6 +39,10 @@ jobs:
       - name: Exécution des tests avec pytest
         # On lance pytest sans argument pour qu'il auto-détecte les fichiers de test
         # (comme `test_logic.py`) à la racine du projet.
+        # On définit des variables d'environnement factices pour que l'import de `logic.py` réussisse.
+        env:
+          AZURE_STORAGE_ACCOUNT_NAME: "recoappstorage123"
+          API_URL: "https://content-recommendation-function.azurewebsites.net"
         run: python -m pytest
 
       - name: Préparation de l'artefact de déploiement
