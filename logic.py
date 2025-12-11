@@ -121,7 +121,6 @@ def obtenir_recommandations_pour_utilisateur(user_id: int, country_filter: str =
 
         # Enrichir les recommandations avec les détails des articles
         if recos:
-            blob_service_client = recuperer_client_blob_service()
             articles_df = charger_df_depuis_blob(blob_name=ARTICLES_BLOB_NAME)
             recos_df = pd.DataFrame(recos)
             reco_details = recos_df.merge(articles_df, on="article_id", how="left")
@@ -158,7 +157,6 @@ def obtenir_recommandations_pour_utilisateur(user_id: int, country_filter: str =
 
 def obtenir_historique_utilisateur(user_id: int):
     """Récupère l'historique des notations pour un utilisateur."""
-    blob_service_client = recuperer_client_blob_service()
     clicks_df = charger_df_depuis_blob(blob_name=CLICKS_BLOB_NAME)
     if clicks_df.empty:
         return []
@@ -303,7 +301,6 @@ def obtenir_tous_les_utilisateurs_avec_statut():
     Récupère la liste de tous les utilisateurs (actifs et supprimés) avec leur statut.
     Destiné à la page d'administration.
     """
-    blob_service_client = recuperer_client_blob_service()
     clicks_df = charger_df_depuis_blob(blob_name=CLICKS_BLOB_NAME)
     users_df = charger_df_depuis_blob(blob_name=USERS_BLOB_NAME)
 
@@ -324,7 +321,6 @@ def obtenir_tous_les_utilisateurs_avec_statut():
 
 def obtenir_contexte_utilisateur(user_id: int):
     """Récupère le pays et le groupe d'appareils du dernier clic de l'utilisateur."""
-    blob_service_client = recuperer_client_blob_service()
     clicks_df = charger_df_depuis_blob(blob_name=CLICKS_BLOB_NAME)
 
     if clicks_df.empty or user_id not in clicks_df["user_id"].unique():
@@ -345,7 +341,6 @@ def obtenir_contexte_utilisateur(user_id: int):
 
 def creer_nouvel_article(title: str, content: str, category_id: int) -> int:
     """Crée un nouvel article et le sauvegarde dans le blob."""
-    blob_service_client = recuperer_client_blob_service()
     articles_df = charger_df_depuis_blob(blob_name=ARTICLES_BLOB_NAME)
 
     if articles_df.empty:
@@ -367,13 +362,13 @@ def creer_nouvel_article(title: str, content: str, category_id: int) -> int:
         ]
     )
     updated_articles_df = pd.concat([articles_df, new_article], ignore_index=True)
+    blob_service_client = recuperer_client_blob_service()
     sauvegarder_df_vers_blob(blob_service_client, updated_articles_df, ARTICLES_BLOB_NAME)
     return new_article_id
 
 
 def obtenir_statut_reentrainement():
     """Récupère le statut actuel du processus de ré-entraînement."""
-    blob_service_client = recuperer_client_blob_service()
     blob_client = blob_service_client.get_blob_client(container=AZURE_CONTAINER_NAME, blob=STATUS_BLOB_NAME)
     try:
         downloader = blob_client.download_blob()
@@ -389,7 +384,6 @@ def obtenir_statut_reentrainement():
 
 def obtenir_performance_modele():
     """Récupère les logs de performance de l'entraînement du modèle."""
-    blob_service_client = recuperer_client_blob_service()
     performance_df = charger_df_depuis_blob(blob_name=TRAINING_LOG_BLOB_NAME)
     if performance_df.empty:
         return []
@@ -399,7 +393,6 @@ def obtenir_performance_modele():
 @timed_lru_cache(seconds=900)  # Cache de 15 minutes
 def obtenir_tendances_globales_clics():
     """Récupère et agrège les données de clics pour les tendances globales par pays et par groupe d'appareils."""
-    blob_service_client = recuperer_client_blob_service()
     clicks_df = charger_df_depuis_blob(blob_name=CLICKS_BLOB_NAME)
 
     if clicks_df.empty:

@@ -7,7 +7,6 @@ from functools import wraps
 # if the essential configuration is missing.
 try:
     import logic
-    import time
 except ValueError as e:
     # This will stop the app from starting and print a clear error message.
     raise SystemExit(f"FATAL: Configuration error - {e}") from e
