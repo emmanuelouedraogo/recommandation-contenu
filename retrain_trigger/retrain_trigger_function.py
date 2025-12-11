@@ -118,7 +118,6 @@ def timer_trigger_retrain(myTimer: func.TimerRequest) -> None:
     logging.info(log_msg)
     # 3. Vérifier si le seuil est atteint
     # On vérifie si le nombre de clics a dépassé le prochain multiple du seuil
-
     # --- NOUVEAU : Traiter les nouvelles interactions avant de vérifier le seuil ---
     new_interactions_blob_client = blob_service_client.get_blob_client(
         container=CONTAINER_NAME, blob=INTERACTIONS_LOG_BLOB_NAME
