@@ -211,7 +211,9 @@ def creer_nouvel_utilisateur():
     # Ajoute le nouvel utilisateur au fichier users.csv pour persistance
     blob_service_client = recuperer_client_blob_service()
     users_df = charger_df_depuis_blob(blob_name=USERS_BLOB_NAME)
-    new_user_df = pd.DataFrame([{"user_id": new_user_id}])
+    new_user_df = pd.DataFrame(
+        [{"user_id": new_user_id, "date_creation": pd.Timestamp.now(timezone.utc).isoformat()}]
+    )
     updated_users_df = pd.concat([users_df, new_user_df], ignore_index=True)
     sauvegarder_df_vers_blob(blob_service_client, updated_users_df, USERS_BLOB_NAME)
 
@@ -244,7 +246,11 @@ def supprimer_utilisateur(user_id: int):
         # Si l'utilisateur n'est pas dans users.csv, il est peut-être implicite via clicks_sample.csv
         # Dans ce cas, on l'ajoute à users.csv avec le statut 'deleted'
         logger.warning(f"Utilisateur {user_id} non trouvé dans {USERS_BLOB_NAME}. Ajout avec le statut 'deleted'.")
-        new_deleted_user = pd.DataFrame([{"user_id": user_id, "status": "deleted"}])
+        new_deleted_user = pd.DataFrame(
+            [
+                {"user_id": user_id, "status": "deleted", "date_creation": pd.Timestamp.now(timezone.utc).isoformat()}
+            ]
+        )
         updated_df = pd.concat([users_df, new_deleted_user], ignore_index=True)
         sauvegarder_df_vers_blob(blob_service_client, updated_df, USERS_BLOB_NAME)
         obtenir_utilisateurs.cache_clear()
@@ -338,25 +344,30 @@ def obtenir_contexte_utilisateur(user_id: int):
     }
 
 
-def creer_nouvel_article(title: str, content: str, category_id: int) -> int:
+def creer_nouvel_article(title: str, content: str, category_id: int, publisher_id: int) -> int:
     """Crée un nouvel article et le sauvegarde dans le blob."""
     articles_df = charger_df_depuis_blob(blob_name=ARTICLES_BLOB_NAME)
 
     if articles_df.empty:
         new_article_id = 1  # Démarrer à 1 si aucun article n'existe
     else:
-        # Assure que 'article_id' est numérique pour max()
-        articles_df["article_id"] = pd.to_numeric(articles_df["article_id"], errors="coerce").fillna(0)
+        # Assurer que 'article_id' est numérique pour max()
+        articles_df["article_id"] = pd.to_numeric(articles_df["article_id"], errors="coerce").fillna(0).astype(int)
         new_article_id = int(articles_df["article_id"].max()) + 1
+
+    # Calculer le nombre de mots à partir du contenu
+    words_count = len(content.split())
 
     new_article = pd.DataFrame(
         [
             {
                 "article_id": new_article_id,
-                "title": title,
-                "content": content,
                 "category_id": category_id,
                 "created_at_ts": int(pd.Timestamp.now().timestamp()),
+                "publisher_id": publisher_id,
+                "words_count": words_count,
+                # Note: 'title' et 'content' ne sont pas dans le schéma fourni, mais sont conservés pour l'affichage.
+                "title": title,
             }
         ]
     )

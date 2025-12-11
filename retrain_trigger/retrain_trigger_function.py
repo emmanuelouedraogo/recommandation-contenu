@@ -110,8 +110,12 @@ def _process_new_interactions(blob_service_client: BlobServiceClient) -> int:
 
         if not new_interactions_df.empty:
             logging.info(f"Traitement de {len(new_interactions_df)} nouvelles interactions.")
-            # 3. Fusionner les données
-            updated_clicks_df = pd.concat([existing_clicks_df, new_interactions_df], ignore_index=True)
+            # 3. Fusionner les données. Utiliser join='outer' pour gérer les colonnes potentiellement différentes.
+            # Les nouvelles interactions n'ont pas toutes les colonnes de l'historique (ex: session_id),
+            # ce qui créera des valeurs NaN pour ces colonnes, ce qui est le comportement attendu.
+            updated_clicks_df = pd.concat(
+                [existing_clicks_df, new_interactions_df], ignore_index=True, join="outer", sort=False
+            )
 
             # 4. Sauvegarder le DataFrame mis à jour
             output_parquet = BytesIO()
