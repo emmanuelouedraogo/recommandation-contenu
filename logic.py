@@ -211,9 +211,7 @@ def creer_nouvel_utilisateur():
     # Ajoute le nouvel utilisateur au fichier users.csv pour persistance
     blob_service_client = recuperer_client_blob_service()
     users_df = charger_df_depuis_blob(blob_name=USERS_BLOB_NAME)
-    new_user_df = pd.DataFrame(
-        [{"user_id": new_user_id, "date_creation": pd.Timestamp.now(timezone.utc).isoformat()}]
-    )
+    new_user_df = pd.DataFrame([{"user_id": new_user_id, "date_creation": pd.Timestamp.now(timezone.utc).isoformat()}])
     updated_users_df = pd.concat([users_df, new_user_df], ignore_index=True)
     sauvegarder_df_vers_blob(blob_service_client, updated_users_df, USERS_BLOB_NAME)
 
@@ -247,9 +245,7 @@ def supprimer_utilisateur(user_id: int):
         # Dans ce cas, on l'ajoute à users.csv avec le statut 'deleted'
         logger.warning(f"Utilisateur {user_id} non trouvé dans {USERS_BLOB_NAME}. Ajout avec le statut 'deleted'.")
         new_deleted_user = pd.DataFrame(
-            [
-                {"user_id": user_id, "status": "deleted", "date_creation": pd.Timestamp.now(timezone.utc).isoformat()}
-            ]
+            [{"user_id": user_id, "status": "deleted", "date_creation": pd.Timestamp.now(timezone.utc).isoformat()}]
         )
         updated_df = pd.concat([users_df, new_deleted_user], ignore_index=True)
         sauvegarder_df_vers_blob(blob_service_client, updated_df, USERS_BLOB_NAME)
