@@ -19,12 +19,12 @@ parquet_bytes.seek(0)
 # Données pour simuler un fichier CSV
 sample_csv_df = pd.DataFrame({"article_id": [101, 102], "category_id": [1, 2]})
 csv_string = sample_csv_df.to_csv(index=False)
-csv_bytes = csv_string.encode("utf-8")
+csv_bytes = BytesIO(csv_string.encode("utf-8"))
 
 # Données pour tester le renommage de colonne dans le CSV
 sample_csv_rename_df = pd.DataFrame({"click_article_id": [201, 202], "category_id": [3, 4]})
 csv_rename_string = sample_csv_rename_df.to_csv(index=False)
-csv_rename_bytes = csv_rename_string.encode("utf-8")
+csv_rename_bytes = BytesIO(csv_rename_string.encode("utf-8"))
 
 
 @patch("logic.recuperer_client_blob_service")
@@ -77,7 +77,7 @@ def test_charger_df_depuis_blob_fallback_csv(mock_get_client):
     # Simuler le client CSV qui retourne des données
     mock_csv_client = MagicMock()
     mock_csv_downloader = MagicMock()
-    csv_bytes.seek(0)  # <-- FIX: Reset stream before use
+    csv_bytes.seek(0)
     mock_csv_downloader.readall.return_value = csv_bytes
     mock_csv_client.download_blob.return_value = mock_csv_downloader
 
@@ -109,7 +109,7 @@ def test_charger_df_depuis_blob_renommage_colonne_csv(mock_get_client):
     mock_parquet_client.download_blob.side_effect = ResourceNotFoundError("Not found")
     mock_csv_client = MagicMock()
     mock_csv_downloader = MagicMock()
-    csv_rename_bytes.seek(0)  # <-- FIX: Reset stream before use
+    csv_rename_bytes.seek(0)
     mock_csv_downloader.readall.return_value = csv_rename_bytes
     mock_csv_client.download_blob.return_value = mock_csv_downloader
     mock_blob_service_client.get_blob_client.side_effect = [mock_parquet_client, mock_csv_client]
@@ -132,7 +132,14 @@ def test_charger_df_depuis_blob_aucun_fichier_trouve(mock_get_client):
     # Arrange
     mock_blob_service_client = MagicMock()
     mock_get_client.return_value = mock_blob_service_client
-    mock_blob_service_client.get_blob_client.return_value.download_blob.side_effect = ResourceNotFoundError("Not found")
+
+    # Simuler que les deux tentatives de téléchargement (Parquet et CSV) échouent.
+    mock_parquet_client = MagicMock()
+    mock_parquet_client.download_blob.side_effect = ResourceNotFoundError("Parquet not found")
+    mock_csv_client = MagicMock()
+    mock_csv_client.download_blob.side_effect = ResourceNotFoundError("CSV not found")
+
+    mock_blob_service_client.get_blob_client.side_effect = [mock_parquet_client, mock_csv_client]
 
     # Act
     logic.charger_df_depuis_blob.cache_clear()
