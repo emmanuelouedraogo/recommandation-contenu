@@ -31,12 +31,22 @@ jobs:
       - name: Installation des dépendances
         run: |
           python -m pip install --upgrade pip
-          # Installer les dépendances de dev (contenant pytest) et de production
-          if [ -f requirements-dev.txt ]; then pip install -r requirements-dev.txt; fi
+          # Installer les dépendances de développement et de production.
+          # L'installation de requirements-dev.txt est maintenant explicite.
+          pip install -r requirements-dev.txt
           pip install -r requirements.txt
 
       - name: Exécution des tests avec pytest
         run: python -m pytest tests/
+
+      - name: Préparation de l'artefact de déploiement
+        run: |
+          zip -r release.zip . -x ".git/*" ".github/*" "venv/*" "__pycache__/*" "tests/*"
+      - name: Sauvegarde de l'artefact pour le déploiement
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-package
+          path: release.zip
 
   build-and-deploy:
     name: Build and Deploy to Azure App Service
@@ -45,23 +55,17 @@ jobs:
     environment: production
     steps:
       - name: Checkout du code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4 # Nécessaire pour avoir le contexte du projet
 
       - name: Connexion à Azure
         uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - name: Téléchargement de l'artefact de déploiement
+        uses: actions/download-artifact@v4
         with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - name: Création du paquet de déploiement
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          zip -r release.zip . -x ".git/*" ".github/*" "venv/*" "__pycache__/*"
+          name: deployment-package
 
       - name: Déploiement sur Azure Web App
         uses: azure/webapps-deploy@v2
