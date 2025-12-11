@@ -39,6 +39,7 @@ def test_charger_df_depuis_blob_succes_parquet(mock_get_client):
     # Simuler le client pour le fichier Parquet
     mock_parquet_client = MagicMock()
     mock_parquet_downloader = MagicMock()
+    parquet_bytes.seek(0)  # <-- FIX: Reset stream before use
     mock_parquet_downloader.readall.return_value = parquet_bytes.read()
     mock_parquet_client.download_blob.return_value = mock_parquet_downloader
 
@@ -76,6 +77,7 @@ def test_charger_df_depuis_blob_fallback_csv(mock_get_client):
     # Simuler le client CSV qui retourne des données
     mock_csv_client = MagicMock()
     mock_csv_downloader = MagicMock()
+    csv_bytes.seek(0)  # <-- FIX: Reset stream before use
     mock_csv_downloader.readall.return_value = csv_bytes
     mock_csv_client.download_blob.return_value = mock_csv_downloader
 
@@ -107,6 +109,7 @@ def test_charger_df_depuis_blob_renommage_colonne_csv(mock_get_client):
     mock_parquet_client.download_blob.side_effect = ResourceNotFoundError("Not found")
     mock_csv_client = MagicMock()
     mock_csv_downloader = MagicMock()
+    csv_rename_bytes.seek(0)  # <-- FIX: Reset stream before use
     mock_csv_downloader.readall.return_value = csv_rename_bytes
     mock_csv_client.download_blob.return_value = mock_csv_downloader
     mock_blob_service_client.get_blob_client.side_effect = [mock_parquet_client, mock_csv_client]
