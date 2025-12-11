@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Administration - Gestion des Utilisateurs</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  </head>
+  <body>
+    <header>
+      <h1>⚙️ Administration - Gestion des Utilisateurs</h1>
+    </header>
+
+    <aside class="sidebar">
+      <h2>Navigation</h2>
+      <a href="/" class="nav-link">Retour à l'application principale</a>
+    </aside>
+
+    <main id="content">
+      <div id="main-content-area">
+        <h2>Liste de tous les utilisateurs</h2>
+        <div class="table-container">
+          <table id="users-table">
+            <thead>
+              <tr>
+                <th>ID Utilisateur</th>
+                <th>Statut</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- Les utilisateurs seront insérés ici par JavaScript -->
+            </tbody>
+          </table>
+        </div>
+        <div id="main-loader" class="loader hidden"></div>
+      </div>
+    </main>
+
+    <script>
+      document.addEventListener("DOMContentLoaded", function () {
+        const usersTableBody = document.querySelector("#users-table tbody");
+        const loader = document.getElementById("main-loader");
+
+        function showLoader() {
+          loader.classList.remove("hidden");
+        }
+        function hideLoader() {
+          loader.classList.add("hidden");
+        }
+
+        function loadAllUsers() {
+          showLoader();
+          fetch("/api/admin/users")
+            .then((response) => response.json())
+            .then((users) => {
+              hideLoader();
+              usersTableBody.innerHTML = ""; // Vider la table
+              users.forEach((user) => {
+                const row = document.createElement("tr");
+                const isDeleted = user.status === "deleted";
+
+                row.innerHTML = `
+                  <td>${user.user_id}</td>
+                  <td>
+                    <span class="status-badge status-${user.status}">
+                      ${isDeleted ? "Désactivé" : "Actif"}
+                    </span>
+                  </td>
+                  <td>
+                    <button class="action-button" data-action="${isDeleted ? "reactivate" : "delete"}" data-user-id="${user.user_id}">
+                      ${isDeleted ? "Réactiver" : "Désactiver"}
+                    </button>
+                  </td>
+                `;
+                usersTableBody.appendChild(row);
+              });
+            })
+            .catch((error) => {
+              hideLoader();
+              console.error("Erreur lors du chargement des utilisateurs:", error);
+              usersTableBody.innerHTML = '<tr><td colspan="3">Erreur de chargement.</td></tr>';
+            });
+        }
+
+        // Gérer les clics sur les boutons d'action
+        usersTableBody.addEventListener("click", function (event) {
+          const target = event.target;
+          if (target.classList.contains("action-button")) {
+            const action = target.dataset.action;
+            const userId = target.dataset.userId;
+
+            if (action === "delete") {
+              if (confirm(`Êtes-vous sûr de vouloir désactiver l'utilisateur ${userId} ?`)) {
+                fetch(`/api/users/${userId}`, { method: "DELETE" }).then(() => loadAllUsers());
+              }
+            } else if (action === "reactivate") {
+              if (confirm(`Êtes-vous sûr de vouloir réactiver l'utilisateur ${userId} ?`)) {
+                fetch(`/api/users/${userId}/reactivate`, { method: "POST" }).then(() => loadAllUsers());
+              }
+            }
+          }
+        });
+
+        // Chargement initial
+        loadAllUsers();
+      });
+    </script>
+  </body>
+</html>

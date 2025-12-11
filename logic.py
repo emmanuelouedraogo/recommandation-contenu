@@ -13,6 +13,9 @@ from azure.core.exceptions import ResourceNotFoundError
 STORAGE_ACCOUNT_NAME = os.getenv("AZURE_STORAGE_ACCOUNT_NAME")
 if not STORAGE_ACCOUNT_NAME:
     raise ValueError("AZURE_STORAGE_ACCOUNT_NAME environment variable is not set. Application cannot start.")
+API_RECO_URL = os.getenv("API_URL")
+if not API_RECO_URL:
+    raise ValueError("API_URL environment variable is not set. Application cannot start.")
 AZURE_CONTAINER_NAME = "reco-data"
 USERS_BLOB_NAME = "users.csv"
 ARTICLES_BLOB_NAME = "articles_metadata.csv"
@@ -31,23 +34,18 @@ def timed_lru_cache(seconds: int, maxsize: int = 128):
 
     def wrapper_cache(func):
         # Applique le cache LRU à la fonction
-        cached_func = lru_cache(maxsize=maxsize)(func)
+        @lru_cache(maxsize=maxsize)
+        def cached_func_with_ttl(ttl_hash, *args, **kwargs):
+            return func(*args, **kwargs)
 
         @wraps(func)
         def wrapped_func(*args, **kwargs):
             # Utilise un timestamp arrondi pour créer des "fenêtres" de cache
-            # et des arguments de la fonction pour la cle de cache.
-
             now = time.time()
             ttl_hash = round(now / seconds)
-            cache_key = (ttl_hash,) + args + tuple(sorted(kwargs.items()))
-            if cache_key in cached_func.cache_info().keys():
-                logger.info(f"Cache HIT for {func.__name__} with key {cache_key}")
-            else:
-                logger.info(f"Cache MISS for {func.__name__} with key {cache_key}. Executing function.")
-            return cached_func(ttl_hash, *args, **kwargs)
+            return cached_func_with_ttl(ttl_hash, *args, **kwargs)
 
-        wrapped_func.cache_clear = cached_func.cache_clear
+        wrapped_func.cache_clear = cached_func_with_ttl.cache_clear
         return wrapped_func
 
     return wrapper_cache
@@ -62,8 +60,9 @@ def recuperer_client_blob_service() -> BlobServiceClient:
 
 
 @timed_lru_cache(seconds=600)
-def charger_df_depuis_blob(ttl_hash, blob_service_client: BlobServiceClient, blob_name: str) -> pd.DataFrame:
+def charger_df_depuis_blob(blob_name: str) -> pd.DataFrame:
     """Charge un DataFrame depuis un blob CSV."""
+    blob_service_client = recuperer_client_blob_service()
     blob_client = blob_service_client.get_blob_client(container=AZURE_CONTAINER_NAME, blob=blob_name)
     # Adapter le nom pour la version Parquet.
     parquet_blob_name = blob_name.replace(".csv", ".parquet")
@@ -79,7 +78,7 @@ def charger_df_depuis_blob(ttl_hash, blob_service_client: BlobServiceClient, blo
         # Si le Parquet n'existe pas, se rabattre sur le CSV
         logger.warning(f"Blob Parquet non trouvé, tentative de chargement du CSV : {blob_name}")
         downloader = blob_client.download_blob()
-        blob_data = downloader.readall()
+        blob_data = downloader.readall().decode("utf-8")
         df = pd.read_csv(StringIO(blob_data))
         # Renomme la colonne 'click_article_id' en 'article_id' si elle existe, pour la cohérence
         if "click_article_id" in df.columns:
@@ -102,35 +101,34 @@ def sauvegarder_df_vers_blob(blob_service_client: BlobServiceClient, df: pd.Data
     logger.info(f"DataFrame sauvegardé au format Parquet : {parquet_blob_name}")
 
 
-def obtenir_recommandations_pour_utilisateur(
-    api_url: str, user_id: int, country_filter: str = None, device_filter: str = None
-):
+def obtenir_recommandations_pour_utilisateur(user_id: int, country_filter: str = None, device_filter: str = None):
     """
     Vérifie l'utilisateur et appelle l'API externe pour obtenir des recommandations.
     Retourne un dictionnaire avec les résultats ou une erreur.
     """  # type: ignore
-    blob_service_client = recuperer_client_blob_service()
-    clicks_df = charger_df_depuis_blob(blob_service_client=blob_service_client, blob_name=CLICKS_BLOB_NAME)
-    if clicks_df.empty or not clicks_df["user_id"].isin([user_id]).any():
+    # La vérification de l'existence de l'utilisateur est maintenant gérée par la liste unifiée
+    all_users = [user["user_id"] for user in obtenir_utilisateurs()]
+    if user_id not in all_users:
         return {"error": f"L'utilisateur {user_id} n'existe pas."}
 
-    try:  # type: ignore
+    try:
         headers = {"Accept": "application/json"}
-        response = requests.get(f"{api_url}/api/recommend", params={"user_id": user_id}, headers=headers, timeout=20)
+        response = requests.get(
+            f"{API_RECO_URL}/api/recommend", params={"user_id": user_id}, headers=headers, timeout=20
+        )
         response.raise_for_status()
         recos = response.json()
 
         # Enrichir les recommandations avec les détails des articles
         if recos:
-            articles_df = charger_df_depuis_blob(blob_service_client=blob_service_client, blob_name=ARTICLES_BLOB_NAME)
+            blob_service_client = recuperer_client_blob_service()
+            articles_df = charger_df_depuis_blob(blob_name=ARTICLES_BLOB_NAME)
             recos_df = pd.DataFrame(recos)
             reco_details = recos_df.merge(articles_df, on="article_id", how="left")
 
             # Appliquer les filtres si fournis
             if country_filter or device_filter:
-                article_context = _get_article_context(
-                    ttl_hash=round(time.time() / CACHE_TTL_SECONDS), clicks_df=clicks_df
-                )  # type: ignore
+                article_context = _get_article_context()  # type: ignore
                 reco_details = reco_details.merge(article_context, on="article_id", how="left")
 
                 if country_filter:
@@ -161,14 +159,14 @@ def obtenir_recommandations_pour_utilisateur(
 def obtenir_historique_utilisateur(user_id: int):
     """Récupère l'historique des notations pour un utilisateur."""
     blob_service_client = recuperer_client_blob_service()
-    clicks_df = charger_df_depuis_blob(blob_service_client=blob_service_client, blob_name=CLICKS_BLOB_NAME)
+    clicks_df = charger_df_depuis_blob(blob_name=CLICKS_BLOB_NAME)
     if clicks_df.empty:
         return []
 
     user_history = clicks_df[clicks_df["user_id"] == user_id]
     if user_history.empty:
         return []
-    articles_df = charger_df_depuis_blob(blob_service_client=blob_service_client, blob_name=ARTICLES_BLOB_NAME)
+    articles_df = charger_df_depuis_blob(blob_name=ARTICLES_BLOB_NAME)
     history_details = user_history.merge(articles_df, on="article_id", how="left").fillna({"title": "Titre inconnu"})
     history_details = history_details.sort_values(by="click_timestamp", ascending=False)
 
@@ -204,36 +202,130 @@ def ajouter_ou_mettre_a_jour_interaction(user_id: int, article_id: int, rating: 
 
 def creer_nouvel_utilisateur():
     """Crée un nouvel utilisateur avec un ID unique."""
-    blob_service_client = recuperer_client_blob_service()
-    users_df = charger_df_depuis_blob(blob_service_client=blob_service_client, blob_name=USERS_BLOB_NAME)
-
-    if users_df.empty:
+    # Utilise la liste des utilisateurs existants (clics + users.csv) comme source de vérité
+    existing_users = obtenir_utilisateurs()
+    if not existing_users:
         new_user_id = 1
     else:
-        # Assurer que la colonne est numérique avant de calculer le max
-        numeric_user_ids = pd.to_numeric(users_df["user_id"], errors="coerce").dropna()
-        new_user_id = int(numeric_user_ids.max()) + 1 if not numeric_user_ids.empty else 1
+        max_id = max(user["user_id"] for user in existing_users)
+        new_user_id = max_id + 1
+
+    # Ajoute le nouvel utilisateur au fichier users.csv pour persistance
+    blob_service_client = recuperer_client_blob_service()
+    users_df = charger_df_depuis_blob(blob_name=USERS_BLOB_NAME)
     new_user_df = pd.DataFrame([{"user_id": new_user_id}])
     updated_users_df = pd.concat([users_df, new_user_df], ignore_index=True)
     sauvegarder_df_vers_blob(blob_service_client, updated_users_df, USERS_BLOB_NAME)
+
+    # Invalider le cache des utilisateurs pour que le nouveau soit visible immédiatement
+    obtenir_utilisateurs.cache_clear()
     return new_user_id
 
 
-def obtenir_utilisateurs():
-    """Récupère la liste de tous les utilisateurs uniques à partir des clics."""
+def supprimer_utilisateur(user_id: int):
+    """
+    Désactive un utilisateur en le marquant comme 'deleted' (suppression douce).
+    Cette opération est réversible et préserve l'historique des interactions.
+    """
     blob_service_client = recuperer_client_blob_service()
-    clicks_df = charger_df_depuis_blob(blob_service_client=blob_service_client, blob_name=CLICKS_BLOB_NAME)
-    if clicks_df.empty:
-        return []
-    unique_users = clicks_df["user_id"].unique()
-    users_df = pd.DataFrame(unique_users, columns=["user_id"])
-    return users_df.to_dict(orient="records")
+    users_df = charger_df_depuis_blob(blob_name=USERS_BLOB_NAME)
+
+    if "status" not in users_df.columns:
+        users_df["status"] = "active"
+
+    if user_id in users_df["user_id"].values:
+        # Marquer l'utilisateur comme supprimé
+        users_df.loc[users_df["user_id"] == user_id, "status"] = "deleted"
+        sauvegarder_df_vers_blob(blob_service_client, users_df, USERS_BLOB_NAME)
+        logger.info(f"Utilisateur {user_id} marqué comme 'deleted' (soft delete).")
+
+        # Invalider le cache pour que la liste des utilisateurs soit mise à jour
+        obtenir_utilisateurs.cache_clear()
+        return True
+    else:
+        # Si l'utilisateur n'est pas dans users.csv, il est peut-être implicite via clicks_sample.csv
+        # Dans ce cas, on l'ajoute à users.csv avec le statut 'deleted'
+        logger.warning(f"Utilisateur {user_id} non trouvé dans {USERS_BLOB_NAME}. Ajout avec le statut 'deleted'.")
+        new_deleted_user = pd.DataFrame([{"user_id": user_id, "status": "deleted"}])
+        updated_df = pd.concat([users_df, new_deleted_user], ignore_index=True)
+        sauvegarder_df_vers_blob(blob_service_client, updated_df, USERS_BLOB_NAME)
+        obtenir_utilisateurs.cache_clear()
+        return True
+
+
+def reactiver_utilisateur(user_id: int):
+    """
+    Réactive un utilisateur qui a été marqué comme 'deleted'.
+    """
+    blob_service_client = recuperer_client_blob_service()
+    users_df = charger_df_depuis_blob(blob_name=USERS_BLOB_NAME)
+
+    # Si la colonne status n'existe pas, aucun utilisateur ne peut être réactivé.
+    if "status" not in users_df.columns:
+        return False
+
+    # Vérifier si l'utilisateur existe et est bien 'deleted'
+    user_mask = (users_df["user_id"] == user_id) & (users_df["status"] == "deleted")
+    if user_mask.any():
+        users_df.loc[user_mask, "status"] = "active"
+        sauvegarder_df_vers_blob(blob_service_client, users_df, USERS_BLOB_NAME)
+        logger.info(f"Utilisateur {user_id} a été réactivé.")
+        obtenir_utilisateurs.cache_clear()
+        return True
+
+    return False
+
+
+@timed_lru_cache(seconds=300)  # Cache de 5 minutes
+def obtenir_utilisateurs():
+    """Récupère une liste unifiée d'utilisateurs depuis les clics et le fichier des utilisateurs."""
+    blob_service_client = recuperer_client_blob_service()
+    clicks_df = charger_df_depuis_blob(blob_name=CLICKS_BLOB_NAME)
+    users_df = charger_df_depuis_blob(blob_name=USERS_BLOB_NAME)
+
+    # Unifier les IDs des deux sources
+    click_user_ids = set(clicks_df["user_id"].unique())
+    manual_user_ids = set(users_df["user_id"].unique())
+    all_user_ids = sorted(list(click_user_ids.union(manual_user_ids)))
+
+    # Filtrer les utilisateurs supprimés
+    if "status" in users_df.columns:
+        deleted_users = set(users_df[users_df["status"] == "deleted"]["user_id"])
+        active_user_ids = [uid for uid in all_user_ids if uid not in deleted_users]
+    else:
+        active_user_ids = all_user_ids
+
+    return [{"user_id": uid} for uid in active_user_ids]
+
+
+def obtenir_tous_les_utilisateurs_avec_statut():
+    """
+    Récupère la liste de tous les utilisateurs (actifs et supprimés) avec leur statut.
+    Destiné à la page d'administration.
+    """
+    blob_service_client = recuperer_client_blob_service()
+    clicks_df = charger_df_depuis_blob(blob_name=CLICKS_BLOB_NAME)
+    users_df = charger_df_depuis_blob(blob_name=USERS_BLOB_NAME)
+
+    # Unifier les IDs des deux sources
+    click_user_ids = set(clicks_df["user_id"].unique())
+    manual_user_ids = set(users_df["user_id"].unique())
+    all_user_ids = sorted(list(click_user_ids.union(manual_user_ids)))
+
+    # Créer un dictionnaire de statuts à partir de users.df
+    status_map = {}
+    if "status" in users_df.columns:
+        status_map = pd.Series(users_df.status.values, index=users_df.user_id).to_dict()
+
+    # Construire la liste finale avec le statut (par défaut 'active')
+    result = [{"user_id": uid, "status": status_map.get(uid, "active")} for uid in all_user_ids]
+    return result
 
 
 def obtenir_contexte_utilisateur(user_id: int):
     """Récupère le pays et le groupe d'appareils du dernier clic de l'utilisateur."""
     blob_service_client = recuperer_client_blob_service()
-    clicks_df = charger_df_depuis_blob(blob_service_client=blob_service_client, blob_name=CLICKS_BLOB_NAME)
+    clicks_df = charger_df_depuis_blob(blob_name=CLICKS_BLOB_NAME)
 
     if clicks_df.empty or user_id not in clicks_df["user_id"].unique():
         return None
@@ -254,7 +346,7 @@ def obtenir_contexte_utilisateur(user_id: int):
 def creer_nouvel_article(title: str, content: str, category_id: int) -> int:
     """Crée un nouvel article et le sauvegarde dans le blob."""
     blob_service_client = recuperer_client_blob_service()
-    articles_df = charger_df_depuis_blob(blob_service_client=blob_service_client, blob_name=ARTICLES_BLOB_NAME)
+    articles_df = charger_df_depuis_blob(blob_name=ARTICLES_BLOB_NAME)
 
     if articles_df.empty:
         new_article_id = 1  # Démarrer à 1 si aucun article n'existe
@@ -298,16 +390,17 @@ def obtenir_statut_reentrainement():
 def obtenir_performance_modele():
     """Récupère les logs de performance de l'entraînement du modèle."""
     blob_service_client = recuperer_client_blob_service()
-    performance_df = charger_df_depuis_blob(blob_service_client=blob_service_client, blob_name=TRAINING_LOG_BLOB_NAME)
+    performance_df = charger_df_depuis_blob(blob_name=TRAINING_LOG_BLOB_NAME)
     if performance_df.empty:
         return []
     return performance_df.to_dict(orient="records")
 
 
+@timed_lru_cache(seconds=900)  # Cache de 15 minutes
 def obtenir_tendances_globales_clics():
     """Récupère et agrège les données de clics pour les tendances globales par pays et par groupe d'appareils."""
     blob_service_client = recuperer_client_blob_service()
-    clicks_df = charger_df_depuis_blob(blob_service_client=blob_service_client, blob_name=CLICKS_BLOB_NAME)
+    clicks_df = charger_df_depuis_blob(blob_name=CLICKS_BLOB_NAME)
 
     if clicks_df.empty:
         return {"clicks_by_country": [], "clicks_by_device": []}
@@ -327,8 +420,9 @@ def obtenir_tendances_globales_clics():
 
 
 @timed_lru_cache(seconds=600)
-def _get_article_context(ttl_hash, clicks_df: pd.DataFrame) -> pd.DataFrame:  # type: ignore
+def _get_article_context() -> pd.DataFrame:  # type: ignore
     """Calcule et cache le contexte des articles (pays/appareils uniques) à partir des clics."""
+    clicks_df = charger_df_depuis_blob(blob_name=CLICKS_BLOB_NAME)
     if clicks_df.empty:
         return pd.DataFrame(columns=["article_id", "unique_countries", "unique_devices"])
 

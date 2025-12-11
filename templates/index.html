@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recommandation de Contenu</title>
+    <!--<link rel="stylesheet" src="templates/static/css/style.css"> -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <!-- Ajout de la librairie Chart.js pour les graphiques -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <header>
+        <h1>📚 Système de Recommandation de Contenu</h1>
+        <div id="retraining-status-indicator" title="Statut du réentraînement">
+            <span class="dot"></span>
+            <span class="status-text"></span>
+        </div>
+    </header>
+
+    <aside class="sidebar">
+        <h2>Connexion</h2>
+        <label for="user-select">Choisir un utilisateur :</label>
+        <select id="user-select">
+            <option>Chargement...</option>
+        </select>
+        <button id="reco-button">Obtenir mes recommandations</button>
+        <button id="history-button" style="background-color: #7f8c8d; margin-top: 0.5rem;">Voir mon historique</button>
+        <button id="delete-user-button" style="background-color: #e74c3c; margin-top: 0.5rem; display: none;">Supprimer cet utilisateur</button>
+
+        <hr style="margin: 2rem 0; border-top: 1px solid #eee;">
+        <h2>Filtrer les Recommandations</h2>
+        <label for="filter-country">Pays :</label>
+        <select id="filter-country">
+            <option value="">Tous</option>
+        </select>
+        <label for="filter-device">Appareil :</label>
+        <select id="filter-device">
+            <option value="">Tous</option>
+        </select>
+        <hr style="margin: 2rem 0; border-top: 1px solid #eee;">
+        <button id="global-trends-button" style="background-color: #f39c12; margin-top: 0.5rem;">Tendances Globales</button>
+        <button id="create-user-button">Créer un nouvel utilisateur</button>
+
+        <div id="user-context-display" style="margin-top: 1rem; padding: 1rem; border: 1px solid #eee; border-radius: 5px; background-color: #f9f9f9; display: none;">
+            <h3>Contexte Utilisateur</h3>
+            <p>Pays: <span id="context-country"></span></p>
+            <p>Appareil: <span id="context-device"></span></p>
+        </div>
+        <hr style="margin: 2rem 0; border-top: 1px solid #eee;">
+        <button id="performance-button">Performances du Modèle</button>
+
+        <hr style="margin: 2rem 0; border-top: 1px solid #eee;">
+        <div id="add-article-form">
+            <h2>Ajouter un Article</h2>
+            <label for="article-title">Titre :</label>
+            <input type="text" id="article-title" name="title">
+            <label for="article-content">Contenu :</label>
+            <textarea id="article-content" name="content" rows="4"></textarea>
+            <label for="article-category">ID Catégorie :</label>
+            <input type="number" id="article-category" name="category_id" value="0">
+            <button id="add-article-button">Ajouter l'article</button>
+        </div>
+    </aside>
+
+    <main id="content">
+        <p>Veuillez sélectionner un utilisateur pour voir vos recommandations.</p>
+        <!-- Indicateur de chargement, caché par défaut -->
+        <div id="main-loader" class="loader hidden"></div>
+        <!-- Conteneur pour le contenu dynamique -->
+        <div id="main-content-area"></div>
+    </main>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const userSelect = document.getElementById('user-select');
+            const recoButton = document.getElementById('reco-button');
+            const contentDiv = document.getElementById('content');
+            const mainLoader = document.getElementById('main-loader');
+            const mainContentArea = document.getElementById('main-content-area');
+            const historyButton = document.getElementById('history-button');
+            const createUserButton = document.getElementById('create-user-button');
+            const globalTrendsButton = document.getElementById('global-trends-button');
+            const performanceButton = document.getElementById('performance-button');
+            const filterCountrySelect = document.getElementById('filter-country');
+            const filterDeviceSelect = document.getElementById('filter-device');
+
+            const articleTitleInput = document.getElementById('article-title');
+            const articleContentInput = document.getElementById('article-content');
+            const articleCategoryInput = document.getElementById('article-category');
+            const userContextDisplay = document.getElementById('user-context-display');
+            const contextCountrySpan = document.getElementById('context-country');
+            const contextDeviceSpan = document.getElementById('context-device');
+            const deleteUserButton = document.getElementById('delete-user-button');
+            const addArticleButton = document.getElementById('add-article-button');
+
+            // Fonctions pour gérer l'indicateur de chargement
+            function showLoader() {
+                mainLoader.classList.remove('hidden');
+                mainContentArea.innerHTML = ''; // Vider l'ancien contenu
+                contentDiv.querySelector('p')?.classList.add('hidden'); // Cacher le message initial
+            }
+
+            function hideLoader() {
+                mainLoader.classList.add('hidden');
+            }
+
+
+            // Fonction pour charger les utilisateurs, réutilisable
+            function loadUsers() {
+                fetch('/api/users')
+                    .then(response => response.json())
+                    .then(users => {
+                        userSelect.innerHTML = '<option value="">-- Sélectionnez --</option>';
+                        users.sort((a, b) => a.user_id - b.user_id).forEach(user => {
+                            const option = document.createElement('option');
+                            option.value = user.user_id;
+                            option.textContent = `Utilisateur ${user.user_id}`;
+                            userSelect.appendChild(option);
+                        });
+                    })
+                    .catch(error => {
+                        console.error("Erreur lors du chargement des utilisateurs:", error);
+                        userSelect.innerHTML = '<option>Erreur de chargement</option>';
+                    });
+            }
+
+            // Fonction pour peupler les filtres de pays et d'appareil
+            function populateFilters() {
+                fetch('/api/global_trends') // Réutilise l'API des tendances pour obtenir les options de filtre
+                    .then(response => response.json())
+                    .then(data => {
+                        filterCountrySelect.innerHTML = '<option value="">Tous</option>';
+                        data.clicks_by_country.forEach(item => {
+                            const option = document.createElement('option');
+                            option.value = item.country;
+                            option.textContent = item.country;
+                            filterCountrySelect.appendChild(option);
+                        });
+
+                        filterDeviceSelect.innerHTML = '<option value="">Tous</option>';
+                        data.clicks_by_device.forEach(item => {
+                            const option = document.createElement('option');
+                            option.value = item.deviceGroup;
+                            option.textContent = item.deviceGroup;
+                            filterDeviceSelect.appendChild(option);
+                        });
+                    })
+                    .catch(error => console.error("Erreur lors du chargement des options de filtre:", error));
+            }
+            // Fonction pour charger et afficher le contexte de l'utilisateur
+            function loadUserContext(userId) {
+                if (!userId) {
+                    userContextDisplay.style.display = 'none';
+                    return;
+                }
+                fetch(`/api/user_context/${userId}`)
+                    .then(response => response.json())
+                    .then(context => {
+                        if (context.country && context.deviceGroup) {
+                            contextCountrySpan.textContent = context.country;
+                            contextDeviceSpan.textContent = context.deviceGroup;
+                            userContextDisplay.style.display = 'block';
+                        } else {
+                            userContextDisplay.style.display = 'none';
+                        }
+                    })
+                    .catch(error => {
+                        console.error("Erreur lors du chargement du contexte utilisateur:", error);
+                        userContextDisplay.style.display = 'none';
+                        contextCountrySpan.textContent = 'N/A';
+                        contextDeviceSpan.textContent = 'N/A';
+                    });
+            }
+
+            // Gérer le clic sur le bouton de création d'utilisateur
+            createUserButton.addEventListener('click', function() {
+                createUserButton.textContent = 'Création en cours...';
+                createUserButton.disabled = true;
+
+                fetch('/api/users', { method: 'POST' })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.user_id) {
+                            alert(`Nouvel utilisateur créé avec l'ID : ${data.user_id}`); // NOSONAR
+                            loadUsers(); // Rafraîchir la liste
+                        }
+                    })
+                    .catch(error => {
+                        console.error("Erreur lors de la création de l'utilisateur:", error);
+                        alert("Impossible de créer un nouvel utilisateur."); // NOSONAR
+                    })
+                    .finally(() => {
+                        createUserButton.textContent = 'Créer un nouvel utilisateur';
+                        createUserButton.disabled = false;
+                    });
+                });
+
+            // Écouter le changement de sélection d'utilisateur
+            userSelect.addEventListener('change', function() {
+                const selectedUserId = userSelect.value;
+                loadUserContext(selectedUserId);
+                // Afficher ou cacher le bouton de suppression
+                if (selectedUserId) {
+                    deleteUserButton.style.display = 'block';
+                } else {
+                    deleteUserButton.style.display = 'none';
+                }
+            });
+
+            // Gérer le clic sur le bouton de suppression
+            deleteUserButton.addEventListener('click', function() {
+                const userId = userSelect.value;
+                if (!userId) return;
+
+                if (confirm(`Êtes-vous sûr de vouloir désactiver l'utilisateur ${userId} ? Il n'apparaîtra plus dans la liste, mais ses données seront conservées.`)) { // NOSONAR
+                    fetch(`/api/users/${userId}`, { method: 'DELETE' })
+                        .then(response => response.json())
+                        .then(data => {
+                            alert(data.message || data.error); // NOSONAR
+                            loadUsers(); // Recharger la liste des utilisateurs
+                        });
+                }
+            });
+
+            // Helper function to safely create a recommendation card element
+            function createRecoCard(reco) {
+                const card = document.createElement('div');
+                card.className = 'reco-card';
+                card.dataset.articleId = reco.article_id;
+
+                const title = document.createElement('h3');
+                title.textContent = reco.title || 'Titre non disponible';
+
+                const content = document.createElement('p');
+                content.textContent = (reco.content || 'Contenu non disponible').substring(0, 200) + '...';
+
+                const controls = document.createElement('div');
+                controls.className = 'rating-controls';
+                controls.innerHTML = `
+                    <select class="rating-select">
+                        <option value="1">⭐</option>
+                        <option value="2">⭐⭐</option>
+                        <option value="3" selected>⭐⭐⭐</option>
+                        <option value="4">⭐⭐⭐⭐</option>
+                        <option value="5">⭐⭐⭐⭐⭐</option>
+                    </select>
+                    <button class="rate-button">Noter</button>
+                `;
+
+                card.append(title, content, controls);
+                return card;
+            }
+
+            // Gérer la soumission d'une note (délégation d'événement)
+            contentDiv.addEventListener('click', function(event) {
+                if (event.target.classList.contains('rate-button')) {
+                    const card = event.target.closest('.reco-card');
+                    const articleId = card.dataset.articleId;
+                    const rating = card.querySelector('.rating-select').value;
+                    const userId = userSelect.value;
+
+                    if (!userId) {
+                        alert("Veuillez d'abord vous connecter pour noter un article."); // NOSONAR
+                        return;
+                    }
+
+                    fetch('/api/interactions', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            user_id: parseInt(userId),
+                            article_id: parseInt(articleId),
+                            rating: parseInt(rating)
+                        })
+                    })
+                    .then(response => {
+                        if (response.ok) {
+                            event.target.textContent = 'Merci !';
+                            event.target.disabled = true;
+                        } else { alert('Erreur lors de la notation.'); } // NOSONAR
+                    });
+                }
+            });
+
+            // Gérer le clic sur le bouton d'historique
+            historyButton.addEventListener('click', function() {
+                const userId = userSelect.value;
+                if (!userId) {
+                    alert('Veuillez sélectionner un utilisateur.'); // NOSONAR
+                    return;
+                }
+                showLoader();
+                fetch(`/api/history/${userId}`)
+                    .then(response => response.json())
+                    .then(history => {
+                        hideLoader();
+                        mainContentArea.innerHTML = '<h2>Votre Historique de Notation</h2>';
+                        if (Array.isArray(history) && history.length > 0) {
+                            history.forEach(item => {
+                                const date = item.click_timestamp ? new Date(item.click_timestamp * 1000).toLocaleString('fr-FR') : 'Date inconnue';
+                                mainContentArea.innerHTML += `
+                                    <div class="reco-card">
+                                        <h3>${item.title || 'Titre non disponible'}</h3>
+                                        <p><strong>Votre note : ${item.nb}</strong> | Noté le : ${date}</p>
+                                    </div>`;
+                            });
+                        } else {
+                            mainContentArea.innerHTML += '<p>Vous n\'avez encore noté aucun article.</p>';
+                        }
+                    })
+                    .catch(error => {
+                        hideLoader();
+                        console.error("Erreur lors du chargement de l'historique:", error)
+                    });
+            });
+
+            // Gérer le clic sur le bouton d'ajout d'article
+            addArticleButton.addEventListener('click', function() {
+                const title = articleTitleInput.value;
+                // Pour un vrai formulaire, on utiliserait un textarea pour le contenu.
+                const content = articleContentInput.value;
+                const categoryId = articleCategoryInput.value;
+
+                if (!title || !content) {
+                    alert("Le titre et le contenu ne peuvent pas être vides."); // NOSONAR
+                    return;
+                }
+
+                addArticleButton.textContent = 'Ajout en cours...';
+                addArticleButton.disabled = true;
+
+                fetch('/api/articles', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        title: title,
+                        content: content,
+                        category_id: parseInt(categoryId)
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    alert(`Article ajouté avec l'ID : ${data.article_id}`); // NOSONAR
+                    articleTitleInput.value = ''; // Réinitialiser le champ
+                    articleContentInput.value = ''; // Réinitialiser le champ
+                })
+                .catch(error => console.error("Erreur lors de l'ajout de l'article:", error))
+                .finally(() => { addArticleButton.textContent = "Ajouter l'article"; addArticleButton.disabled = false; });
+            });
+
+            // Gérer le clic sur le bouton des tendances globales
+            globalTrendsButton.addEventListener('click', function() {
+                showLoader();
+                fetch('/api/global_trends')
+                    .then(response => response.json())
+                    .then(data => {
+                        hideLoader();
+                        mainContentArea.innerHTML = `
+                            <h2>Tendances Globales des Clics</h2>
+                            <div style="display: flex; flex-wrap: wrap; gap: 20px;">
+                                <div style="flex: 1; min-width: 300px;">
+                                    <h3>Clics par Pays</h3>
+                                    <canvas id="country-chart"></canvas>
+                                </div>
+                                <div style="flex: 1; min-width: 300px;">
+                                    <h3>Clics par Type d'Appareil</h3>
+                                    <canvas id="device-chart"></canvas>
+                                </div>
+                            </div>
+                        `;
+
+                        // Graphique par Pays
+                        const countryCtx = document.getElementById('country-chart').getContext('2d');
+                        new Chart(countryCtx, {
+                            type: 'pie', // Ou 'bar'
+                            data: {
+                                labels: data.clicks_by_country.map(item => item.country),
+                                datasets: [{
+                                    label: 'Nombre de Clics',
+                                    data: data.clicks_by_country.map(item => item.count),
+                                    backgroundColor: [
+                                        '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF', '#FF9F40', '#E7E9ED'
+                                    ],
+                                    hoverOffset: 4
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                plugins: {
+                                    title: {
+                                        display: true,
+                                        text: 'Distribution des clics par pays'
+                                    }
+                                }
+                            }
+                        });
+
+                        // Graphique par Type d'Appareil
+                        const deviceCtx = document.getElementById('device-chart').getContext('2d');
+                        new Chart(deviceCtx, {
+                            type: 'bar', // Ou 'pie'
+                            data: {
+                                labels: data.clicks_by_device.map(item => item.deviceGroup),
+                                datasets: [{
+                                    label: 'Nombre de Clics',
+                                    data: data.clicks_by_device.map(item => item.count),
+                                    backgroundColor: [
+                                        '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0'
+                                    ]
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                plugins: {
+                                    title: {
+                                        display: true,
+                                        text: 'Distribution des clics par type d\'appareil'
+                                    }
+                                }
+                            }
+                        });
+                    })
+                    .catch(error => {
+                        hideLoader();
+                        console.error("Erreur lors du chargement des tendances globales:", error);
+                        mainContentArea.innerHTML = '<p>Impossible de charger les tendances globales.</p>';
+                    });
+            });
+
+            // Gérer le clic sur le bouton de performance
+            performanceButton.addEventListener('click', function() {
+                showLoader();
+                fetch('/api/performance')
+                    .then(response => response.json())
+                    .then(data => {
+                        hideLoader();
+                        if (!Array.isArray(data) || data.length === 0) {
+                            mainContentArea.innerHTML = '<h2>Performances du Modèle</h2><p>Aucune donnée de performance trouvée.</p>';
+                            return;
+                        }
+                        mainContentArea.innerHTML = '<h2>Performances du Modèle</h2><canvas id="performance-chart"></canvas>';
+                        const ctx = document.getElementById('performance-chart').getContext('2d');
+                        
+                        const labels = data.map(d => `Epoch ${d.epoch}`);
+                        
+                        new Chart(ctx, {
+                            type: 'line',
+                            data: {
+                                labels: labels,
+                                datasets: [
+                                    {
+                                        label: 'Recall@10 (Validation)',
+                                        data: data.map(d => d.val_recall_at_10),
+                                        borderColor: 'rgb(75, 192, 192)',
+                                        tension: 0.1
+                                    },
+                                    {
+                                        label: 'Precision@10 (Validation)',
+                                        data: data.map(d => d.val_precision_at_10),
+                                        borderColor: 'rgb(255, 99, 132)',
+                                        tension: 0.1
+                                    }
+                                ]
+                            },
+                            options: {
+                                responsive: true,
+                                plugins: {
+                                    title: {
+                                        display: true,
+                                        text: 'Évolution des métriques de validation par époque'
+                                    }
+                                }
+                            }
+                        });
+                    })
+                    .catch(error => {
+                        hideLoader();
+                        console.error("Erreur lors du chargement des performances:", error);
+                    });
+            });
+
+            // Fonction pour vérifier et afficher le statut du réentraînement
+            function checkRetrainingStatus() {
+                const statusIndicator = document.getElementById('retraining-status-indicator');
+                const dot = statusIndicator.querySelector('.dot');
+                const text = statusIndicator.querySelector('.status-text');
+
+                fetch('/api/retraining_status')
+                    .then(response => response.json())
+                    .then(data => {
+                        dot.className = 'dot'; // reset
+                        switch(data.status) {
+                            case 'in_progress':
+                                dot.classList.add('in-progress');
+                                text.textContent = 'Réentraînement en cours...';
+                                break;
+                            case 'failed':
+                                dot.classList.add('failed');
+                                text.textContent = 'Échec du réentraînement';
+                                break;
+                            case 'idle':
+                            default:
+                                dot.classList.add('idle');
+                                text.textContent = 'Actif';
+                                break;
+                        }
+                    })
+                    .catch(() => { text.textContent = 'Statut inconnu'; });
+            }
+
+            // Chargement initial des utilisateurs
+            populateFilters(); // Peupler les filtres au démarrage
+            loadUserContext(userSelect.value); // Charger le contexte si un utilisateur est déjà sélectionné
+            loadUsers();
+            checkRetrainingStatus(); // Vérifier le statut au chargement
+            setInterval(checkRetrainingStatus, 30000); // Puis toutes les 30 secondes
+        });
+    </script>
+</body>
+</html>

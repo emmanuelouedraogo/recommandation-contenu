@@ -11,7 +11,7 @@ from azure.core.exceptions import ResourceNotFoundError  # type: ignore
 from datetime import datetime, timezone
 
 # Importer les scripts de modélisation
-from reco_model_script import train_and_save_model
+from reco_model_script import train_and_save_model  # noqa: F401
 
 # --- Configuration ---
 STORAGE_ACCOUNT_NAME = os.getenv("AZURE_STORAGE_ACCOUNT_NAME")
@@ -114,9 +114,8 @@ def timer_trigger_retrain(myTimer: func.TimerRequest) -> None:
         logging.error(f"Impossible de lire le fichier des clics : {e}")
         return
 
-    logging.info(
-        f"Nombre de clics actuel : {current_click_count}. Dernier entraînement à : {last_training_count} clics."
-    )
+    log_msg = f"Nombre de clics actuel : {current_click_count}. Dernier entraînement à : {last_training_count} clics."
+    logging.info(log_msg)
     # 3. Vérifier si le seuil est atteint
     # On vérifie si le nombre de clics a dépassé le prochain multiple du seuil
 
@@ -171,7 +170,6 @@ def timer_trigger_retrain(myTimer: func.TimerRequest) -> None:
             update_retraining_status(blob_service_client, "in_progress")
             # 4. Exécuter le script d'entraînement. Il sauvegarde le modèle directement.
             metrics = train_and_save_model(
-                # connect_str=CONNECT_STR, # Removed, using Managed Identity
                 container_name=CONTAINER_NAME,
                 clicks_blob=CLICKS_BLOB_NAME,
                 articles_blob=METADATA_BLOB_NAME,
