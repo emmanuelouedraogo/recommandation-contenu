@@ -169,12 +169,12 @@ def timer_trigger_retrain(myTimer: func.TimerRequest) -> None:
         try:
             update_retraining_status(blob_service_client, "in_progress")
             # 4. Exécuter le script d'entraînement. Il sauvegarde le modèle directement.
-            metrics = train_and_save_model(
-                container_name=CONTAINER_NAME,
-                clicks_blob=CLICKS_BLOB_NAME,
-                articles_blob=METADATA_BLOB_NAME,
-                embeddings_blob=EMBEDDINGS_BLOB_NAME,
-                model_output_blob=MODEL_BLOB_NAME,
+            metrics = train_and_save_model(  # type: ignore
+                container_name=CONTAINER_NAME,  # type: ignore
+                clicks_blob=CLICKS_BLOB_NAME,  # type: ignore
+                articles_blob=METADATA_BLOB_NAME,  # type: ignore
+                embeddings_blob=EMBEDDINGS_BLOB_NAME,  # type: ignore
+                model_output_blob=MODEL_BLOB_NAME,  # type: ignore
             )
             # The train_and_save_model function now handles saving the model to blob storage directly.
             # So, we don't need to re-upload it here.
