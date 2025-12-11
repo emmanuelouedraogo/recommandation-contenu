@@ -369,6 +369,7 @@ def creer_nouvel_article(title: str, content: str, category_id: int) -> int:
 
 def obtenir_statut_reentrainement():
     """Récupère le statut actuel du processus de ré-entraînement."""
+    blob_service_client = recuperer_client_blob_service()
     blob_client = blob_service_client.get_blob_client(container=AZURE_CONTAINER_NAME, blob=STATUS_BLOB_NAME)
     try:
         downloader = blob_client.download_blob()
