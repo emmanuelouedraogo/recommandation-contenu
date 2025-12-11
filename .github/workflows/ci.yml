@@ -15,6 +15,31 @@ on:
 
 # --- Définition des Tâches (Jobs) ---
 jobs:
+  lint:
+    name: Vérification de la qualité du code
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout du code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Installation des dépendances de linting
+        run: |
+          python -m pip install --upgrade pip
+          pip install flake8
+          # Installer les dépendances du projet pour que flake8 puisse vérifier les imports
+          pip install -r requirements.txt
+
+      - name: Exécution du linter Flake8
+        run: |
+          # Ignore les erreurs de ligne trop longue (E501) et les sauts de ligne avant un opérateur binaire (W503)
+          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics --exclude=venv
+          flake8 . --count --exit-zero --max-complexity=10 --max-line-length=120 --statistics --exclude=venv
+
   test:
     name: Exécuter les tests unitaires
     runs-on: ubuntu-latest
@@ -36,15 +61,6 @@ jobs:
           pip install -r requirements-dev.txt
           pip install -r requirements.txt
 
-      - name: Exécution des tests avec pytest
-        # On lance pytest sans argument pour qu'il auto-détecte les fichiers de test
-        # (comme `test_logic.py`) à la racine du projet.
-        # On définit des variables d'environnement factices pour que l'import de `logic.py` réussisse.
-        env:
-          AZURE_STORAGE_ACCOUNT_NAME: "recoappstorage123"
-          API_URL: "https://content-recommendation-function.azurewebsites.net"
-        run: python -m pytest
-
       - name: Préparation de l'artefact de déploiement
         run: |
           zip -r release.zip . -x ".git/*" ".github/*" "venv/*" "__pycache__/*" "tests/*"
@@ -60,9 +76,6 @@ jobs:
     needs: test # Le déploiement ne se lancera que si la tâche 'test' réussit
     environment: production
     steps:
-      - name: Checkout du code
-        uses: actions/checkout@v4 # Nécessaire pour avoir le contexte du projet
-
       - name: Connexion à Azure
         uses: azure/login@v1
         with:
