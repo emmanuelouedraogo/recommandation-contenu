@@ -1,110 +1,127 @@
 <!DOCTYPE html>
 <html lang="fr">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Administration - Gestion des Utilisateurs</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
-  </head>
-  <body>
-    <header>
-      <h1>⚙️ Administration - Gestion des Utilisateurs</h1>
-    </header>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Administration des Utilisateurs</title>
+    <style>
+        body { font-family: sans-serif; margin: 2em; background-color: #f4f4f9; }
+        h1 { color: #333; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; background-color: white; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        th, td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background-color: #4CAF50; color: white; }
+        tr:hover { background-color: #f1f1f1; }
+        .status-active { color: green; font-weight: bold; }
+        .status-deleted { color: red; font-weight: bold; }
+        button { padding: 8px 12px; border: none; border-radius: 4px; cursor: pointer; color: white; }
+        .btn-delete { background-color: #f44336; }
+        .btn-reactivate { background-color: #008CBA; }
+        #loading { font-style: italic; color: #555; }
+    </style>
+</head>
+<body>
 
-    <aside class="sidebar">
-      <h2>Navigation</h2>
-      <a href="/" class="nav-link">Retour à l'application principale</a>
-    </aside>
+    <h1>Panneau d'Administration des Utilisateurs</h1>
 
-    <main id="content">
-      <div id="main-content-area">
-        <h2>Liste de tous les utilisateurs</h2>
-        <div class="table-container">
-          <table id="users-table">
-            <thead>
-              <tr>
+    <p id="loading">Chargement des utilisateurs...</p>
+
+    <table id="users-table" style="display:none;">
+        <thead>
+            <tr>
                 <th>ID Utilisateur</th>
                 <th>Statut</th>
                 <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              <!-- Les utilisateurs seront insérés ici par JavaScript -->
-            </tbody>
-          </table>
-        </div>
-        <div id="main-loader" class="loader hidden"></div>
-      </div>
-    </main>
+            </tr>
+        </thead>
+        <tbody id="users-tbody">
+            <!-- Les lignes seront insérées ici par JavaScript -->
+        </tbody>
+    </table>
 
     <script>
-      document.addEventListener("DOMContentLoaded", function () {
-        const usersTableBody = document.querySelector("#users-table tbody");
-        const loader = document.getElementById("main-loader");
+        document.addEventListener('DOMContentLoaded', function() {
+            const usersTbody = document.getElementById('users-tbody');
+            const loadingIndicator = document.getElementById('loading');
+            const usersTable = document.getElementById('users-table');
 
-        function showLoader() {
-          loader.classList.remove("hidden");
-        }
-        function hideLoader() {
-          loader.classList.add("hidden");
-        }
+            // Fonction pour récupérer et afficher les utilisateurs
+            async function fetchAndDisplayUsers() {
+                try {
+                    const response = await fetch('/api/admin/users');
+                    if (!response.ok) {
+                        throw new Error(`Erreur HTTP: ${response.status}`);
+                    }
+                    const users = await response.json();
 
-        function loadAllUsers() {
-          showLoader();
-          fetch("/api/admin/users")
-            .then((response) => response.json())
-            .then((users) => {
-              hideLoader();
-              usersTableBody.innerHTML = ""; // Vider la table
-              users.forEach((user) => {
-                const row = document.createElement("tr");
-                const isDeleted = user.status === "deleted";
+                    usersTbody.innerHTML = ''; // Vider le tableau
 
-                row.innerHTML = `
-                  <td>${user.user_id}</td>
-                  <td>
-                    <span class="status-badge status-${user.status}">
-                      ${isDeleted ? "Désactivé" : "Actif"}
-                    </span>
-                  </td>
-                  <td>
-                    <button class="action-button" data-action="${isDeleted ? "reactivate" : "delete"}" data-user-id="${user.user_id}">
-                      ${isDeleted ? "Réactiver" : "Désactiver"}
-                    </button>
-                  </td>
-                `;
-                usersTableBody.appendChild(row);
-              });
-            })
-            .catch((error) => {
-              hideLoader();
-              console.error("Erreur lors du chargement des utilisateurs:", error);
-              usersTableBody.innerHTML = '<tr><td colspan="3">Erreur de chargement.</td></tr>';
-            });
-        }
+                    if (users.length === 0) {
+                        loadingIndicator.textContent = "Aucun utilisateur trouvé.";
+                        usersTable.style.display = 'none';
+                        return;
+                    }
 
-        // Gérer les clics sur les boutons d'action
-        usersTableBody.addEventListener("click", function (event) {
-          const target = event.target;
-          if (target.classList.contains("action-button")) {
-            const action = target.dataset.action;
-            const userId = target.dataset.userId;
+                    users.forEach(user => {
+                        const tr = document.createElement('tr');
 
-            if (action === "delete") {
-              if (confirm(`Êtes-vous sûr de vouloir désactiver l'utilisateur ${userId} ?`)) {
-                fetch(`/api/users/${userId}`, { method: "DELETE" }).then(() => loadAllUsers());
-              }
-            } else if (action === "reactivate") {
-              if (confirm(`Êtes-vous sûr de vouloir réactiver l'utilisateur ${userId} ?`)) {
-                fetch(`/api/users/${userId}/reactivate`, { method: "POST" }).then(() => loadAllUsers());
-              }
+                        const statusClass = user.status === 'active' ? 'status-active' : 'status-deleted';
+
+                        let actionButton;
+                        if (user.status === 'active') {
+                            actionButton = `<button class="btn-delete" onclick="deleteUser(${user.user_id})">Supprimer</button>`;
+                        } else {
+                            actionButton = `<button class="btn-reactivate" onclick="reactivateUser(${user.user_id})">Réactiver</button>`;
+                        }
+
+                        tr.innerHTML = `
+                            <td>${user.user_id}</td>
+                            <td><span class="${statusClass}">${user.status}</span></td>
+                            <td>${actionButton}</td>
+                        `;
+                        usersTbody.appendChild(tr);
+                    });
+
+                    loadingIndicator.style.display = 'none';
+                    usersTable.style.display = 'table';
+
+                } catch (error) {
+                    loadingIndicator.textContent = `Erreur lors du chargement des utilisateurs: ${error.message}`;
+                    console.error('Erreur:', error);
+                }
             }
-          }
-        });
 
-        // Chargement initial
-        loadAllUsers();
-      });
+            // Fonction pour supprimer un utilisateur
+            window.deleteUser = async function(userId) {
+                if (!confirm(`Êtes-vous sûr de vouloir supprimer l'utilisateur ${userId} ?`)) return;
+
+                try {
+                    const response = await fetch(`/api/users/${userId}`, { method: 'DELETE' });
+                    if (!response.ok) throw new Error('La suppression a échoué.');
+                    alert('Utilisateur supprimé avec succès.');
+                    fetchAndDisplayUsers(); // Recharger la liste
+                } catch (error) {
+                    alert(`Erreur: ${error.message}`);
+                }
+            };
+
+            // Fonction pour réactiver un utilisateur
+            window.reactivateUser = async function(userId) {
+                if (!confirm(`Êtes-vous sûr de vouloir réactiver l'utilisateur ${userId} ?`)) return;
+
+                try {
+                    const response = await fetch(`/api/users/${userId}/reactivate`, { method: 'POST' });
+                    if (!response.ok) throw new Error('La réactivation a échoué.');
+                    alert('Utilisateur réactivé avec succès.');
+                    fetchAndDisplayUsers(); // Recharger la liste
+                } catch (error) {
+                    alert(`Erreur: ${error.message}`);
+                }
+            };
+
+            // Charger les données au démarrage
+            fetchAndDisplayUsers();
+        });
     </script>
-  </body>
+
+</body>
 </html>

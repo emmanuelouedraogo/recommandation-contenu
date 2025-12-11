@@ -18,7 +18,7 @@ API_RECO_URL = os.getenv("API_URL")
 if not API_RECO_URL:
     raise ValueError("API_URL environment variable is not set. Application cannot start.")
 AZURE_CONTAINER_NAME = "reco-data"
-USERS_BLOB_NAME = "users.csv"  # Le nom du fichier reste le même
+USERS_BLOB_NAME = "users.csv"
 ARTICLES_BLOB_NAME = "articles_metadata.csv"
 CLICKS_BLOB_NAME = "clicks_sample.csv"
 TRAINING_LOG_BLOB_NAME = "logs/training_log.csv"
@@ -89,14 +89,11 @@ def charger_df_depuis_blob(blob_name: str) -> pd.DataFrame:
         df["article_id"] = df["article_id"].astype(int)
 
         return df
-    except Exception as e:
-        logger.error(f"Erreur lors du chargement du blob {blob_name}: {e}")
-        return pd.DataFrame()
 
 
-def sauvegarder_df_vers_blob(df: pd.DataFrame, blob_name: str):
-    """Sauvegarde un DataFrame dans un blob au format Parquet."""
-    blob_service_client = recuperer_client_blob_service()
+def sauvegarder_df_vers_blob(blob_service_client: BlobServiceClient, df: pd.DataFrame, blob_name: str):
+    """Sauvegarde un DataFrame dans un blob CSV."""
+    # Sauvegarder au format Parquet pour la performance
     parquet_blob_name = blob_name.replace(".csv", ".parquet")
     output_parquet = BytesIO()
     df.to_parquet(output_parquet, index=False)
@@ -213,10 +210,11 @@ def creer_nouvel_utilisateur():
         new_user_id = max_id + 1
 
     # Ajoute le nouvel utilisateur au fichier users.csv pour persistance
+    blob_service_client = recuperer_client_blob_service()
     users_df = charger_df_depuis_blob(blob_name=USERS_BLOB_NAME)
     new_user_df = pd.DataFrame([{"user_id": new_user_id, "date_creation": pd.Timestamp.now(timezone.utc).isoformat()}])
-    updated_users_df = pd.concat([users_df, new_user_df], ignore_index=True) if not users_df.empty else new_user_df
-    sauvegarder_df_vers_blob(updated_users_df, USERS_BLOB_NAME)
+    updated_users_df = pd.concat([users_df, new_user_df], ignore_index=True)
+    sauvegarder_df_vers_blob(blob_service_client, updated_users_df, USERS_BLOB_NAME)
 
     # Invalider le cache des utilisateurs pour que le nouveau soit visible immédiatement
     obtenir_utilisateurs.cache_clear()
@@ -228,13 +226,8 @@ def supprimer_utilisateur(user_id: int):
     Désactive un utilisateur en le marquant comme 'deleted' (suppression douce).
     Cette opération est réversible et préserve l'historique des interactions.
     """
+    blob_service_client = recuperer_client_blob_service()
     users_df = charger_df_depuis_blob(blob_name=USERS_BLOB_NAME)
-
-    if users_df.empty:
-        logger.warning(
-            f"Tentative de suppression de l'utilisateur {user_id}, mais le fichier des utilisateurs est vide."
-        )
-        return False
 
     if "status" not in users_df.columns:
         users_df["status"] = "active"
@@ -242,7 +235,7 @@ def supprimer_utilisateur(user_id: int):
     if user_id in users_df["user_id"].values:
         # Marquer l'utilisateur comme supprimé
         users_df.loc[users_df["user_id"] == user_id, "status"] = "deleted"
-        sauvegarder_df_vers_blob(users_df, USERS_BLOB_NAME)
+        sauvegarder_df_vers_blob(blob_service_client, users_df, USERS_BLOB_NAME)
         logger.info(f"Utilisateur {user_id} marqué comme 'deleted' (soft delete).")
 
         # Invalider le cache pour que la liste des utilisateurs soit mise à jour
@@ -256,7 +249,7 @@ def supprimer_utilisateur(user_id: int):
             [{"user_id": user_id, "status": "deleted", "date_creation": pd.Timestamp.now(timezone.utc).isoformat()}]
         )
         updated_df = pd.concat([users_df, new_deleted_user], ignore_index=True)
-        sauvegarder_df_vers_blob(updated_df, USERS_BLOB_NAME)
+        sauvegarder_df_vers_blob(blob_service_client, updated_df, USERS_BLOB_NAME)
         obtenir_utilisateurs.cache_clear()
         return True
 
@@ -265,10 +258,8 @@ def reactiver_utilisateur(user_id: int):
     """
     Réactive un utilisateur qui a été marqué comme 'deleted'.
     """
+    blob_service_client = recuperer_client_blob_service()
     users_df = charger_df_depuis_blob(blob_name=USERS_BLOB_NAME)
-
-    if users_df.empty:
-        return False
 
     # Si la colonne status n'existe pas, aucun utilisateur ne peut être réactivé.
     if "status" not in users_df.columns:
@@ -278,7 +269,7 @@ def reactiver_utilisateur(user_id: int):
     user_mask = (users_df["user_id"] == user_id) & (users_df["status"] == "deleted")
     if user_mask.any():
         users_df.loc[user_mask, "status"] = "active"
-        sauvegarder_df_vers_blob(users_df, USERS_BLOB_NAME)
+        sauvegarder_df_vers_blob(blob_service_client, users_df, USERS_BLOB_NAME)
         logger.info(f"Utilisateur {user_id} a été réactivé.")
         obtenir_utilisateurs.cache_clear()
         return True
@@ -293,12 +284,12 @@ def obtenir_utilisateurs():
     users_df = charger_df_depuis_blob(blob_name=USERS_BLOB_NAME)
 
     # Unifier les IDs des deux sources
-    click_user_ids = set(clicks_df["user_id"].unique()) if not clicks_df.empty else set()
-    manual_user_ids = set(users_df["user_id"].unique()) if not users_df.empty else set()
+    click_user_ids = set(clicks_df["user_id"].unique())
+    manual_user_ids = set(users_df["user_id"].unique())
     all_user_ids = sorted(list(click_user_ids.union(manual_user_ids)))
 
     # Filtrer les utilisateurs supprimés
-    if not users_df.empty and "status" in users_df.columns:
+    if "status" in users_df.columns:
         deleted_users = set(users_df[users_df["status"] == "deleted"]["user_id"])
         active_user_ids = [uid for uid in all_user_ids if uid not in deleted_users]
     else:
@@ -316,13 +307,13 @@ def obtenir_tous_les_utilisateurs_avec_statut():
     users_df = charger_df_depuis_blob(blob_name=USERS_BLOB_NAME)
 
     # Unifier les IDs des deux sources
-    click_user_ids = set(clicks_df["user_id"].unique()) if not clicks_df.empty else set()
-    manual_user_ids = set(users_df["user_id"].unique()) if not users_df.empty else set()
+    click_user_ids = set(clicks_df["user_id"].unique())
+    manual_user_ids = set(users_df["user_id"].unique())
     all_user_ids = sorted(list(click_user_ids.union(manual_user_ids)))
 
     # Créer un dictionnaire de statuts à partir de users.df
     status_map = {}
-    if not users_df.empty and "status" in users_df.columns:
+    if "status" in users_df.columns:
         status_map = pd.Series(users_df.status.values, index=users_df.user_id).to_dict()
 
     # Construire la liste finale avec le statut (par défaut 'active')
@@ -377,10 +368,9 @@ def creer_nouvel_article(title: str, content: str, category_id: int, publisher_i
             }
         ]
     )
-    updated_articles_df = (
-        pd.concat([articles_df, new_article], ignore_index=True) if not articles_df.empty else new_article
-    )
-    sauvegarder_df_vers_blob(updated_articles_df, ARTICLES_BLOB_NAME)
+    updated_articles_df = pd.concat([articles_df, new_article], ignore_index=True)
+    blob_service_client = recuperer_client_blob_service()
+    sauvegarder_df_vers_blob(blob_service_client, updated_articles_df, ARTICLES_BLOB_NAME)
     return new_article_id
 
 
