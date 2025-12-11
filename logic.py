@@ -277,7 +277,6 @@ def reactiver_utilisateur(user_id: int):
 @timed_lru_cache(seconds=300)  # Cache de 5 minutes
 def obtenir_utilisateurs():
     """Récupère une liste unifiée d'utilisateurs depuis les clics et le fichier des utilisateurs."""
-    blob_service_client = recuperer_client_blob_service()
     clicks_df = charger_df_depuis_blob(blob_name=CLICKS_BLOB_NAME)
     users_df = charger_df_depuis_blob(blob_name=USERS_BLOB_NAME)
 
