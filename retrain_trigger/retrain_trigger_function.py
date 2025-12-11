@@ -96,9 +96,7 @@ def _process_new_interactions(blob_service_client: BlobServiceClient) -> int:
         container=CONTAINER_NAME, blob=INTERACTIONS_LOG_BLOB_NAME
     )
     clicks_parquet_blob_name = CLICKS_BLOB_NAME.replace(".csv", ".parquet")
-    clicks_parquet_client = blob_service_client.get_blob_client(
-        container=CONTAINER_NAME, blob=clicks_parquet_blob_name
-    )
+    clicks_parquet_client = blob_service_client.get_blob_client(container=CONTAINER_NAME, blob=clicks_parquet_blob_name)
 
     try:
         # 1. Charger les clics existants
@@ -131,7 +129,9 @@ def _process_new_interactions(blob_service_client: BlobServiceClient) -> int:
     except ResourceNotFoundError:
         logging.info("Aucun nouveau log d'interactions à traiter.")
     except (pd.errors.ParserError, ValueError) as e:
-        logging.error(f"Erreur de parsing des nouvelles interactions, le fichier est peut-être corrompu: {e}", exc_info=True)
+        logging.error(
+            f"Erreur de parsing des nouvelles interactions, le fichier est peut-être corrompu: {e}", exc_info=True
+        )
         # Ne pas continuer si les données sont corrompues pour éviter d'écraser les clics existants
         raise  # Propage l'erreur pour arrêter le traitement
     except Exception as e:
@@ -180,11 +180,13 @@ def timer_trigger_retrain(myTimer: func.TimerRequest) -> None:
         try:
             update_retraining_status(blob_service_client, "in_progress")
             # 4. Exécuter le script d'entraînement. Il sauvegarde le modèle directement.
-            metrics = train_and_save_model(container_name=CONTAINER_NAME,
-                                           clicks_blob=CLICKS_BLOB_NAME,
-                                           articles_blob=METADATA_BLOB_NAME,
-                                           embeddings_blob=EMBEDDINGS_BLOB_NAME,
-                                           model_output_blob=MODEL_BLOB_NAME)
+            metrics = train_and_save_model(
+                container_name=CONTAINER_NAME,
+                clicks_blob=CLICKS_BLOB_NAME,
+                articles_blob=METADATA_BLOB_NAME,
+                embeddings_blob=EMBEDDINGS_BLOB_NAME,
+                model_output_blob=MODEL_BLOB_NAME,
+            )
             # The train_and_save_model function now handles saving the model to blob storage directly.
             # So, we don't need to re-upload it here.
             logging.info("Modèle entraîné et sauvegardé avec succès sur Azure.")
