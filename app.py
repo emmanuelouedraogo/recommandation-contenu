@@ -189,5 +189,5 @@ register_routes(app)
 if __name__ == "__main__":
     # Permet de lancer l'application en local pour le développement
     # Le port est configurable via la variable d'environnement PORT, avec 5000 par défaut.
-    port = int(os.getenv("PORT", 5000))
+    port = int(os.getenv("PORT", 8080))
     app.run(debug=True, port=port)
