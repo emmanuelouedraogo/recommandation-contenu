@@ -4,6 +4,7 @@ import requests
 import os
 import logging
 import time
+from datetime import timezone
 from azure.storage.blob import BlobServiceClient  # type: ignore
 from azure.identity import DefaultAzureCredential  # type: ignore
 from functools import lru_cache, wraps
