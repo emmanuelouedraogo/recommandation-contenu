@@ -2,7 +2,8 @@ name: Build et Déploiement de l'App Web Flask sur Azure
 
 # --- Déclencheurs du Workflow ---
 env:
-  AZURE_WEBAPP_NAME: reco-contenu-app # << METTEZ ICI LE NOM DE VOTRE AZURE APP SERVICE
+  AZURE_WEBAPP_NAME: content-recommendation-function # Nom de votre application web sur Azure
+  AZURE_APP_PLAN: plan-reco-contenu # Nom pour le plan App Service
   PYTHON_VERSION: '3.11'
   AZURE_RESOURCE_GROUP: rg-recommandation-contenu # Nom du groupe de ressources
   AZURE_LOCATION: 'francecentral' # Emplacement des ressources
@@ -61,30 +62,36 @@ jobs:
           pip install -r requirements-dev.txt
           pip install -r requirements.txt
 
-      - name: Préparation de l'artefact de déploiement
-        run: |
-          zip -r release.zip . -x ".git/*" ".github/*" "venv/*" "__pycache__/*" "tests/*"
-      - name: Sauvegarde de l'artefact pour le déploiement
-        uses: actions/upload-artifact@v4
-        with:
-          name: deployment-package
-          path: release.zip
-
   build-and-deploy:
     name: Build and Deploy to Azure App Service
     runs-on: ubuntu-latest
     needs: test # Le déploiement ne se lancera que si la tâche 'test' réussit
     environment: production
     steps:
+      - name: Checkout du code
+        uses: actions/checkout@v4
+
       - name: Connexion à Azure
         uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Téléchargement de l'artefact de déploiement
-        uses: actions/download-artifact@v4
+      - name: Création des ressources Azure (si nécessaire)
+        uses: azure/CLI@v1
         with:
-          name: deployment-package
+          inlineScript: |
+            echo "Vérification et création du groupe de ressources..."
+            az group create --name ${{ env.AZURE_RESOURCE_GROUP }} --location "${{ env.AZURE_LOCATION }}"
+
+            echo "Vérification et création du plan App Service..."
+            az appservice plan create --name ${{ env.AZURE_APP_PLAN }} --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --location "${{ env.AZURE_LOCATION }}" --sku F1 --is-linux
+
+            echo "Vérification et création de l'application Web..."
+            az webapp create --name ${{ env.AZURE_WEBAPP_NAME }} --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --plan ${{ env.AZURE_APP_PLAN }} --runtime "PYTHON|${{ env.PYTHON_VERSION }}"
+            echo "Ressources Azure prêtes."
+
+      - name: Création du paquet de déploiement
+        run: zip -r release.zip . -x ".git/*" ".github/*" "venv/*" "__pycache__/*" "tests/*"
 
       - name: Déploiement sur Azure Web App
         uses: azure/webapps-deploy@v2
