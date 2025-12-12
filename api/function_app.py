@@ -62,7 +62,7 @@ def load_model_from_blob(storage_account_name: str, container_name: str):
 app = func.FunctionApp()
 
 
-@app.route(route="recommend", methods=[func.HttpMethod.GET])
+@app.route(route="/recommend", methods=[func.HttpMethod.GET])
 async def recommend(req: func.HttpRequest) -> func.HttpResponse:  # type: ignore
     global model
     logging.info("Requête de recommandation reçue.")
