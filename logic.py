@@ -323,7 +323,10 @@ def obtenir_tous_les_utilisateurs_avec_statut():
     # Créer un dictionnaire de statuts à partir de users.df
     status_map = {}
     if not users_df.empty and "status" in users_df.columns:
-        status_map = pd.Series(users_df.status.values, index=users_df.user_id).to_dict()
+        # S'assurer qu'il n'y a pas de doublons d'ID utilisateur pour éviter les erreurs
+        # lors de la création de la série. On garde la dernière occurrence.
+        users_status_df = users_df.drop_duplicates(subset=["user_id"], keep="last")
+        status_map = pd.Series(users_status_df.status.values, index=users_status_df.user_id).to_dict()
 
     # Construire la liste finale avec le statut (par défaut 'active')
     result = [{"user_id": uid, "status": status_map.get(uid, "active")} for uid in all_user_ids]

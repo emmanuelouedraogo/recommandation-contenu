@@ -1,11 +1,11 @@
-name: Build et Déploiement de l'App Web Flask sur Azure
+name: Vérification, Build et Déploiement
 
 # --- Déclencheurs du Workflow ---
 env:
-  # Nom unique pour votre nouvelle application web Flask. Ne réutilisez pas le nom d'une Azure Function existante.
-  AZURE_WEBAPP_NAME: reco-contenu-flask-app
-  AZURE_APP_PLAN: plan-reco-contenu # Nom pour le plan App Service
+  AZURE_FUNCTIONAPP_NAME: content-recommendation-function # Remplacez par le nom de votre Function App
   PYTHON_VERSION: '3.11'
+  AZURE_STORAGE_ACCOUNT_NAME: recoappstorage123 # Nom du compte de stockage (doit être unique globalement, 3-24 caractères, minuscules et chiffres)
+  AZURE_CONTAINER_NAME: reco-data # Nom du conteneur de stockage
   AZURE_RESOURCE_GROUP: rg-recommandation-contenu # Nom du groupe de ressources
   AZURE_LOCATION: 'francecentral' # Emplacement des ressources
 
@@ -14,11 +14,14 @@ on:
     branches:
       - main
   workflow_dispatch:
+  pull_request:
+    branches:
+      - main
 
 # --- Définition des Tâches (Jobs) ---
 jobs:
   lint:
-    name: Vérification de la qualité du code
+    name: Vérification du code (Lint & Format)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout du code
@@ -28,76 +31,87 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip' # Met en cache les dépendances pip
 
-      - name: Installation des dépendances de linting
+      - name: Installation des dépendances de vérification
         run: |
           python -m pip install --upgrade pip
-          pip install flake8
-          # Installer les dépendances du projet pour que flake8 puisse vérifier les imports
-          pip install -r requirements.txt
+          pip install flake8 black
+          # Installe les dépendances de chaque projet pour que flake8 puisse vérifier les imports
+          if [ -f api/requirements.txt ]; then pip install -r api/requirements.txt; fi
+          if [ -f backend/requirements.txt ]; then pip install -r backend/requirements.txt; fi
 
-      - name: Exécution du linter Flake8
+      - name: Vérifier le formatage avec Black
         run: |
-          # Ignore les erreurs de ligne trop longue (E501) et les sauts de ligne avant un opérateur binaire (W503)
-          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics --exclude=venv
-          flake8 . --count --exit-zero --max-complexity=10 --max-line-length=120 --statistics --exclude=venv
+          black --check --line-length 120 .
 
-  test:
-    name: Exécuter les tests unitaires
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout du code
-        uses: actions/checkout@v4
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-          cache: 'pip' # Activer le cache pour accélérer les installations
-
-      - name: Installation des dépendances
+      - name: Linter le code avec Flake8
         run: |
-          python -m pip install --upgrade pip
-          # Installer les dépendances de développement et de production.
-          # L'installation de requirements-dev.txt est maintenant explicite.
-          pip install -r requirements-dev.txt
-          pip install -r requirements.txt
+          flake8 .
 
   build-and-deploy:
-    name: Build and Deploy to Azure App Service
+    name: Build and Deploy to Azure
     runs-on: ubuntu-latest
-    needs: test # Le déploiement ne se lancera que si la tâche 'test' réussit
-    environment: production
+    needs: lint # Le déploiement dépend de la réussite de la vérification
+    environment: production # Optionnel. À décommenter si vous configurez un environnement dans les paramètres du dépôt.
     steps:
       - name: Checkout du code
         uses: actions/checkout@v4
 
       - name: Connexion à Azure
+        id: login-to-azure
         uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Création des ressources Azure (si nécessaire)
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip' # Utilise le cache aussi pour le déploiement
+
+      - name: Enregistrement du fournisseur de ressources Azure
         uses: azure/CLI@v1
         with:
           inlineScript: |
-            echo "Vérification et création du groupe de ressources..."
-            az group create --name ${{ env.AZURE_RESOURCE_GROUP }} --location "${{ env.AZURE_LOCATION }}"
+            echo "Enregistrement du fournisseur 'Microsoft.AlertsManagement' et attente de la confirmation..."
+            az provider register --namespace Microsoft.AlertsManagement
+            # L'enregistrement peut prendre plusieurs minutes. On attend qu'il soit terminé.
+            while [[ $(az provider show --namespace Microsoft.AlertsManagement --query registrationState) != "\"Registered\"" ]]; do
+              echo "En attente de l'enregistrement du fournisseur 'Microsoft.AlertsManagement'..."
+              sleep 30
+            done
+            echo "Fournisseur 'Microsoft.AlertsManagement' enregistré avec succès."
 
-            echo "Vérification et création du plan App Service..."
-            az appservice plan create --name ${{ env.AZURE_APP_PLAN }} --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --location "${{ env.AZURE_LOCATION }}" --sku F1 --is-linux
-
-            echo "Vérification et création de l'application Web..."
-            az webapp create --name ${{ env.AZURE_WEBAPP_NAME }} --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --plan ${{ env.AZURE_APP_PLAN }} --runtime "PYTHON|${{ env.PYTHON_VERSION }}"
-            echo "Ressources Azure prêtes."
-
-      - name: Création du paquet de déploiement
-        run: zip -r release.zip . -x ".git/*" ".github/*" "venv/*" "__pycache__/*" "tests/*"
-
-      - name: Déploiement sur Azure Web App
-        uses: azure/webapps-deploy@v2
+      - name: Création des ressources Azure (si nécessaire)
+        uses: azure/CLI@v1
         with:
-          app-name: ${{ env.AZURE_WEBAPP_NAME }}
-          package: release.zip
-          # La commande de démarrage pour une application Flask en production
-          startup-command: 'gunicorn --bind=0.0.0.0 --workers=4 app:app'
+          azcliversion: latest
+          inlineScript: |
+            echo "Création du groupe de ressources..."
+            az group create --name ${{ env.AZURE_RESOURCE_GROUP }} --location "${{ env.AZURE_LOCATION }}" --tags owner=${{ github.actor }}
+
+            echo "Installation de l'extension 'functionapp' pour les fonctionnalités les plus récentes..."
+            az extension add --name functionapp --upgrade
+
+            echo "Création du compte de stockage..."
+            az storage account create --name ${{ env.AZURE_STORAGE_ACCOUNT_NAME }} --location "${{ env.AZURE_LOCATION }}" --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --sku Standard_LRS --https-only true
+
+            echo "Création de l'application de fonction..."
+            az functionapp create --name ${{ env.AZURE_FUNCTIONAPP_NAME }} --storage-account ${{ env.AZURE_STORAGE_ACCOUNT_NAME }} --consumption-plan-location "${{ env.AZURE_LOCATION }}" --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --runtime python --runtime-version ${{ env.PYTHON_VERSION }} --functions-version 4 --os-type linux
+
+            echo "Récupération de la chaîne de connexion du stockage..."
+            AZURE_STORAGE_CONNECTION_STRING=$(az storage account show-connection-string --name ${{ env.AZURE_STORAGE_ACCOUNT_NAME }} --resource-group ${{ env.AZURE_RESOURCE_GROUP }} -o tsv)
+
+            echo "Configuration des paramètres de l'application..."
+            az functionapp config appsettings set --name ${{ env.AZURE_FUNCTIONAPP_NAME }} --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --settings "AzureWebJobsStorage=${AZURE_STORAGE_CONNECTION_STRING}" "WEBSITE_CONTENTAZUREFILECONNECTIONSTRING=${AZURE_STORAGE_CONNECTION_STRING}" "AZURE_STORAGE_ACCOUNT_NAME=${{ env.AZURE_STORAGE_ACCOUNT_NAME }}" "SCM_DO_BUILD_DURING_DEPLOYMENT=true" "AZURE_STORAGE_CONTAINER_NAME=${{ env.AZURE_CONTAINER_NAME }}"
+
+            echo "Attente de 30 secondes pour permettre à Azure de stabiliser les ressources..."
+            sleep 30
+
+      - name: Déploiement sur Azure Functions
+        uses: azure/functions-action@v1
+        with:
+          app-name: ${{ env.AZURE_FUNCTIONAPP_NAME }}
+          package: api
+          publish-profile: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}
