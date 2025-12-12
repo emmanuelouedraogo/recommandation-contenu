@@ -1,6 +1,5 @@
 document.addEventListener('DOMContentLoaded', function() {
     const userInput = document.getElementById('user-input');
-    const contentDiv = document.getElementById('content');
     const mainLoader = document.getElementById('main-loader');
     const createUserButton = document.getElementById('create-user-button');
     const performanceButton = document.getElementById('performance-button');
@@ -16,6 +15,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const deleteUserButton = document.getElementById('delete-user-button');
     const addArticleButton = document.getElementById('add-article-button');
 
+    const mainContentArea = document.getElementById('main-content-area');
     // New tab-related constants
     const tabButtons = document.querySelectorAll('.tab-button');
     const recommendationsTabContent = document.getElementById('recommendations-tab-content');
@@ -26,16 +26,24 @@ document.addEventListener('DOMContentLoaded', function() {
     let debounceTimer;
     let currentActiveTab = 'recommendations'; // Keep track of the currently active tab
 
+    // --- Notification System ---
+    const notificationContainer = document.getElementById('notification-container');
+    function showNotification(message, type = 'info') { // type can be 'info', 'success', 'error'
+        const notification = document.createElement('div');
+        notification.className = `notification ${type}`;
+        notification.textContent = message;
+        notificationContainer.appendChild(notification);
+        setTimeout(() => {
+            notification.remove();
+        }, 5000); // Auto-dismiss after 5 seconds
+    }
+
     // Fonctions pour gérer l'indicateur de chargement
     function showLoader() {
         mainLoader.classList.remove('hidden');
-        // Clear the content of the currently active tab
-        if (currentActiveTab === 'recommendations') {
-            recommendationsTabContent.innerHTML = '';
-        } else if (currentActiveTab === 'history') {
-            historyTabContent.innerHTML = '';
-        } else if (currentActiveTab === 'global-trends') {
-            globalTrendsTabContent.innerHTML = '';
+        const activeTabContent = document.querySelector('.tab-content.active');
+        if (activeTabContent) {
+            activeTabContent.innerHTML = '';
         }
     }
 
@@ -109,15 +117,15 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(response => response.json())
             .then(data => {
                 if (data.user_id) {
-                    alert(`Nouvel utilisateur créé avec l'ID : ${data.user_id}`); // NOSONAR
+                    showNotification(`Nouvel utilisateur créé avec l'ID : ${data.user_id}`, 'success');
                     userInput.value = data.user_id; // Set the new user ID in the input
                     loadUserContext(data.user_id); // Load context for the new user
                     deleteUserButton.style.display = 'block'; // Afficher le bouton de suppression pour le nouvel utilisateur
                 }
             })
             .catch(error => {
-                console.error("Erreur lors de la création de l'utilisateur:", error);
-                alert("Impossible de créer un nouvel utilisateur."); // NOSONAR
+                console.error("Erreur lors de la création de l'utilisateur:", error); // NOSONAR
+                showNotification("Impossible de créer un nouvel utilisateur.", 'error');
             })
             .finally(() => {
                 createUserButton.textContent = 'Créer un nouvel utilisateur';
@@ -156,7 +164,7 @@ document.addEventListener('DOMContentLoaded', function() {
             fetch(`/api/users/${userId}`, { method: 'DELETE' })
                 .then(response => response.json())
                 .then(data => {
-                    alert(data.message || data.error); // NOSONAR // Recharger la liste des utilisateurs
+                    showNotification(data.message || data.error, data.error ? 'error' : 'success');
                     userInput.value = ''; // Vider le champ de saisie
                     loadUserContext(''); // Clear user context display
                     switchTab('recommendations'); // Go back to recommendations tab, which will show initial message
@@ -195,7 +203,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Gérer la soumission d'une note (délégation d'événement)
-    contentDiv.addEventListener('click', function(event) {
+    mainContentArea.addEventListener('click', function(event) {
         if (event.target.classList.contains('rate-button')) {
             const card = event.target.closest('.reco-card');
             const articleId = card.dataset.articleId;
@@ -203,7 +211,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const userId = userInput.value;
 
             if (!isValidUserId(userId)) {
-                alert("Veuillez entrer un ID utilisateur valide pour noter un article."); // NOSONAR
+                showNotification("Veuillez entrer un ID utilisateur valide pour noter un article.", 'error');
                 return;
             }
 
@@ -220,7 +228,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (response.ok) {
                     event.target.textContent = 'Merci !';
                     event.target.disabled = true;
-                } else { alert('Erreur lors de la notation.'); } // NOSONAR
+                } else {
+                    showNotification('Erreur lors de la notation.', 'error');
+                }
             });
         }
     });
@@ -236,10 +246,9 @@ document.addEventListener('DOMContentLoaded', function() {
         initialRecoMessage.classList.add('hidden'); // Hide initial message
 
         showLoader();
-        const queryParams = new URLSearchParams();
-        queryParams.append('user_id', userId);
-        if (country) queryParams.append('country', country);
-        if (device) queryParams.append('device', device);
+        const queryParams = new URLSearchParams({ user_id: userId });
+        if (country) { queryParams.append('country', country); }
+        if (device) { queryParams.append('device', device); }
 
         fetch(`/api/recommendations?${queryParams.toString()}`)
             .then(response => response.json())
@@ -263,7 +272,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // New function to display history
     function displayHistory(userId) {
         if (!isValidUserId(userId)) {
-            alert('Veuillez entrer un ID utilisateur valide pour voir l\'historique.'); // NOSONAR
+            showNotification('Veuillez entrer un ID utilisateur valide pour voir l\'historique.', 'error');
             return;
         }
         showLoader();
@@ -282,14 +291,15 @@ document.addEventListener('DOMContentLoaded', function() {
                             </div>`;
                     });
                 } else {
-                    mainContentArea.innerHTML += '<p>Vous n\'avez encore noté aucun article.</p>';
+                    historyTabContent.innerHTML += '<p>Vous n\'avez encore noté aucun article.</p>';
                 }
             })
             .catch(error => {
                 hideLoader();
-                console.error("Erreur lors du chargement de l'historique:", error)
+                console.error("Erreur lors du chargement de l'historique:", error);
+                historyTabContent.innerHTML = '<p>Impossible de charger l\'historique.</p>';
             });
-    });
+    }
 
     // Gérer le clic sur le bouton d'ajout d'article
     addArticleButton.addEventListener('click', function() {
@@ -298,8 +308,8 @@ document.addEventListener('DOMContentLoaded', function() {
         const content = articleContentInput.value;
         const categoryId = articleCategoryInput.value;
 
-        if (!title || !content) {
-            alert("Le titre et le contenu ne peuvent pas être vides."); // NOSONAR
+        if (!title || !content || !categoryId) {
+            showNotification("Le titre, le contenu et l'ID de catégorie ne peuvent pas être vides.", 'error');
             return;
         }
 
@@ -317,14 +327,15 @@ document.addEventListener('DOMContentLoaded', function() {
         })
         .then(response => response.json())
         .then(data => {
-            alert(`Article ajouté avec l'ID : ${data.article_id}`); // NOSONAR
+            showNotification(`Article ajouté avec l'ID : ${data.article_id}`, 'success');
             articleTitleInput.value = ''; // Réinitialiser le champ
             articleContentInput.value = ''; // Réinitialiser le champ
         })
         .catch(error => console.error("Erreur lors de l'ajout de l'article:", error))
         .finally(() => { addArticleButton.textContent = "Ajouter l'article"; addArticleButton.disabled = false; });
     });
-
+    
+    function displayGlobalTrends() {
         showLoader();
         fetch('/api/global_trends')
             .then(response => response.json())
@@ -460,11 +471,12 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(data => {
                 hideLoader();
                 if (!Array.isArray(data) || data.length === 0) {
-                    mainContentArea.innerHTML = '<h2>Performances du Modèle</h2><p>Aucune donnée de performance trouvée.</p>';
+                    showNotification('Aucune donnée de performance du modèle trouvée.', 'info');
                     return;
                 }
-                mainContentArea.innerHTML = '<h2>Performances du Modèle</h2><canvas id="performance-chart"></canvas>';
-                const ctx = document.getElementById('performance-chart').getContext('2d');
+                // This should probably open a modal or a dedicated view. For now, let's just log it.
+                console.log("Model performance data:", data);
+                showNotification("Les données de performance ont été chargées. Voir la console.", 'info');
                 
                 const labels = data.map(d => `Epoch ${d.epoch}`);
                 

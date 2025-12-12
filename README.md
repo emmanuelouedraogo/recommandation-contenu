@@ -95,7 +95,7 @@ Le front-end s'attend à ce que le back-end expose les endpoints suivants.
 
 ---
 
-#### `GET /api/recommendations`
+#### `GET /api/recommendations` (Note: a été changé, n'utilise plus de paramètre dans l'URL)
 - **Action** : Récupère les recommandations.
 - **Paramètres Query** : `user_id` (obligatoire), `country` (optionnel), `device` (optionnel).
 - **Réponse Succès (200)** : `[ { "article_id": 1, "title": "...", "content": "..." }, ... ]` ou `[]` si aucune recommandation.

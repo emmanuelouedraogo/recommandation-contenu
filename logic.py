@@ -353,7 +353,7 @@ def obtenir_contexte_utilisateur(user_id: int):
     }
 
 
-def creer_nouvel_article(title: str, content: str, category_id: int, publisher_id: int) -> int:
+def creer_nouvel_article(title: str, content: str, category_id: int) -> int:
     """Crée un nouvel article et le sauvegarde dans le blob."""
     articles_df = charger_df_depuis_blob(blob_name=ARTICLES_BLOB_NAME)
 
@@ -373,7 +373,7 @@ def creer_nouvel_article(title: str, content: str, category_id: int, publisher_i
                 "article_id": new_article_id,
                 "category_id": category_id,
                 "created_at_ts": int(pd.Timestamp.now().timestamp()),
-                "publisher_id": publisher_id,
+                "publisher_id": 0,  # publisher_id n'est pas fourni par le front, on met une valeur par défaut
                 "words_count": words_count,
                 # Note: 'title' et 'content' ne sont pas dans le schéma fourni, mais sont conservés pour l'affichage.
                 "title": title,

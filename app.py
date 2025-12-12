@@ -110,10 +110,11 @@ def register_routes(app):
             error_msg = f"Impossible de réactiver l'utilisateur {user_id}. Il n'a pas été trouvé ou était déjà actif."
             return jsonify({"error": error_msg}), 404
 
-    @app.route("/api/recommendations/<int:user_id>", methods=["GET"])
-    def get_recommendations(user_id):
+    @app.route("/api/recommendations", methods=["GET"])
+    def get_recommendations():
         """Obtient les recommandations pour un utilisateur."""
-        country = request.args.get("country")
+        user_id = request.args.get("user_id", type=int)
+        country = request.args.get("country")  # Garde en string
         device = request.args.get("device")
         try:
             recos = logic.obtenir_recommandations_pour_utilisateur(user_id, country, device)
