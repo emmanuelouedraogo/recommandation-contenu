@@ -1,141 +1,178 @@
-# Système de Recommandation de Contenu
+# 📚 Système de Recommandation de Contenu
 
-[![Statut du Workflow CI/CD](https://github.com/VOTRE_NOM/VOTRE_REPO/actions/workflows/ci.yml/badge.svg)](https://github.com/VOTRE_NOM/VOTRE_REPO/actions/workflows/ci.yml)
+Ce projet est une interface web front-end pour un système de recommandation de contenu. Il offre une interface utilisateur riche pour visualiser des recommandations, interagir avec des articles, et consulter des statistiques sur l'utilisation et les performances du modèle.
 
-Ce projet est une application web complète développée avec Flask qui fournit des recommandations de contenu personnalisées aux utilisateurs. Elle intègre une logique métier pour interagir avec des données stockées sur Azure Blob Storage, une API RESTful pour la communication frontend-backend, et un pipeline de déploiement continu (CI/CD) avec GitHub Actions vers Azure App Service.
+L'interface est conçue pour communiquer avec une API back-end qui gère la logique métier, les données et les modèles de machine learning.
 
-## 🚀 Fonctionnalités
-
-- **Recommandations Personnalisées** : Fournit des recommandations d'articles basées sur l'ID de l'utilisateur.
-- **Historique Utilisateur** : Affiche les articles précédemment consultés par un utilisateur.
-- **Gestion des Interactions** : Enregistre les nouvelles interactions (notations) des utilisateurs de manière performante via un système de logs.
-- **Panneau d'Administration** : Une interface sécurisée pour visualiser, supprimer (soft delete) et réactiver des utilisateurs.
-- **API RESTful** : Expose des endpoints clairs pour toutes les fonctionnalités.
-- **Déploiement Automatisé** : Intégration continue et déploiement continu sur Azure App Service à chaque push sur la branche `main`.
-- **Tests Unitaires** : Validation de la logique métier grâce à des tests unitaires avec `pytest`.
-
-## 🏛️ Architecture
-
-- **Backend** : **Flask**, une micro-framework Python, servant à la fois l'API et l'interface utilisateur.
-- **Logique Métier** : **Pandas** pour la manipulation des données en mémoire.
-- **Stockage de Données** : **Azure Blob Storage** pour la persistance des données (articles, clics, utilisateurs) au format Parquet, plus performant.
-- **Authentification** :
-  - **Identité Managée (Managed Identity)** pour une connexion sécurisée entre l'App Service et Azure Storage.
-  - **Basic Auth** pour la protection du panneau d'administration.
-- **CI/CD** : **GitHub Actions** pour automatiser les tests et le déploiement.
-- **Hébergement** : **Azure App Service** pour l'exécution de l'application web en production.
-
-## 📂 Structure du Projet
-
-```
-recommandation-contenu/
-├── .github/
-│   └── workflows/
-│       └── ci.yml           # Pipeline de CI/CD pour les tests et le déploiement
-├── templates/
-│   ├── admin.html           # Page d'administration
-│   └── index.html           # Page d'accueil
-├── tests/
-│   └── test_logic.py        # Tests unitaires pour la logique métier
-├── app.py                   # Fichier principal de l'application Flask (routes API)
-├── logic.py                 # Logique métier (interaction avec Azure, manipulation de données)
-├── requirements.txt         # Dépendances de production
-├── requirements-dev.txt     # Dépendances de développement (ex: pytest)
-└── README.md                # Ce fichier
-```
-
-## ⚙️ Installation et Lancement Local
-
-Suivez ces étapes pour exécuter le projet sur votre machine locale.
-
-### 1. Prérequis
-
-- Python 3.11 ou supérieur
-- Un compte Azure avec les permissions pour créer un compte de stockage.
-
-### 2. Cloner le Dépôt
-
-```bash
-git clone https://github.com/VOTRE_NOM/VOTRE_REPO.git
-cd recommandation-contenu
-```
-
-### 3. Créer un Environnement Virtuel
-
-```bash
-python -m venv venv
-source venv/bin/activate  # Sur Windows: venv\Scripts\activate
-```
-
-### 4. Installer les Dépendances
-
-```bash
-pip install -r requirements.txt
-pip install -r requirements-dev.txt
-```
-
-### 5. Configurer les Variables d'Environnement
-
-Créez un fichier `.env` à la racine du projet et ajoutez les variables suivantes. Pour le développement local, vous pouvez vous authentifier à Azure via l'Azure CLI (`az login`).
-
-```
-AZURE_STORAGE_ACCOUNT_NAME="nomdevotrestorage"
-API_URL="http://127.0.0.1:8080" # URL de l'application locale
-```
-
-### 6. Lancer l'Application
-
-```bash
-python app.py
-```
-
-L'application sera accessible à l'adresse `http://127.0.0.1:8080`.
-
-## 🧪 Tests
-
-Pour exécuter la suite de tests unitaires, utilisez `pytest`. Les tests simulent les interactions avec Azure Blob Storage pour valider la logique de manière isolée.
-
-```bash
-python -m pytest
-```
-
-## 🚀 Déploiement (CI/CD)
-
-Le déploiement est entièrement automatisé via le workflow GitHub Actions défini dans `.github/workflows/ci.yml`.
-
-1.  **Déclencheur** : Un `push` sur la branche `main`.
-2.  **Job `test`** : Les tests unitaires sont exécutés. Si un test échoue, le pipeline s'arrête.
-3.  **Job `build-and-deploy`** : Si les tests réussissent, l'application est empaquetée et déployée sur l'Azure App Service configuré.
-
-### Configuration Requise
-
-- **Secret GitHub** : Vous devez configurer un secret nommé `AZURE_CREDENTIALS` dans les paramètres de votre dépôt GitHub. Ce secret contient les informations d'identification d'un principal de service Azure autorisé à déployer sur votre groupe de ressources.
-- **Identité Managée** : L'Azure App Service doit avoir son identité managée activée et posséder le rôle **"Contributeur aux données Blob du stockage"** sur le compte de stockage pour pouvoir lire et écrire les données.
-
-## 🔑 Page d'Administration
-
-- **URL** : `/admin`
-- **Identifiants par défaut** :
-  - **Utilisateur** : `admin`
-  - **Mot de passe** : `password`
-
-> **⚠️ Avertissement de Sécurité** : Ces identifiants sont codés en dur. Pour un environnement de production sécurisé, il est impératif de les gérer via des variables d'environnement sur Azure App Service.
-
-## 📖 Documentation de l'API
-
-| Méthode | Endpoint                               | Protection | Description                                                              |
-|---------|----------------------------------------|------------|--------------------------------------------------------------------------|
-| `GET`   | `/api/users`                           | Aucune     | Récupère la liste des ID utilisateurs actifs.                            |
-| `POST`  | `/api/users`                           | Aucune     | Crée un nouvel utilisateur.                                              |
-| `GET`   | `/api/admin/users`                     | Admin      | Récupère tous les utilisateurs avec leur statut (actif/supprimé).        |
-| `DELETE`| `/api/users/<int:user_id>`             | Admin      | Désactive un utilisateur (soft delete).                                  |
-| `POST`  | `/api/users/<int:user_id>/reactivate`  | Admin      | Réactive un utilisateur désactivé.                                       |
-| `GET`   | `/api/recommendations/<int:user_id>`   | Aucune     | Obtient les recommandations pour un utilisateur.                         |
-| `GET`   | `/api/history/<int:user_id>`           | Aucune     | Obtient l'historique des interactions d'un utilisateur.                  |
-| `POST`  | `/api/interactions`                    | Aucune     | Enregistre une nouvelle interaction (ex: notation d'un article).         |
-| `GET`   | `/api/global_trends`                   | Aucune     | Récupère les tendances globales de clics.                                |
-| `GET`   | `/api/performance`                     | Aucune     | Récupère les métriques de performance du modèle.                         |
+## Table des Matières
+1.  Vue d'ensemble
+2.  Stack Technique
+3.  Structure des Fichiers
+4.  Fonctionnalités Détaillées
+5.  Guide de l'API Back-end
+6.  Installation et Lancement
+7.  Améliorations Possibles
 
 ---
 
-*Ce README a été généré pour fournir une vue d'ensemble claire et fonctionnelle du projet.*
+## 🎯 Vue d'ensemble
+
+Ce projet fournit une interface web complète pour interagir avec un système de recommandation. Il ne s'agit pas seulement d'un outil de visualisation, mais aussi d'une plateforme d'administration et de monitoring. Les utilisateurs peuvent obtenir des recommandations personnalisées, tandis que les administrateurs peuvent gérer le contenu et surveiller la santé et les performances du système.
+
+L'architecture est découplée : un front-end dynamique (ce projet) communique avec un back-end (à implémenter) via une API RESTful.
+
+## 💻 Stack Technique
+
+- **Front-end** :
+  - **HTML5** : Structure sémantique de la page.
+  - **CSS3** : Style et mise en page, avec une approche de type Flexbox.
+  - **JavaScript (ES6+)** : Logique applicative, manipulation du DOM, et appels API (`fetch`).
+  - **Chart.js** : Bibliothèque pour la visualisation de données (graphiques en camembert et en barres).
+- **Back-end (implicite)** :
+  - **Python/Flask** : Le templating Jinja2 (`{{ url_for(...) }}`) indique que le projet est servi par un serveur Flask.
+
+## 📂 Structure des Fichiers
+
+```
+recommandation-contenu/
+├── static/
+│   ├── js/
+│   │   └── main.js       # Fichier principal contenant toute la logique JavaScript
+│   └── style.css         # Feuille de style principale
+├── templates/
+│   └── index.html        # Fichier HTML unique servant de template de base
+├── app.py                # (Hypothétique) Serveur Flask pour l'API et le service des templates
+└── README.md             # Ce fichier
+```
+
+## ✨ Fonctionnalités Détaillées
+
+#### Gestion des Utilisateurs
+- **Connexion par ID** : L'utilisateur entre son ID. Un mécanisme de *debounce* (400ms) évite les appels API excessifs pendant la saisie.
+- **Contexte Dynamique** : Une fois l'ID saisi, le contexte de l'utilisateur (pays, appareil) est récupéré et affiché.
+- **Création/Suppression** : Des boutons permettent de créer un nouvel utilisateur (le nouvel ID est automatiquement inséré dans le champ de saisie) ou de supprimer l'utilisateur courant.
+
+#### Navigation par Onglets
+L'interface principale est organisée en trois onglets :
+1.  **Recommandations** : Affiche les articles recommandés. Le contenu est automatiquement mis à jour lors d'un changement d'utilisateur ou de filtre.
+2.  **Historique** : Affiche la liste des articles déjà notés par l'utilisateur, avec la note et la date.
+3.  **Tendances Globales** : Affiche des graphiques sur la répartition des clics par pays et par appareil. Le contenu de cet onglet est statique et ne dépend pas de l'utilisateur connecté.
+
+#### Interactions et Recommandations
+- **Notation d'articles** : Chaque carte de recommandation contient un menu déroulant pour noter l'article de 1 à 5. La soumission est gérée via la délégation d'événements pour optimiser les performances.
+- **Filtrage** : Les recommandations peuvent être filtrées par pays et par appareil. La sélection d'un filtre déclenche automatiquement un nouvel appel API si l'onglet "Recommandations" est actif.
+
+#### Panneau d'Administration
+La barre latérale regroupe des outils d'administration :
+- **Ajout d'Articles** : Un formulaire simple pour insérer de nouveaux articles dans le système.
+- **Performances du Modèle** : Un bouton pour afficher un graphique linéaire montrant l'évolution des métriques de validation (`recall@10`, `precision@10`) par époque d'entraînement.
+- **Statut du Réentraînement** : Un indicateur visuel dans l'en-tête, mis à jour toutes les 30 secondes, informe sur l'état du modèle (`Actif`, `Réentraînement en cours`, `Échec`).
+
+## 🔌 Guide de l'API Back-end
+
+Le front-end s'attend à ce que le back-end expose les endpoints suivants.
+
+---
+
+#### `POST /api/users`
+- **Action** : Crée un nouvel utilisateur.
+- **Réponse Succès (200)** : `{ "user_id": 123 }`
+- **Réponse Erreur (500)** : `{ "error": "Impossible de créer l'utilisateur" }`
+
+---
+
+#### `DELETE /api/users/{userId}`
+- **Action** : Désactive un utilisateur.
+- **Réponse Succès (200)** : `{ "message": "Utilisateur 123 désactivé" }`
+- **Réponse Erreur (404)** : `{ "error": "Utilisateur non trouvé" }`
+
+---
+
+#### `GET /api/user_context/{userId}`
+- **Action** : Récupère le contexte d'un utilisateur.
+- **Réponse Succès (200)** : `{ "country": "France", "deviceGroup": "Desktop" }`
+- **Réponse Erreur (404)** : `{ "error": "Contexte non trouvé pour l'utilisateur" }`
+
+---
+
+#### `GET /api/recommendations`
+- **Action** : Récupère les recommandations.
+- **Paramètres Query** : `user_id` (obligatoire), `country` (optionnel), `device` (optionnel).
+- **Réponse Succès (200)** : `[ { "article_id": 1, "title": "...", "content": "..." }, ... ]` ou `[]` si aucune recommandation.
+
+---
+
+#### `POST /api/interactions`
+- **Action** : Enregistre une interaction (notation).
+- **Corps de la requête** : `{ "user_id": 123, "article_id": 456, "rating": 5 }`
+- **Réponse Succès (200)** : `{ "message": "Interaction enregistrée" }`
+- **Réponse Erreur (400)** : `{ "error": "Données invalides" }`
+
+---
+
+#### `GET /api/history/{userId}`
+- **Action** : Récupère l'historique de notation.
+- **Réponse Succès (200)** : `[ { "title": "...", "nb": 5, "click_timestamp": 1672531200 }, ... ]`
+
+---
+
+#### `POST /api/articles`
+- **Action** : Ajoute un nouvel article.
+- **Corps de la requête** : `{ "title": "...", "content": "...", "category_id": 2 }`
+- **Réponse Succès (201)** : `{ "article_id": 789 }`
+
+---
+
+#### `GET /api/global_trends`
+- **Action** : Récupère les agrégats pour les graphiques.
+- **Réponse Succès (200)** : `{ "clicks_by_country": [...], "clicks_by_device": [...] }`
+
+---
+
+#### `GET /api/performance`
+- **Action** : Récupère les métriques de performance du modèle.
+- **Réponse Succès (200)** : `[ { "epoch": 1, "val_recall_at_10": 0.15, "val_precision_at_10": 0.08 }, ... ]`
+
+---
+
+#### `GET /api/retraining_status`
+- **Action** : Vérifie le statut du réentraînement.
+- **Réponse Succès (200)** : `{ "status": "idle" | "in_progress" | "failed" }`
+
+---
+
+## 🚀 Installation et Lancement
+
+1.  **Clonez le dépôt** sur votre machine locale.
+2.  **Créez un serveur Flask minimal** : Créez un fichier `app.py` à la racine du projet avec le contenu suivant pour servir l'application (ceci est un exemple de base sans la logique API) :
+    ```python
+    from flask import Flask, render_template
+
+    app = Flask(__name__)
+
+    @app.route('/')
+    def index():
+        return render_template('index.html')
+
+    # ... Ajoutez ici les routes de l'API (ex: @app.route('/api/users', methods=['POST']))
+
+    if __name__ == '__main__':
+        app.run(debug=True)
+    ```
+3.  **Installez Flask** :
+    ```bash
+    pip install Flask
+    ```
+4.  **Lancez le serveur** :
+    ```bash
+    python app.py
+    ```
+5.  **Accédez à l'application** : Ouvrez votre navigateur et allez à l'adresse `http://127.0.0.1:5000`.
+
+## 🛠️ Améliorations Possibles
+
+- **Gestion d'Erreurs** : Remplacer les `alert()` et `console.error()` par un système de notifications (modales ou "toasts") non bloquant pour une meilleure expérience utilisateur.
+- **Authentification** : Mettre en place un vrai système de connexion pour sécuriser les actions d'administration.
+- **Pagination** : Ajouter une pagination pour l'historique des utilisateurs et les listes d'articles si elles deviennent longues.
+- **Tests** : Écrire des tests unitaires et d'intégration pour la logique JavaScript afin d'assurer la robustesse du code.
+- **Composants Web** : Refactoriser les éléments répétitifs (comme les cartes d'articles) en composants Web pour une meilleure réutilisabilité.
