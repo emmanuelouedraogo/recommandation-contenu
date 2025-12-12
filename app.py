@@ -126,8 +126,12 @@ def register_routes(app):
     @app.route("/api/history/<int:user_id>", methods=["GET"])
     def get_history(user_id):
         """Obtient l'historique de consultation d'un utilisateur."""
-        history = logic.obtenir_historique_utilisateur(user_id)
-        return jsonify(history)
+        try:
+            history = logic.obtenir_historique_utilisateur(user_id)
+            return jsonify(history)
+        except Exception as e:
+            app.logger.error(f"Failed to get history for user {user_id}: {e}")
+            return jsonify({"error": "Impossible de récupérer l'historique."}), 500
 
     @app.route("/api/interactions", methods=["POST"])  # Corrigé pour correspondre au JS
     def post_interaction():
@@ -140,28 +144,44 @@ def register_routes(app):
         if not all([user_id, article_id, rating]):
             return jsonify({"error": "Données manquantes : user_id, article_id et rating sont requis."}), 400
 
-        logic.ajouter_ou_mettre_a_jour_interaction(int(user_id), int(article_id), int(rating))
-        return jsonify({"message": "Interaction enregistrée avec succès."}), 201
+        try:
+            logic.ajouter_ou_mettre_a_jour_interaction(int(user_id), int(article_id), int(rating))
+            return jsonify({"message": "Interaction enregistrée avec succès."}), 201
+        except Exception as e:
+            app.logger.error(f"Failed to post interaction for user {user_id}: {e}")
+            return jsonify({"error": "Impossible d'enregistrer l'interaction."}), 500
 
     @app.route("/api/global_trends", methods=["GET"])  # Corrigé pour correspondre au JS
     def get_trends():
         """Obtient les tendances globales."""
-        trends = logic.obtenir_tendances_globales_clics()
-        return jsonify(trends)
+        try:
+            trends = logic.obtenir_tendances_globales_clics()
+            return jsonify(trends)
+        except Exception as e:
+            app.logger.error(f"Failed to get global trends: {e}")
+            return jsonify({"error": "Impossible de récupérer les tendances globales."}), 500
 
     @app.route("/api/performance", methods=["GET"])  # Corrigé pour correspondre au JS
     def get_model_performance():
         """Obtient les métriques de performance du modèle."""
-        performance = logic.obtenir_performance_modele()
-        return jsonify(performance)
+        try:
+            performance = logic.obtenir_performance_modele()
+            return jsonify(performance)
+        except Exception as e:
+            app.logger.error(f"Failed to get model performance: {e}")
+            return jsonify({"error": "Impossible de récupérer les performances du modèle."}), 500
 
     @app.route("/api/user_context/<int:user_id>", methods=["GET"])  # Ajouté
     def get_user_context(user_id):
         """Obtient le contexte (pays, appareil) d'un utilisateur."""
-        context = logic.obtenir_contexte_utilisateur(user_id)
-        if context:
-            return jsonify(context)
-        return jsonify({"error": "Contexte non trouvé pour cet utilisateur."}), 404
+        try:
+            context = logic.obtenir_contexte_utilisateur(user_id)
+            if context:
+                return jsonify(context)
+            return jsonify({"error": "Contexte non trouvé pour cet utilisateur."}), 404
+        except Exception as e:
+            app.logger.error(f"Failed to get context for user {user_id}: {e}")
+            return jsonify({"error": "Impossible de récupérer le contexte utilisateur."}), 500
 
     @app.route("/api/articles", methods=["POST"])  # Ajouté
     def add_article():
@@ -174,14 +194,22 @@ def register_routes(app):
         if not all([title, content, category_id is not None]):
             return jsonify({"error": "Données manquantes : title, content et category_id sont requis."}), 400
 
-        new_article_id = logic.creer_nouvel_article(title, content, int(category_id))
-        return jsonify({"article_id": new_article_id, "message": f"Article {new_article_id} créé."}), 201
+        try:
+            new_article_id = logic.creer_nouvel_article(title, content, int(category_id))
+            return jsonify({"article_id": new_article_id, "message": f"Article {new_article_id} créé."}), 201
+        except Exception as e:
+            app.logger.error(f"Failed to add article: {e}")
+            return jsonify({"error": "Impossible de créer l'article."}), 500
 
     @app.route("/api/retraining_status", methods=["GET"])  # Ajouté
     def get_retraining_status():
         """Obtient le statut du processus de ré-entraînement."""
-        status = logic.obtenir_statut_reentrainement()
-        return jsonify(status)
+        try:
+            status = logic.obtenir_statut_reentrainement()
+            return jsonify(status)
+        except Exception as e:
+            app.logger.error(f"Failed to get retraining status: {e}")
+            return jsonify({"error": "Impossible de récupérer le statut."}), 500
 
 
 # Register all routes with the app instance
