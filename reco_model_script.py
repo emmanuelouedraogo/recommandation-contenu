@@ -3,30 +3,73 @@
 import pandas as pd
 import joblib
 import os
-import logging
-from datetime import datetime
-from azure.storage.blob import BlobServiceClient
+import logging  # type: ignore
+from datetime import datetime  # type: ignore
+from azure.storage.blob import BlobServiceClient  # type: ignore
+from azure.identity import DefaultAzureCredential  # type: ignore
 from io import StringIO
 from models import HybridRecommender  # Assurez-vous que vos classes de modèles sont importables
 from sklearn.model_selection import train_test_split
 
+<<<<<<< HEAD
 # Configuration du logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
+=======
+logger = logging.getLogger(__name__)
+STORAGE_ACCOUNT_NAME = os.getenv("AZURE_STORAGE_ACCOUNT_NAME")
+>>>>>>> origin/main
 
-def load_data_from_azure(connect_str, container_name, blob_name):
-    """Charge un fichier depuis Azure Blob Storage."""
-    blob_service_client = BlobServiceClient.from_connection_string(connect_str)
+if not STORAGE_ACCOUNT_NAME:
+    logging.error("AZURE_STORAGE_ACCOUNT_NAME is not set. Unable to proceed.")
+    exit(1)
+
+
+def load_df_from_parquet_blob(container_name: str, blob_name: str) -> pd.DataFrame:
+    """Charge un DataFrame depuis un blob Parquet."""
+    blob_service_client = BlobServiceClient(
+        account_url=f"https://{STORAGE_ACCOUNT_NAME}.blob.core.windows.net", credential=DefaultAzureCredential()
+    )
     blob_client = blob_service_client.get_blob_client(container=container_name, blob=blob_name)
     downloader = blob_client.download_blob(timeout=120)
+<<<<<<< HEAD
 
     if blob_name.endswith(".csv"):
         return pd.read_csv(StringIO(downloader.readall().decode("utf-8")))
     elif blob_name.endswith(".pickle"):
         local_path = os.path.join("/tmp", os.path.basename(blob_name))
+=======
+    return pd.read_parquet(downloader.readall())
+
+
+def load_csv_from_blob(container_name: str, blob_name: str) -> pd.DataFrame:
+    """Charge un DataFrame depuis un blob CSV."""
+    blob_service_client = BlobServiceClient(
+        account_url=f"https://{STORAGE_ACCOUNT_NAME}.blob.core.windows.net", credential=DefaultAzureCredential()
+    )
+    blob_client = blob_service_client.get_blob_client(container=container_name, blob=blob_name)
+    downloader = blob_client.download_blob(encoding="utf-8", timeout=120)
+    return pd.read_csv(StringIO(downloader.readall()))
+
+
+def load_pickle_from_blob(container_name: str, blob_name: str):
+    """Charge un objet Python depuis un blob Pickle."""
+    blob_service_client = BlobServiceClient(
+        account_url=f"https://{STORAGE_ACCOUNT_NAME}.blob.core.windows.net", credential=DefaultAzureCredential()
+    )
+    blob_client = blob_service_client.get_blob_client(container=container_name, blob=blob_name)
+    downloader = blob_client.download_blob(timeout=120)
+    # Azure Functions /tmp directory is suitable for temporary files
+    # Ensure the directory exists
+    os.makedirs("/tmp", exist_ok=True)
+    local_path = os.path.join("/tmp", os.path.basename(blob_name))
+    try:
+>>>>>>> origin/main
         with open(local_path, "wb") as f:
             f.write(downloader.readall())
         return joblib.load(local_path)
+    except Exception:
+        logging.error(f"Échec du chargement du pickle depuis {local_path}", exc_info=True)
     return None
 
 
@@ -52,6 +95,7 @@ def evaluate_precision_at_k(model, test_df, k=10):
     return sum(precisions) / len(precisions) if precisions else 0
 
 
+<<<<<<< HEAD
 def log_training_metrics(connect_str, container_name, metrics, click_count):
     """Enregistre les métriques d'entraînement dans un fichier CSV sur Azure Blob Storage."""
     log_blob_name = "logs/training_log.csv"
@@ -59,10 +103,22 @@ def log_training_metrics(connect_str, container_name, metrics, click_count):
     blob_client = blob_service_client.get_blob_client(container=container_name, blob=log_blob_name)
 
     log_entry = {
+=======
+def log_training_metrics(container_name, metrics, click_count):
+    """Enregistre les métriques d'entraînement dans un fichier CSV sur Azure Blob Storage."""
+    log_blob_name = "logs/training_log.csv"
+    blob_service_client = BlobServiceClient(
+        account_url=f"https://{STORAGE_ACCOUNT_NAME}.blob.core.windows.net", credential=DefaultAzureCredential()
+    )
+    append_blob_client = blob_service_client.get_blob_client(container=container_name, blob=log_blob_name)
+
+    log_entry = {  # type: ignore
+>>>>>>> origin/main
         "timestamp": datetime.utcnow().isoformat(),
         "precision_at_10": metrics.get("precision_at_10", 0),
         "click_count": click_count,
     }
+<<<<<<< HEAD
 
     try:
         downloader = blob_client.download_blob()
@@ -83,12 +139,54 @@ def train_and_save_model(connect_str, container_name, clicks_blob, articles_blob
     clicks_df = load_data_from_azure(connect_str, container_name, clicks_blob)
     articles_df = load_data_from_azure(connect_str, container_name, articles_blob)
     embeddings_data = load_data_from_azure(connect_str, container_name, embeddings_blob)
+=======
+
+    # S'assurer que le blob existe et est bien un Append Blob
+    try:
+        append_blob_client.get_blob_properties()
+    except Exception:  # Si le blob n'existe pas, le créer
+        append_blob_client.create_blob()
+        # Ajouter l'en-tête CSV au nouveau fichier
+        header = "timestamp,precision_at_10,click_count\n"
+        append_blob_client.append_block(header.encode("utf-8"))
+
+    # Ajouter la nouvelle entrée au blob
+    new_log_line = f"{log_entry['timestamp']},{log_entry['precision_at_10']},{log_entry['click_count']}\n"
+    append_blob_client.append_block(new_log_line.encode("utf-8"))
+    logging.info(f"Métrique d'entraînement enregistrée dans {log_blob_name} via Append Blob.")
+
+
+def train_and_save_model(container_name, clicks_blob, articles_blob, embeddings_blob, model_output_blob):
+    """Fonction principale pour entraîner et sauvegarder le modèle."""
+
+    # 1. Charger toutes les données nécessaires depuis Azure (maintenant en Parquet)
+    logging.info("Chargement des données...")
+    try:
+        # Assurez-vous que les noms de blobs sont corrects pour les fichiers Parquet
+        clicks_parquet_blob = clicks_blob.replace(".csv", ".parquet")
+        articles_parquet_blob = articles_blob.replace(".csv", ".parquet")
+        i2vec_parquet_blob = embeddings_blob.replace(".pickle", "_i2vec.parquet")
+        dic_ri_parquet_blob = embeddings_blob.replace(".pickle", "_dic_ri.parquet")
+        dic_ir_parquet_blob = embeddings_blob.replace(".pickle", "_dic_ir.parquet")
+
+        clicks_df = load_df_from_parquet_blob(container_name, clicks_parquet_blob)
+        articles_df = load_df_from_parquet_blob(container_name, articles_parquet_blob)
+
+        # Reconstruire les objets nécessaires à partir des fichiers Parquet
+        i2vec = load_df_from_parquet_blob(container_name, i2vec_parquet_blob).values
+        dic_ri = dict(load_df_from_parquet_blob(container_name, dic_ri_parquet_blob).itertuples(index=False, name=None))
+        dic_ir = dict(load_df_from_parquet_blob(container_name, dic_ir_parquet_blob).itertuples(index=False, name=None))
+    except Exception as e:
+        logging.error(f"Échec du chargement des données d'entraînement depuis Azure. Erreur : {e}", exc_info=True)
+        raise  # Propage l'exception pour que la fonction appelante puisse la gérer
+>>>>>>> origin/main
 
     if clicks_df.empty or len(clicks_df) < 10:
         raise ValueError("Pas assez de données de clics pour l'entraînement.")
 
-    train_df, test_df = train_test_split(clicks_df, test_size=0.2, random_state=42)
+    train_df, test_df = train_test_split(clicks_df, test_size=0.2, random_state=42)  # noqa
 
+<<<<<<< HEAD
     # Extraire les données du pickle d'embeddings
     i2vec = embeddings_data["i2vec"]
     dic_ri = embeddings_data["dic_ri"]
@@ -104,6 +202,12 @@ def train_and_save_model(connect_str, container_name, clicks_blob, articles_blob
         items_df=articles_df,
         cf_weight=0.5,
         cb_weight=0.5,
+=======
+    # 2. Entraîner le modèle hybride
+    logging.info("Entraînement du modèle hybride...")
+    hybrid_model = HybridRecommender(
+        data_map=train_df, i2vec=i2vec, dic_ri=dic_ri, dic_ir=dic_ir, items_df=articles_df, cf_weight=0.5, cb_weight=0.5
+>>>>>>> origin/main
     )
     hybrid_model.fit()
 
@@ -112,20 +216,37 @@ def train_and_save_model(connect_str, container_name, clicks_blob, articles_blob
     logging.info(f"Précision@10 obtenue : {precision:.4f}")
     metrics = {"precision_at_10": precision}
 
+<<<<<<< HEAD
     # Enregistrer les métriques
     log_training_metrics(connect_str, container_name, metrics, len(clicks_df))
+=======
+    # Enregistrer les métriques.
+    # Note: La fonction log_training_metrics utilise maintenant DefaultAzureCredential.
+    log_training_metrics(container_name, metrics, len(clicks_df))
+>>>>>>> origin/main
 
     # 4. Sauvegarder le modèle entraîné dans un fichier local temporaire
     local_model_path = os.path.join("/tmp", os.path.basename(model_output_blob))
     joblib.dump(hybrid_model, local_model_path)
     logging.info(f"Modèle sauvegardé localement dans '{local_model_path}'.")
 
+<<<<<<< HEAD
     # 5. Uploader le modèle sur Azure
     blob_service_client = BlobServiceClient.from_connection_string(connect_str)
+=======
+    # 5. Uploader le modèle sur Azure en utilisant DefaultAzureCredential
+    blob_service_client = BlobServiceClient(
+        account_url=f"https://{STORAGE_ACCOUNT_NAME}.blob.core.windows.net", credential=DefaultAzureCredential()
+    )
+>>>>>>> origin/main
     blob_client = blob_service_client.get_blob_client(container=container_name, blob=model_output_blob)
     with open(local_model_path, "rb") as data:
         blob_client.upload_blob(data, overwrite=True)
     logging.info(f"Modèle uploadé avec succès sur Azure Blob Storage : {model_output_blob}")
 
+<<<<<<< HEAD
 
 # ... (le reste de votre script si vous avez une exécution via __main__)
+=======
+    return metrics
+>>>>>>> origin/main

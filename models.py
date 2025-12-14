@@ -91,7 +91,8 @@ class ContentBasedTimeDecayRecommender(ContentBasedRecommender):
         if sum_of_weights == 0:
             return np.zeros((1, self.items_embedding.shape[1]))
         weighted_avg_profile = np.sum(user_item_profiles * final_weights, axis=0) / sum_of_weights
-        return preprocessing.normalize(weighted_avg_profile.reshape(1, -1))
+        return preprocessing.normalize(weighted_avg_profile.reshape(1, -1))  # type: ignore
+
 
 
 class CollabFiltRecommender:

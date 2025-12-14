@@ -1,70 +1,177 @@
 # 📚 Système de Recommandation de Contenu
 
-Ce projet est une application web complète qui fournit des recommandations de contenu personnalisées. Il est construit avec une architecture moderne et découplée, entièrement hébergée sur Microsoft Azure et déployée via des pipelines CI/CD avec GitHub Actions.
+Ce projet est une interface web front-end pour un système de recommandation de contenu. Il offre une interface utilisateur riche pour visualiser des recommandations, interagir avec des articles, et consulter des statistiques sur l'utilisation et les performances du modèle.
 
-## 🏛️ Architecture
+L'interface est conçue pour communiquer avec une API back-end qui gère la logique métier, les données et les modèles de machine learning.
 
-L'application est conçue autour des services Azure et d'une automatisation via GitHub Actions.
+## Table des Matières
+1.  Vue d'ensemble
+2.  Stack Technique
+3.  Structure des Fichiers
+4.  Fonctionnalités Détaillées
+5.  Guide de l'API Back-end
+6.  Installation et Lancement
+7.  Améliorations Possibles
 
-*   **Frontend (Interface Utilisateur)** : Une application Streamlit hébergée sur **Azure App Service**. Elle permet aux utilisateurs de se connecter, d'obtenir des recommandations, de noter des articles et de consulter leur historique.
-*   **Backend (API de Recommandation)** : Une **Azure Function** qui expose une API REST. Elle sert les recommandations générées par le modèle.
-*   **Stockage de Données et Modèles** : Un **Azure Blob Storage** qui centralise les données brutes (CSV) et les modèles de machine learning entraînés.
-*   **Gestion des Secrets** : Les secrets (`API_URL`, `STORAGE_CONNECTION_STRING`) sont stockés de manière sécurisée dans les **GitHub Secrets**. Le pipeline CI/CD les injecte en tant que variables d'environnement dans l'App Service lors du déploiement.
-*   **Authentification** : Le pipeline CI/CD s'authentifie à Azure via un **Principal de Service (Service Principal)** pour configurer les ressources Azure.
-*   **CI/CD** : Les workflows **GitHub Actions** automatisent le déploiement du frontend, du backend, et l'entraînement des modèles.
+---
 
-## ✨ Fonctionnalités
+## 🎯 Vue d'ensemble
 
-- **Connexion Utilisateur** : Système simple de connexion basé sur un `user_id`.
-- **Recommandations Personnalisées** : Appel à une API backend pour récupérer et afficher une liste d'articles recommandés pour l'utilisateur connecté.
-- **Notation d'Articles** : Possibilité pour l'utilisateur de noter les articles sur une échelle de 1 à 5.
-- **Historique des Interactions** : Page dédiée où l'utilisateur peut consulter et modifier les notes qu'il a précédemment attribuées.
-- **Création de Compte et d'Article** : Interfaces pour ajouter de nouveaux utilisateurs et de nouveaux articles à la base de données.
-- **Performance du Modèle** : Visualisation de l'historique des entraînements du modèle de recommandation.
-- **Haute Disponibilité** : L'infrastructure Azure est configurée pour la mise à l'échelle automatique (autoscaling) en fonction de la charge CPU.
-- **Bilan de Santé (Health Check)** : Un point de terminaison `/health` permet à Azure de surveiller la disponibilité de l'application.
+Ce projet fournit une interface web complète pour interagir avec un système de recommandation. Il ne s'agit pas seulement d'un outil de visualisation, mais aussi d'une plateforme d'administration et de monitoring. Les utilisateurs peuvent obtenir des recommandations personnalisées, tandis que les administrateurs peuvent gérer le contenu et surveiller la santé et les performances du système.
 
-## 🚀 Technologies Utilisées
+L'architecture est découplée : un front-end dynamique (ce projet) communique avec un back-end (à implémenter) via une API RESTful.
 
-*   **Langage** : Python 3.11
-*   **Framework Frontend** : Streamlit
-*   **Librairies Principales** : Pandas, Requests, Flask
-*   **Plateforme Cloud** : Microsoft Azure
-    *   App Service
-    *   Blob Storage
-    *   Key Vault
-    *   Monitor (pour l'autoscaling)
-*   **CI/CD** : GitHub Actions
+## 💻 Stack Technique
 
-## 🚀 Démarrage Rapide (Développement Local)
+- **Front-end** :
+  - **HTML5** : Structure sémantique de la page.
+  - **CSS3** : Style et mise en page, avec une approche de type Flexbox.
+  - **JavaScript (ES6+)** : Logique applicative, manipulation du DOM, et appels API (`fetch`).
+  - **Chart.js** : Bibliothèque pour la visualisation de données (graphiques en camembert et en barres).
+- **Back-end (implicite)** :
+  - **Python/Flask** : Le templating Jinja2 (`{{ url_for(...) }}`) indique que le projet est servi par un serveur Flask.
 
-### Prérequis
+## 📂 Structure des Fichiers
 
-*   Python 3.11 ou supérieur
-*   Un compte Azure
-*   Azure CLI
+```
+recommandation-contenu/
+├── static/
+│   ├── js/
+│   │   └── main.js       # Fichier principal contenant toute la logique JavaScript
+│   └── style.css         # Feuille de style principale
+├── templates/
+│   └── index.html        # Fichier HTML unique servant de template de base
+├── app.py                # (Hypothétique) Serveur Flask pour l'API et le service des templates
+└── README.md             # Ce fichier
+```
 
-### Étapes d'installation
+## ✨ Fonctionnalités Détaillées
 
-1.  **Cloner le dépôt**
+#### Gestion des Utilisateurs
+- **Connexion par ID** : L'utilisateur entre son ID. Un mécanisme de *debounce* (400ms) évite les appels API excessifs pendant la saisie.
+- **Contexte Dynamique** : Une fois l'ID saisi, le contexte de l'utilisateur (pays, appareil) est récupéré et affiché.
+- **Création/Suppression** : Des boutons permettent de créer un nouvel utilisateur (le nouvel ID est automatiquement inséré dans le champ de saisie) ou de supprimer l'utilisateur courant.
+
+#### Navigation par Onglets
+L'interface principale est organisée en trois onglets :
+1.  **Recommandations** : Affiche les articles recommandés. Le contenu est automatiquement mis à jour lors d'un changement d'utilisateur ou de filtre.
+2.  **Historique** : Affiche la liste des articles déjà notés par l'utilisateur, avec la note et la date.
+3.  **Tendances Globales** : Affiche des graphiques sur la répartition des clics par pays et par appareil. Le contenu de cet onglet est statique et ne dépend pas de l'utilisateur connecté.
+
+#### Interactions et Recommandations
+- **Notation d'articles** : Chaque carte de recommandation contient un menu déroulant pour noter l'article de 1 à 5. La soumission est gérée via la délégation d'événements pour optimiser les performances.
+- **Filtrage** : Les recommandations peuvent être filtrées par pays et par appareil. La sélection d'un filtre déclenche automatiquement un nouvel appel API si l'onglet "Recommandations" est actif.
+
+#### Panneau d'Administration
+La barre latérale regroupe des outils d'administration :
+- **Ajout d'Articles** : Un formulaire simple pour insérer de nouveaux articles dans le système.
+- **Performances du Modèle** : Un bouton pour afficher un graphique linéaire montrant l'évolution des métriques de validation (`recall@10`, `precision@10`) par époque d'entraînement.
+- **Statut du Réentraînement** : Un indicateur visuel dans l'en-tête, mis à jour toutes les 30 secondes, informe sur l'état du modèle (`Actif`, `Réentraînement en cours`, `Échec`).
+
+## 🔌 Guide de l'API Back-end
+
+Le front-end s'attend à ce que le back-end expose les endpoints suivants.
+
+---
+
+#### `POST /api/users`
+- **Action** : Crée un nouvel utilisateur.
+- **Réponse Succès (200)** : `{ "user_id": 123 }`
+- **Réponse Erreur (500)** : `{ "error": "Impossible de créer l'utilisateur" }`
+
+---
+
+#### `DELETE /api/users/{userId}`
+- **Action** : Désactive un utilisateur.
+- **Réponse Succès (200)** : `{ "message": "Utilisateur 123 désactivé" }`
+- **Réponse Erreur (404)** : `{ "error": "Utilisateur non trouvé" }`
+
+---
+
+#### `GET /api/user_context/{userId}`
+- **Action** : Récupère le contexte d'un utilisateur.
+- **Réponse Succès (200)** : `{ "country": "France", "deviceGroup": "Desktop" }`
+- **Réponse Erreur (404)** : `{ "error": "Contexte non trouvé pour l'utilisateur" }`
+
+---
+
+#### `GET /api/recommendations` (Note: a été changé, n'utilise plus de paramètre dans l'URL)
+- **Action** : Récupère les recommandations.
+- **Paramètres Query** : `user_id` (obligatoire), `country` (optionnel), `device` (optionnel).
+- **Réponse Succès (200)** : `[ { "article_id": 1, "title": "...", "content": "..." }, ... ]` ou `[]` si aucune recommandation.
+
+---
+
+#### `POST /api/interactions`
+- **Action** : Enregistre une interaction (notation).
+- **Corps de la requête** : `{ "user_id": 123, "article_id": 456, "rating": 5 }`
+- **Réponse Succès (200)** : `{ "message": "Interaction enregistrée" }`
+- **Réponse Erreur (400)** : `{ "error": "Données invalides" }`
+
+---
+
+#### `GET /api/history/{userId}`
+- **Action** : Récupère l'historique de notation.
+- **Réponse Succès (200)** : `[ { "title": "...", "nb": 5, "click_timestamp": 1672531200 }, ... ]`
+
+---
+
+#### `POST /api/articles`
+- **Action** : Ajoute un nouvel article.
+- **Corps de la requête** : `{ "title": "...", "content": "...", "category_id": 2 }`
+- **Réponse Succès (201)** : `{ "article_id": 789 }`
+
+---
+
+#### `GET /api/global_trends`
+- **Action** : Récupère les agrégats pour les graphiques.
+- **Réponse Succès (200)** : `{ "clicks_by_country": [...], "clicks_by_device": [...] }`
+
+---
+
+#### `GET /api/performance`
+- **Action** : Récupère les métriques de performance du modèle.
+- **Réponse Succès (200)** : `[ { "epoch": 1, "val_recall_at_10": 0.15, "val_precision_at_10": 0.08 }, ... ]`
+
+---
+
+#### `GET /api/retraining_status`
+- **Action** : Vérifie le statut du réentraînement.
+- **Réponse Succès (200)** : `{ "status": "idle" | "in_progress" | "failed" }`
+
+---
+
+## 🚀 Installation et Lancement
+
+1.  **Clonez le dépôt** sur votre machine locale.
+2.  **Créez un serveur Flask minimal** : Créez un fichier `app.py` à la racine du projet avec le contenu suivant pour servir l'application (ceci est un exemple de base sans la logique API) :
+    ```python
+    from flask import Flask, render_template
+
+    app = Flask(__name__)
+
+    @app.route('/')
+    def index():
+        return render_template('index.html')
+
+    # ... Ajoutez ici les routes de l'API (ex: @app.route('/api/users', methods=['POST']))
+
+    if __name__ == '__main__':
+        app.run(debug=True)
+    ```
+3.  **Installez Flask** :
     ```bash
-    git clone <URL_DU_DEPOT>
-    cd recommandation-contenu
+    pip install Flask
     ```
-
-2.  **Installer les dépendances**
+4.  **Lancez le serveur** :
     ```bash
-    pip install -r requirements.txt
+    python app.py
     ```
+5.  **Accédez à l'application** : Ouvrez votre navigateur et allez à l'adresse `http://127.0.0.1:5000`.
 
-3.  **Configurer les secrets locaux**
-    Créez un fichier `.streamlit/secrets.toml` à la racine du projet. Ce fichier contiendra les informations de connexion nécessaires pour faire tourner l'application sur votre machine.
-    ```toml
-    # .streamlit/secrets.toml
-    STORAGE_CONNECTION_STRING = "DefaultEndpointsProtocol=..."
-    API_URL = "http://localhost:7071/api/recommend"
-    ```
+## 🛠️ Améliorations Possibles
 
+<<<<<<< HEAD
 4.  **Lancer l'application**
     ```bash
     streamlit run frontend/Accueil.py
@@ -108,3 +215,10 @@ Le workflow effectue les actions suivantes :
 2.  Utilisez la barre latérale pour vous connecter avec un `user_id` existant (une liste est affichée pour faciliter les tests) ou créez un nouveau compte via le menu "Créer un compte".
 3.  Une fois connecté, la page "Recommandations" affichera des articles personnalisés.
 4.  Vous pouvez noter chaque article. Vos notes apparaîtront dans la page "Mon Historique".
+=======
+- **Gestion d'Erreurs** : Remplacer les `alert()` et `console.error()` par un système de notifications (modales ou "toasts") non bloquant pour une meilleure expérience utilisateur.
+- **Authentification** : Mettre en place un vrai système de connexion pour sécuriser les actions d'administration.
+- **Pagination** : Ajouter une pagination pour l'historique des utilisateurs et les listes d'articles si elles deviennent longues.
+- **Tests** : Écrire des tests unitaires et d'intégration pour la logique JavaScript afin d'assurer la robustesse du code.
+- **Composants Web** : Refactoriser les éléments répétitifs (comme les cartes d'articles) en composants Web pour une meilleure réutilisabilité.
+>>>>>>> origin/main

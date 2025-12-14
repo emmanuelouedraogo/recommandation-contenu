@@ -1,0 +1,7 @@
+flask
+gunicorn
+pandas
+requests
+azure-storage-blob
+azure-identity
+pyarrow

@@ -1,73 +1,57 @@
-name: Déployer le Frontend sur Azure App Service
+name: Déploiement du Frontend Flask
 
 on:
-  # Déclenche le workflow à chaque push sur la branche main
   push:
     branches:
       - main
-    # Optimisation : ne s'exécute que si des fichiers pertinents sont modifiés
     paths:
+      - 'app.py'
+      - 'logic.py'
       - 'frontend/**'
+      - 'requirements.txt'
       - '.github/workflows/deploy-frontend.yml'
-
+  workflow_dispatch:
+ 
 env:
+<<<<<<< HEAD
   AZURE_WEBAPP_NAME: reco-contenu-interface   # Le nom de votre App Service
   AZURE_RESOURCE_GROUP: rg-recommandation-contenu # Remplacez par le nom de votre groupe de ressources
   PYTHON_VERSION: '3.11'                      # La version de Python utilisée
   STARTUP_SCRIPT: 'Accueil.py'              # Le nom de votre script Streamlit principal
+=======
+  AZURE_WEBAPP_NAME: reco-contenu-interface
+  AZURE_RESOURCE_GROUP: rg-recommandation-contenu
+  PYTHON_VERSION: '3.11'
+>>>>>>> origin/main
 
 jobs:
-  build-and-deploy:
-    name: Build and Deploy Streamlit App
+  build-and-deploy-frontend:
+    name: Build and Deploy Frontend
     runs-on: ubuntu-latest
 
     steps:
     - name: Checkout du code
       uses: actions/checkout@v4
 
-    - name: Configuration de Python ${{ env.PYTHON_VERSION }}
-      uses: actions/setup-python@v5
+    - name: Setup Python ${{ env.PYTHON_VERSION }}
+      uses: actions/setup-python@v4
       with:
         python-version: ${{ env.PYTHON_VERSION }}
-
-    - name: Mise en cache des dépendances pip
-      uses: actions/cache@v4
-      with:
-        path: ~/.cache/pip
-        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
-        restore-keys: |
-          ${{ runner.os }}-pip-
 
     - name: Installation des dépendances
       run: |
         python -m pip install --upgrade pip
-        pip install -r frontend/requirements.txt
+        pip install -r requirements.txt
 
     - name: Connexion à Azure
       uses: azure/login@v2
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-    - name: Créer l'archive de déploiement
-      run: |
-        cd frontend
-        zip -r ../app.zip .
-      
     - name: Déploiement sur Azure App Service
       uses: azure/webapps-deploy@v3
       with:
         app-name: ${{ env.AZURE_WEBAPP_NAME }}
-        package: app.zip # Déploie le fichier zip
-        # Commande pour démarrer l'application Streamlit sur le port dynamique fourni par Azure.
-        startup-command: 'streamlit run ${{ env.STARTUP_SCRIPT }} --server.port $PORT --server.address 0.0.0.0 --server.enableCORS false'
-
-    - name: Configurer les paramètres de l'application (App Settings) après le déploiement
-      uses: azure/cli@v2
-      with:
-        azcliversion: latest
-        inlineScript: |
-          echo "Injection des secrets GitHub dans les variables d'environnement de l'App Service..."
-          echo "Cette étape déclenchera un redémarrage final avec la configuration correcte."
-          az webapp config appsettings set --name ${{ env.AZURE_WEBAPP_NAME }} --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --settings \
-            STORAGE_CONNECTION_STRING="${{ secrets.STORAGE_CONNECTION_STRING }}" \
-            API_URL="${{ secrets.API_URL }}"
+        resource-group-name: ${{ env.AZURE_RESOURCE_GROUP }}
+        package: .
+        startup-command: 'gunicorn --bind=0.0.0.0 --timeout 600 app:app'

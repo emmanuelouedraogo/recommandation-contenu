@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recommandation de Contenu</title>
+    <!--<link rel="stylesheet" src="templates/static/css/style.css"> -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <!-- Ajout de la librairie Chart.js pour les graphiques -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <header>
+        <h1>📚 Système de Recommandation de Contenu</h1>
+        <div id="notification-container"></div>
+        <div id="retraining-status-indicator" title="Statut du réentraînement">
+            <span class="dot"></span>
+            <span class="status-text"></span>
+        </div>
+    </header>
+
+    <aside class="sidebar">
+        <h2>Connexion</h2>
+        <label for="user-input">Entrer l'ID utilisateur :</label>
+        <input type="number" id="user-input" placeholder="Ex: 123" min="1">
+        <p style="font-size: 0.8em; color: #666; margin-top: 0.5rem;">(Ou créez un nouvel utilisateur ci-dessous)</p>
+        <button id="delete-user-button" style="background-color: #e74c3c; margin-top: 0.5rem; display: none;">Supprimer cet utilisateur</button>
+
+        <hr style="margin: 2rem 0; border-top: 1px solid #eee;">
+        <h2>Filtrer les Recommandations</h2>
+        <label for="filter-country">Pays :</label>
+        <select id="filter-country">
+            <option value="">Tous</option>
+        </select>
+        <label for="filter-device">Appareil :</label>
+        <select id="filter-device">
+            <option value="">Tous</option>
+        </select>
+        <button id="global-trends-button" style="background-color: #f39c12; margin-top: 0.5rem;">Tendances Globales</button>
+        <button id="create-user-button">Créer un nouvel utilisateur</button>
+
+        <div id="user-context-display" style="margin-top: 1rem; padding: 1rem; border: 1px solid #eee; border-radius: 5px; background-color: #f9f9f9; display: none;">
+            <h3>Contexte Utilisateur</h3>
+            <p>Pays: <span id="context-country"></span></p>
+            <p>Appareil: <span id="context-device"></span></p>
+        </div>
+        <hr style="margin: 2rem 0; border-top: 1px solid #eee;">
+        <button id="performance-button">Performances du Modèle</button>
+
+        <hr style="margin: 2rem 0; border-top: 1px solid #eee;">
+        <div id="add-article-form">
+            <h2>Ajouter un Article</h2>
+            <label for="article-title">Titre :</label>
+            <input type="text" id="article-title" name="title">
+            <label for="article-content">Contenu :</label>
+            <textarea id="article-content" name="content" rows="4"></textarea>
+            <label for="article-category">ID Catégorie :</label>
+            <input type="number" id="article-category" name="category_id" value="0">
+            <button id="add-article-button">Ajouter l'article</button>
+        </div>
+    </aside>
+
+    <main id="content">
+        <!-- Indicateur de chargement, caché par défaut -->
+        <div id="main-loader" class="loader hidden"></div>
+        <!-- Conteneur pour le contenu dynamique -->
+        <div id="main-content-area">
+            <div class="tabs-container">
+                <button class="tab-button active" data-tab="recommendations">Obtenir mes recommandations</button>
+                <button class="tab-button" data-tab="history">Voir mon historique</button>
+                <button class="tab-button" data-tab="global-trends">Tendances Globales</button>
+            </div>
+
+            <div id="recommendations-tab-content" class="tab-content active">
+                <p id="initial-reco-message">Veuillez sélectionner un utilisateur pour voir vos recommandations.</p>
+            </div>
+            <div id="history-tab-content" class="tab-content"></div>
+            <div id="global-trends-tab-content" class="tab-content"></div>
+        </div>
+    </main>
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>
