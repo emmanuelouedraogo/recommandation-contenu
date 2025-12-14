@@ -12,14 +12,15 @@ from frontend.interface import charger_df_depuis_blob, sauvegarder_df_vers_blob
 @pytest.fixture
 def sample_df():
     """Fixture pour créer un DataFrame d'exemple pour les tests."""
-    return pd.DataFrame({'col1': [1, 2], 'col2': ['A', 'B']})
+    return pd.DataFrame({"col1": [1, 2], "col2": ["A", "B"]})
 
 
 # =========================================
 # == Tests pour charger_df_depuis_blob ==
 # =========================================
 
-@patch('frontend.interface.blob_service_client')
+
+@patch("frontend.interface.blob_service_client")
 def test_charger_df_depuis_blob_succes(mock_blob_service_client, sample_df):
     """
     Teste le cas où le chargement du DataFrame depuis le blob réussit.
@@ -28,7 +29,7 @@ def test_charger_df_depuis_blob_succes(mock_blob_service_client, sample_df):
     # Simule la lecture d'un fichier CSV
     csv_output = sample_df.to_csv(index=False)
     mock_downloader = MagicMock()
-    mock_downloader.readall.return_value = csv_output.encode('utf-8')
+    mock_downloader.readall.return_value = csv_output.encode("utf-8")
 
     # Simule le client blob et sa méthode download_blob
     mock_blob_client = MagicMock()
@@ -45,7 +46,7 @@ def test_charger_df_depuis_blob_succes(mock_blob_service_client, sample_df):
     assert_frame_equal(result_df, sample_df)
 
 
-@patch('frontend.interface.blob_service_client')
+@patch("frontend.interface.blob_service_client")
 def test_charger_df_depuis_blob_non_trouve(mock_blob_service_client):
     """
     Teste le cas où le blob n'est pas trouvé (ResourceNotFoundError).
@@ -68,7 +69,8 @@ def test_charger_df_depuis_blob_non_trouve(mock_blob_service_client):
 # == Tests pour sauvegarder_df_vers_blob ==
 # ===========================================
 
-@patch('frontend.interface.blob_service_client')
+
+@patch("frontend.interface.blob_service_client")
 def test_sauvegarder_df_vers_blob_succes(mock_blob_service_client, sample_df):
     """
     Teste le cas où la sauvegarde du DataFrame réussit.
