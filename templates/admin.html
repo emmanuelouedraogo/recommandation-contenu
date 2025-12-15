@@ -130,6 +130,36 @@
         }
         .btn-confirm { background-color: var(--primary-color); }
         .btn-cancel { background-color: var(--dark-gray); }
+
+        /* Pagination Styles */
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-top: 1.5em;
+            gap: 0.5em;
+        }
+        .pagination button { background-color: var(--primary-color); }
+        .pagination button:disabled { background-color: var(--dark-gray); }
+        .pagination span { font-weight: bold; }
+
+
+        /* Spinner for modal button */
+        .btn-spinner {
+            display: inline-block;
+            width: 1em;
+            height: 1em;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: var(--white);
+            animation: spin 1s ease-in-out infinite;
+            margin-right: 0.5em;
+            vertical-align: middle;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        button:disabled { cursor: not-allowed; filter: brightness(0.8); }
     </style>
 </head>
 <body>
@@ -166,6 +196,11 @@
                 </tbody>
             </table>
         </div>
+        <div class="pagination" id="pagination-controls" style="display:none;">
+            <button id="prev-page">Précédent</button>
+            <span id="page-info"></span>
+            <button id="next-page">Suivant</button>
+        </div>
     </div>
 
     <script>
@@ -175,6 +210,12 @@
             const usersTable = document.getElementById('users-table');
             const searchInput = document.getElementById('search-input');
             let allUsers = []; // Pour stocker la liste complète des utilisateurs
+            
+            // Pagination state
+            let currentPage = 1;
+            const rowsPerPage = 10;
+            const paginationControls = document.getElementById('pagination-controls');
+
 
             // Fonction pour récupérer et afficher les utilisateurs
             async function fetchAndDisplayUsers() {
@@ -186,7 +227,8 @@
                         throw new Error(errorMessage);
                     }
                     allUsers = await response.json();
-                    displayUsers(allUsers);
+                    currentPage = 1; // Reset to first page on new fetch/search
+                    displayUsers(allUsers); // Display the first page
                 } catch (error) {
                     loadingIndicator.textContent = `Erreur lors du chargement : ${error.message}`;
                     console.error('Erreur détaillée:', error);
@@ -194,17 +236,30 @@
             }
 
             // Fonction pour afficher les utilisateurs (et appliquer le filtre)
-            function displayUsers(users) {
+            function displayUsers(users, page = 1) {
                 usersTbody.innerHTML = ''; // Vider le tableau
+                currentPage = page;
+
+                const start = (currentPage - 1) * rowsPerPage;
+                const end = start + rowsPerPage;
+                const paginatedUsers = users.slice(start, end);
 
                 if (users.length === 0) {
                     loadingIndicator.textContent = "Aucun utilisateur trouvé.";
                     loadingIndicator.style.display = 'block';
                     usersTable.style.display = 'none';
+                    paginationControls.style.display = 'none';
                     return;
                 }
 
-                users.forEach(user => {
+                if (paginatedUsers.length === 0 && currentPage > 1) {
+                    // Handle case where user is on a page that no longer exists after filtering
+                    currentPage = 1;
+                    displayUsers(users, currentPage);
+                    return;
+                }
+
+                paginatedUsers.forEach(user => {
                     const tr = document.createElement('tr');
                     tr.dataset.userId = user.user_id; // Pour la recherche
 
@@ -227,15 +282,35 @@
 
                 loadingIndicator.style.display = 'none';
                 usersTable.style.display = 'table';
+                updatePagination(users.length);
             }
 
             // Filtrer les utilisateurs lors de la saisie dans la barre de recherche
             searchInput.addEventListener('input', (e) => {
                 const searchTerm = e.target.value.toLowerCase();
-                const filteredUsers = allUsers.filter(user => 
+                const filteredUsers = allUsers.filter(user =>
                     user.user_id.toString().toLowerCase().includes(searchTerm)
                 );
-                displayUsers(filteredUsers);
+                currentPage = 1; // Reset to first page on new search
+                displayUsers(filteredUsers, currentPage);
+            });
+
+            // Update pagination controls UI
+            function updatePagination(totalUsers) {
+                const totalPages = Math.ceil(totalUsers / rowsPerPage);
+                const pageInfo = document.getElementById('page-info');
+                const prevBtn = document.getElementById('prev-page');
+                const nextBtn = document.getElementById('next-page');
+
+                if (totalPages <= 1) {
+                    paginationControls.style.display = 'none';
+                    return;
+                }
+
+                paginationControls.style.display = 'flex';
+                pageInfo.textContent = `Page ${currentPage} sur ${totalPages}`;
+                prevBtn.disabled = currentPage === 1;
+                nextBtn.disabled = currentPage === totalPages;
             });
 
             // Custom confirmation modal logic
@@ -244,12 +319,24 @@
             const confirmBtn = document.getElementById('modal-confirm-btn');
             const cancelBtn = document.getElementById('modal-cancel-btn');
 
-            function showConfirmation(message, onConfirm) {
+            async function showConfirmation(message, onConfirm) {
                 modalText.textContent = message;
                 modal.classList.add('visible');
 
-                confirmBtn.onclick = () => {
-                    onConfirm();
+                // Use a one-time event listener to avoid stacking listeners
+                confirmBtn.onclick = async () => {
+                    // Show loading state
+                    const originalText = confirmBtn.textContent;
+                    confirmBtn.innerHTML = `<span class="btn-spinner"></span> Chargement...`;
+                    confirmBtn.disabled = true;
+                    cancelBtn.disabled = true;
+
+                    await onConfirm();
+
+                    // Restore button and hide modal
+                    confirmBtn.innerHTML = originalText;
+                    confirmBtn.disabled = false;
+                    cancelBtn.disabled = false;
                     modal.classList.remove('visible');
                 };
                 cancelBtn.onclick = () => {
@@ -258,30 +345,43 @@
             }
 
             // Fonction pour supprimer un utilisateur
-            window.deleteUser = async function(userId) {
+            window.deleteUser = function(userId) {
                 showConfirmation(`Êtes-vous sûr de vouloir supprimer l'utilisateur ${userId} ?`, async () => {
                     try {
                         const response = await fetch(`/api/users/${userId}`, { method: 'DELETE' });
                         if (!response.ok) throw new Error('La suppression a échoué.');
                         fetchAndDisplayUsers(); // Recharger la liste
                     } catch (error) {
-                        console.error(`Erreur: ${error.message}`);
+                        console.error(`Erreur lors de la suppression: ${error.message}`);
                     }
                 });
             };
 
             // Fonction pour réactiver un utilisateur
-            window.reactivateUser = async function(userId) {
+            window.reactivateUser = function(userId) {
                 showConfirmation(`Êtes-vous sûr de vouloir réactiver l'utilisateur ${userId} ?`, async () => {
                     try {
                         const response = await fetch(`/api/users/${userId}/reactivate`, { method: 'POST' });
                         if (!response.ok) throw new Error('La réactivation a échoué.');
                         fetchAndDisplayUsers(); // Recharger la liste
                     } catch (error) {
-                        console.error(`Erreur: ${error.message}`);
+                        console.error(`Erreur lors de la réactivation: ${error.message}`);
                     }
                 });
             };
+
+            // Pagination event listeners
+            document.getElementById('prev-page').addEventListener('click', () => {
+                if (currentPage > 1) {
+                    displayUsers(allUsers.filter(u => u.user_id.toString().toLowerCase().includes(searchInput.value.toLowerCase())), currentPage - 1);
+                }
+            });
+            document.getElementById('next-page').addEventListener('click', () => {
+                const totalPages = Math.ceil(allUsers.length / rowsPerPage);
+                if (currentPage < totalPages) {
+                    displayUsers(allUsers.filter(u => u.user_id.toString().toLowerCase().includes(searchInput.value.toLowerCase())), currentPage + 1);
+                }
+            });
 
             // Charger les données au démarrage
             fetchAndDisplayUsers();
