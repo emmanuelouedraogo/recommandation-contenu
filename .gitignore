@@ -35,7 +35,7 @@ mlruns/
 prompts.md
 azureinfos.txt
 CODEAZURE.md
-
+c.github/workflows/chekcod.md
 # Fichiers temporaires et de sauvegarde
 *.tmp
 *.bak

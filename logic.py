@@ -6,7 +6,7 @@ import logging
 import time
 from datetime import timezone
 from azure.storage.blob import BlobServiceClient  # type: ignore
-from azure.identity import DefaultAzureCredential  # type: ignore
+from azure.identity import DefaultAzureCredential
 from functools import lru_cache, wraps
 from azure.core.exceptions import ResourceNotFoundError
 
@@ -58,7 +58,7 @@ def recuperer_client_blob_service() -> BlobServiceClient:
     """Crée un client de service blob en utilisant la chaîne de connexion."""
     # Utilise DefaultAzureCredential pour l'authentification (Managed Identity en priorité).
     account_url = f"https://{STORAGE_ACCOUNT_NAME}.blob.core.windows.net"
-    return BlobServiceClient(account_url=account_url, credential=DefaultAzureCredential())  # type: ignore
+    return BlobServiceClient(account_url=account_url, credential=DefaultAzureCredential())
 
 
 @timed_lru_cache(seconds=600)
@@ -115,9 +115,7 @@ def obtenir_recommandations_pour_utilisateur(user_id: int, country_filter: str =
     Retourne un dictionnaire avec les résultats ou une erreur.
     """  # type: ignore
     # La vérification de l'existence de l'utilisateur est maintenant gérée par la liste unifiée
-    all_users = [user["user_id"] for user in obtenir_utilisateurs()]
-    if user_id not in all_users:
-        return {"error": f"L'utilisateur {user_id} n'existe pas."}
+    # This check is now implicitly handled by the logic that follows and the UI.
 
     # --- Amélioration de la réactivité ---
     # Charger les interactions récentes depuis le journal d'append pour des recommandations en temps réel.
@@ -125,10 +123,10 @@ def obtenir_recommandations_pour_utilisateur(user_id: int, country_filter: str =
         interactions_df = charger_df_depuis_blob(blob_name=INTERACTIONS_LOG_BLOB_NAME)
         if not interactions_df.empty:
             # Filtrer pour l'utilisateur actuel et renommer les colonnes pour correspondre au format de l'API
-            user_interactions = interactions_df[interactions_df['user_id'] == user_id]
+            user_interactions = interactions_df[interactions_df["user_id"] == user_id]
             if not user_interactions.empty:
                 # Simuler la structure de réponse de l'API de reco pour les interactions récentes
-                user_interactions = user_interactions.rename(columns={'rating': 'score'})
+                user_interactions = user_interactions.rename(columns={"rating": "score"})
                 logger.info(f"Fusion de {len(user_interactions)} interactions récentes pour l'utilisateur {user_id}.")
     except Exception:
         # Si le fichier de log n'existe pas ou est vide, continuer sans.
@@ -146,8 +144,8 @@ def obtenir_recommandations_pour_utilisateur(user_id: int, country_filter: str =
         if not user_interactions.empty:
             recos_df = pd.DataFrame(recos)
             # Concaténer et supprimer les doublons, en gardant l'interaction la plus récente (du log)
-            combined_df = pd.concat([user_interactions, recos_df]).drop_duplicates(subset=['article_id'], keep='first')
-            recos = combined_df.to_dict(orient='records')
+            combined_df = pd.concat([user_interactions, recos_df]).drop_duplicates(subset=["article_id"], keep="first")
+            recos = combined_df.to_dict(orient="records")
 
         # Enrichir les recommandations avec les détails des articles
         if recos:
@@ -241,9 +239,7 @@ def creer_nouvel_utilisateur():
     # --- Refactoring for Performance: Use an Append-Only Log ---
     # Append the new user record instead of rewriting the entire file.
     blob_service_client = recuperer_client_blob_service()
-    append_blob_client = blob_service_client.get_blob_client(
-        container=AZURE_CONTAINER_NAME, blob=USERS_BLOB_NAME
-    )
+    append_blob_client = blob_service_client.get_blob_client(container=AZURE_CONTAINER_NAME, blob=USERS_BLOB_NAME)
     try:
         append_blob_client.get_blob_properties()
     except ResourceNotFoundError:
@@ -271,9 +267,7 @@ def supprimer_utilisateur(user_id: int):
     # We append a new status record instead of rewriting the entire file.
     # This is faster and avoids race conditions.
     blob_service_client = recuperer_client_blob_service()
-    append_blob_client = blob_service_client.get_blob_client(
-        container=AZURE_CONTAINER_NAME, blob=USERS_BLOB_NAME
-    )
+    append_blob_client = blob_service_client.get_blob_client(container=AZURE_CONTAINER_NAME, blob=USERS_BLOB_NAME)
 
     try:
         append_blob_client.get_blob_properties()
@@ -299,13 +293,15 @@ def reactiver_utilisateur(user_id: int):
     Réactive un utilisateur qui a été marqué comme 'deleted'.
     """
     users_df = charger_df_depuis_blob(blob_name=USERS_BLOB_NAME)
-    last_status = users_df[users_df['user_id'] == user_id].sort_values('date_creation').iloc[-1] if not users_df.empty and user_id in users_df['user_id'].values else None
+    last_status = (
+        users_df[users_df["user_id"] == user_id].sort_values("date_creation").iloc[-1]
+        if not users_df.empty and user_id in users_df["user_id"].values
+        else None
+    )
 
-    if last_status is not None and last_status['status'] == 'deleted':
+    if last_status is not None and last_status["status"] == "deleted":
         blob_service_client = recuperer_client_blob_service()
-        append_blob_client = blob_service_client.get_blob_client(
-            container=AZURE_CONTAINER_NAME, blob=USERS_BLOB_NAME
-        )
+        append_blob_client = blob_service_client.get_blob_client(container=AZURE_CONTAINER_NAME, blob=USERS_BLOB_NAME)
         timestamp = pd.Timestamp.now(timezone.utc).isoformat()
         log_entry = f'{user_id},active,"{timestamp}"\n'
         append_blob_client.append_block(log_entry.encode("utf-8"))
@@ -404,7 +400,9 @@ def creer_nouvel_article(title: str, content: str, category_id: int) -> int:
 
     # Append the new article to the log file
     blob_service_client = recuperer_client_blob_service()
-    append_blob_client = blob_service_client.get_blob_client(container=AZURE_CONTAINER_NAME, blob=NEW_ARTICLES_LOG_BLOB_NAME)
+    append_blob_client = blob_service_client.get_blob_client(
+        container=AZURE_CONTAINER_NAME, blob=NEW_ARTICLES_LOG_BLOB_NAME
+    )
 
     try:
         append_blob_client.get_blob_properties()
