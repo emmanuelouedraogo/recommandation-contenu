@@ -59,6 +59,16 @@ jobs:
       run: sleep 30
       shell: bash
 
+    - name: Configuration des paramètres de l'application Azure
+      uses: Azure/appservice-settings@v1
+      with:
+        app-name: ${{ env.AZURE_WEBAPP_NAME }}
+        app-settings-json: |
+          [
+            { "name": "AZURE_STORAGE_ACCOUNT_NAME", "value": "${{ secrets.AZURE_STORAGE_ACCOUNT_NAME }}", "slotSetting": false },
+            { "name": "API_URL", "value": "${{ secrets.API_URL }}", "slotSetting": false }
+          ]
+
     - name: Déploiement sur Azure App Service
       uses: azure/webapps-deploy@v3
       with:
