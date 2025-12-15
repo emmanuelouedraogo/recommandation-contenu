@@ -57,6 +57,14 @@ def register_routes(app):
 
     # --- Routes pour servir l'interface utilisateur (Frontend) ---
 
+    @app.route("/health")
+    def health_check():
+        """
+        Endpoint de vérification de l'état pour les sondes de santé (health probes).
+        Retourne un simple 200 OK si l'application est en cours d'exécution.
+        """
+        return "OK", 200
+
     @app.route("/")
     def index():
         """Sert la page d'accueil principale."""
