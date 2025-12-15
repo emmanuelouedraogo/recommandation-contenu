@@ -305,6 +305,12 @@ def obtenir_tous_les_utilisateurs_avec_statut():
     clicks_df = charger_df_depuis_blob(blob_name=CLICKS_BLOB_NAME)
     users_df = charger_df_depuis_blob(blob_name=USERS_BLOB_NAME)
 
+    # --- Fiabilisation des types de données ---
+    if not clicks_df.empty and "user_id" in clicks_df.columns:
+        clicks_df["user_id"] = pd.to_numeric(clicks_df["user_id"], errors="coerce").dropna().astype(int)
+    if not users_df.empty and "user_id" in users_df.columns:
+        users_df["user_id"] = pd.to_numeric(users_df["user_id"], errors="coerce").dropna().astype(int)
+
     # Unifier les IDs des deux sources
     click_user_ids = set(clicks_df["user_id"].unique()) if not clicks_df.empty else set()
     manual_user_ids = set(users_df["user_id"].unique()) if not users_df.empty else set()
