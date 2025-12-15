@@ -94,7 +94,6 @@ class ContentBasedTimeDecayRecommender(ContentBasedRecommender):
         return preprocessing.normalize(weighted_avg_profile.reshape(1, -1))  # type: ignore
 
 
-
 class CollabFiltRecommender:
     MODEL_NAME = "Collaborative-Filtering-SVDpp"
 

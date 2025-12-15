@@ -288,22 +288,12 @@ def reactiver_utilisateur(user_id: int):
 
 @timed_lru_cache(seconds=300)  # Cache de 5 minutes
 def obtenir_utilisateurs():
-    """Récupère une liste unifiée d'utilisateurs depuis les clics et le fichier des utilisateurs."""
-    clicks_df = charger_df_depuis_blob(blob_name=CLICKS_BLOB_NAME)
-    users_df = charger_df_depuis_blob(blob_name=USERS_BLOB_NAME)
-
-    # Unifier les IDs des deux sources
-    click_user_ids = set(clicks_df["user_id"].unique()) if not clicks_df.empty else set()
-    manual_user_ids = set(users_df["user_id"].unique()) if not users_df.empty else set()
-    all_user_ids = sorted(list(click_user_ids.union(manual_user_ids)))
-
-    # Filtrer les utilisateurs supprimés
-    if not users_df.empty and "status" in users_df.columns:
-        deleted_users = set(users_df[users_df["status"] == "deleted"]["user_id"])
-        active_user_ids = [uid for uid in all_user_ids if uid not in deleted_users]
-    else:
-        active_user_ids = all_user_ids
-
+    """
+    Récupère une liste d'utilisateurs actifs.
+    Cette fonction réutilise la logique de `obtenir_tous_les_utilisateurs_avec_statut` pour la cohérence.
+    """
+    all_users_with_status = obtenir_tous_les_utilisateurs_avec_statut()
+    active_user_ids = [user["user_id"] for user in all_users_with_status if user["status"] == "active"]
     return [{"user_id": uid} for uid in active_user_ids]
 
 
@@ -321,12 +311,12 @@ def obtenir_tous_les_utilisateurs_avec_statut():
     all_user_ids = sorted(list(click_user_ids.union(manual_user_ids)))
 
     # Créer un dictionnaire de statuts à partir de users.df
-    status_map = {}
+    status_map = {}  # Initialiser le dictionnaire pour éviter les UnboundLocalError
     if not users_df.empty and "status" in users_df.columns:
-        # S'assurer qu'il n'y a pas de doublons d'ID utilisateur pour éviter les erreurs
-        # lors de la création de la série. On garde la dernière occurrence.
+        # S'assurer qu'il n'y a pas de doublons d'ID utilisateur pour éviter les erreurs.
+        # On garde la dernière occurrence qui est la plus récente.
         users_status_df = users_df.drop_duplicates(subset=["user_id"], keep="last")
-        status_map = pd.Series(users_status_df.status.values, index=users_status_df.user_id).to_dict()
+        status_map = dict(zip(users_status_df.user_id, users_status_df.status))
 
     # Construire la liste finale avec le statut (par défaut 'active')
     result = [{"user_id": uid, "status": status_map.get(uid, "active")} for uid in all_user_ids]

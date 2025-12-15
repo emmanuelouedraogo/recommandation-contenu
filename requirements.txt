@@ -1,7 +1,9 @@
 flask
 gunicorn
 pandas
+joblib
 requests
 azure-storage-blob
 azure-identity
 pyarrow
+scikit-learn

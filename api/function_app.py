@@ -10,7 +10,7 @@ from azure.identity import DefaultAzureCredential  # type: ignore
 # --- Configuration ---
 # La chaîne de connexion est récupérée depuis les paramètres de l'application
 STORAGE_ACCOUNT_NAME = os.getenv("AZURE_STORAGE_ACCOUNT_NAME")
-container_name = os.getenv("AZURE_STORAGE_CONTAINER_NAME", "reco-data")  # Define container_name here
+container_name = os.getenv("AZURE_STORAGE_CONTAINER_NAME", "reco-data")
 
 model_blob_name = os.getenv("AZURE_STORAGE_MODEL_BLOB", "models/hybrid_recommender_pipeline.pkl")
 local_model_path = "/tmp/hybrid_recommender_pipeline.pkl"
@@ -20,11 +20,7 @@ model = None  # type: HybridRecommender | None
 model_load_lock = asyncio.Lock()
 
 
-<<<<<<< HEAD
-def load_model_from_blob():
-=======
 def load_model_from_blob(storage_account_name: str, container_name: str):
->>>>>>> origin/main
     """
     Télécharge et charge le modèle depuis Azure Blob Storage.
     Retourne le modèle chargé ou None en cas d'erreur.
@@ -55,12 +51,8 @@ def load_model_from_blob(storage_account_name: str, container_name: str):
         return None
     except Exception as e:
         logging.critical(
-<<<<<<< HEAD
-            f"Erreur critique lors du chargement du modèle, l'application ne pourra pas servir de recommandations : {e}",
-=======
             "Erreur critique lors du chargement du modèle, l'application ne pourra pas servir de recommandations : "
             f"{e}",
->>>>>>> origin/main
             exc_info=True,
         )
         return None
@@ -70,13 +62,8 @@ def load_model_from_blob(storage_account_name: str, container_name: str):
 app = func.FunctionApp()
 
 
-<<<<<<< HEAD
-@app.route(route="recommend", methods=[func.HttpMethod.GET])
-async def recommend(req: func.HttpRequest) -> func.HttpResponse:
-=======
 @app.route(route="/recommend", methods=[func.HttpMethod.GET])
 async def recommend(req: func.HttpRequest) -> func.HttpResponse:  # type: ignore
->>>>>>> origin/main
     global model
     logging.info("Requête de recommandation reçue.")
 
@@ -109,12 +96,8 @@ async def recommend(req: func.HttpRequest) -> func.HttpResponse:  # type: ignore
         return func.HttpResponse("Le paramètre 'user_id' doit être un entier.", status_code=400)
 
     try:
-<<<<<<< HEAD
-        recommendations_df = model.recommend_items(uid=user_id_int, topn=10)  # Utiliser l'ID entier
-=======
         # Utiliser l'ID entier
         recommendations_df = model.recommend_items(uid=user_id_int, topn=10)
->>>>>>> origin/main
         if recommendations_df is None or recommendations_df.empty:
             return func.HttpResponse("[]", mimetype="application/json", status_code=200)
 

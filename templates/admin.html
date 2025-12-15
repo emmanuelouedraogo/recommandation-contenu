@@ -85,8 +85,14 @@
                     usersTable.style.display = 'table';
 
                 } catch (error) {
-                    loadingIndicator.textContent = `Erreur lors du chargement des utilisateurs: ${error.message}`;
-                    console.error('Erreur:', error);
+                    let errorMessage = `Erreur lors du chargement des utilisateurs: ${error.message}`;
+                    // Essayons d'obtenir un message plus précis depuis la réponse de l'API
+                    if (error.response) {
+                        const errorData = await error.response.json().catch(() => null);
+                        if (errorData && errorData.error) errorMessage += ` - ${errorData.error}`;
+                    }
+                    loadingIndicator.textContent = errorMessage;
+                    console.error('Erreur détaillée:', error);
                 }
             }
 

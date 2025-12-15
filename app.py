@@ -80,8 +80,12 @@ def register_routes(app):
     @requires_auth
     def get_all_users_with_status():
         """Retourne la liste de tous les utilisateurs avec leur statut pour l'admin."""
-        all_users = logic.obtenir_tous_les_utilisateurs_avec_statut()
-        return jsonify(all_users)
+        try:
+            all_users = logic.obtenir_tous_les_utilisateurs_avec_statut()
+            return jsonify(all_users)
+        except Exception as e:
+            app.logger.error(f"Failed to get all users with status: {e}")
+            return jsonify({"error": "Impossible de récupérer la liste des utilisateurs."}), 500
 
     @app.route("/api/users", methods=["POST"])  # Corrigé pour correspondre au JS
     def create_user():
