@@ -5,6 +5,7 @@ import joblib
 import os
 import logging
 from datetime import datetime  # type: ignore
+from io import BytesIO
 from azure.storage.blob import BlobServiceClient  # type: ignore
 from azure.identity import DefaultAzureCredential  # type: ignore
 from models import HybridRecommender  # Assurez-vous que vos classes de modèles sont importables

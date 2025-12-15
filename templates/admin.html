@@ -89,9 +89,61 @@
         .btn-delete { background-color: var(--danger-color); }
         .btn-reactivate { background-color: var(--info-color); }
         #loading { font-style: italic; color: var(--dark-gray); text-align: center; padding: 2em; }
+
+        /* Custom Modal Styles */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.6);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s, visibility 0.3s;
+        }
+        .modal-overlay.visible {
+            opacity: 1;
+            visibility: visible;
+        }
+        .modal-content {
+            background: var(--white);
+            padding: 2em;
+            border-radius: 8px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            width: 90%;
+            max-width: 400px;
+            text-align: center;
+        }
+        .modal-buttons {
+            margin-top: 1.5em;
+            display: flex;
+            justify-content: center;
+            gap: 1em;
+        }
+        .modal-buttons button {
+            padding: 10px 20px;
+        }
+        .btn-confirm { background-color: var(--primary-color); }
+        .btn-cancel { background-color: var(--dark-gray); }
     </style>
 </head>
 <body>
+    <!-- Modal Structure -->
+    <div id="confirmation-modal" class="modal-overlay">
+        <div class="modal-content">
+            <p id="modal-text">Êtes-vous sûr ?</p>
+            <div class="modal-buttons">
+                <button id="modal-confirm-btn" class="btn-confirm">Confirmer</button>
+                <button id="modal-cancel-btn" class="btn-cancel">Annuler</button>
+            </div>
+        </div>
+    </div>
+
     <div class="container">
         <h1>Panneau d'Administration des Utilisateurs</h1>
         <div class="toolbar">
@@ -186,32 +238,49 @@
                 displayUsers(filteredUsers);
             });
 
+            // Custom confirmation modal logic
+            const modal = document.getElementById('confirmation-modal');
+            const modalText = document.getElementById('modal-text');
+            const confirmBtn = document.getElementById('modal-confirm-btn');
+            const cancelBtn = document.getElementById('modal-cancel-btn');
+
+            function showConfirmation(message, onConfirm) {
+                modalText.textContent = message;
+                modal.classList.add('visible');
+
+                confirmBtn.onclick = () => {
+                    onConfirm();
+                    modal.classList.remove('visible');
+                };
+                cancelBtn.onclick = () => {
+                    modal.classList.remove('visible');
+                };
+            }
+
             // Fonction pour supprimer un utilisateur
             window.deleteUser = async function(userId) {
-                if (!confirm(`Êtes-vous sûr de vouloir supprimer l'utilisateur ${userId} ?`)) return;
-
-                try {
-                    const response = await fetch(`/api/users/${userId}`, { method: 'DELETE' });
-                    if (!response.ok) throw new Error('La suppression a échoué.');
-                    alert('Utilisateur supprimé avec succès.');
-                    fetchAndDisplayUsers(); // Recharger la liste
-                } catch (error) {
-                    alert(`Erreur: ${error.message}`);
-                }
+                showConfirmation(`Êtes-vous sûr de vouloir supprimer l'utilisateur ${userId} ?`, async () => {
+                    try {
+                        const response = await fetch(`/api/users/${userId}`, { method: 'DELETE' });
+                        if (!response.ok) throw new Error('La suppression a échoué.');
+                        fetchAndDisplayUsers(); // Recharger la liste
+                    } catch (error) {
+                        console.error(`Erreur: ${error.message}`);
+                    }
+                });
             };
 
             // Fonction pour réactiver un utilisateur
             window.reactivateUser = async function(userId) {
-                if (!confirm(`Êtes-vous sûr de vouloir réactiver l'utilisateur ${userId} ?`)) return;
-
-                try {
-                    const response = await fetch(`/api/users/${userId}/reactivate`, { method: 'POST' });
-                    if (!response.ok) throw new Error('La réactivation a échoué.');
-                    alert('Utilisateur réactivé avec succès.');
-                    fetchAndDisplayUsers(); // Recharger la liste
-                } catch (error) {
-                    alert(`Erreur: ${error.message}`);
-                }
+                showConfirmation(`Êtes-vous sûr de vouloir réactiver l'utilisateur ${userId} ?`, async () => {
+                    try {
+                        const response = await fetch(`/api/users/${userId}/reactivate`, { method: 'POST' });
+                        if (!response.ok) throw new Error('La réactivation a échoué.');
+                        fetchAndDisplayUsers(); // Recharger la liste
+                    } catch (error) {
+                        console.error(`Erreur: ${error.message}`);
+                    }
+                });
             };
 
             // Charger les données au démarrage
