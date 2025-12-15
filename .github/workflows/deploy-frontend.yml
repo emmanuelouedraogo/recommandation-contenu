@@ -13,16 +13,9 @@ on:
   workflow_dispatch:
  
 env:
-<<<<<<< HEAD
-  AZURE_WEBAPP_NAME: reco-contenu-interface   # Le nom de votre App Service
-  AZURE_RESOURCE_GROUP: rg-recommandation-contenu # Remplacez par le nom de votre groupe de ressources
-  PYTHON_VERSION: '3.11'                      # La version de Python utilisée
-  STARTUP_SCRIPT: 'Accueil.py'              # Le nom de votre script Streamlit principal
-=======
   AZURE_WEBAPP_NAME: reco-contenu-interface
   AZURE_RESOURCE_GROUP: rg-recommandation-contenu
   PYTHON_VERSION: '3.11'
->>>>>>> origin/main
 
 jobs:
   build-and-deploy-frontend:
@@ -37,6 +30,14 @@ jobs:
       uses: actions/setup-python@v4
       with:
         python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Cache des dépendances pip
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
 
     - name: Installation des dépendances
       run: |
