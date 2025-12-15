@@ -25,7 +25,7 @@ def load_pickle_from_blob(container_name: str, blob_name: str):
     )
     blob_client = blob_service_client.get_blob_client(container=container_name, blob=blob_name)
     downloader = blob_client.download_blob(timeout=120)
-    
+
     # Charger directement depuis le flux d'octets en mémoire pour plus de robustesse
     blob_bytes = downloader.readall()
     return joblib.load(BytesIO(blob_bytes))
