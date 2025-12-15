@@ -3,7 +3,7 @@
 import pandas as pd
 import joblib
 import os
-import logging  # type: ignore
+import logging
 from datetime import datetime  # type: ignore
 from azure.storage.blob import BlobServiceClient  # type: ignore
 from azure.identity import DefaultAzureCredential  # type: ignore
@@ -25,17 +25,10 @@ def load_pickle_from_blob(container_name: str, blob_name: str):
     )
     blob_client = blob_service_client.get_blob_client(container=container_name, blob=blob_name)
     downloader = blob_client.download_blob(timeout=120)
-    # Azure Functions /tmp directory is suitable for temporary files
-    # Ensure the directory exists
-    os.makedirs("/tmp", exist_ok=True)
-    local_path = os.path.join("/tmp", os.path.basename(blob_name))
-    try:
-        with open(local_path, "wb") as f:
-            f.write(downloader.readall())
-        return joblib.load(local_path)
-    except Exception:
-        logging.error(f"Échec du chargement du pickle depuis {local_path}", exc_info=True)
-    return None
+    
+    # Charger directement depuis le flux d'octets en mémoire pour plus de robustesse
+    blob_bytes = downloader.readall()
+    return joblib.load(BytesIO(blob_bytes))
 
 
 def evaluate_precision_at_k(model, test_df, k=10):
