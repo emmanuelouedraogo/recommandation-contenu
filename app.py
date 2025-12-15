@@ -61,6 +61,19 @@ def requires_auth(f):
     return decorated
 
 
+# --- Gestionnaire d'erreurs global ---
+@app.errorhandler(Exception)
+def handle_generic_error(e):
+    """
+    Capture toutes les exceptions non gérées et retourne une réponse JSON standard.
+    Cela évite de répéter les blocs try/except dans chaque route.
+    """
+    # Journaliser l'erreur complète pour le débogage
+    app.logger.error(f"Unhandled exception occurred: {e}", exc_info=True)
+    # Retourner une réponse générique à l'utilisateur
+    return jsonify({"error": "Une erreur interne inattendue est survenue sur le serveur."}), 500
+
+
 # Création d'un Blueprint pour les routes principales de l'API et de l'interface.
 main_bp = Blueprint("main", __name__)
 
@@ -97,12 +110,8 @@ def get_users():
 @requires_auth
 def get_all_users_with_status():
     """Retourne la liste de tous les utilisateurs avec leur statut pour l'admin."""
-    try:
-        all_users = logic.obtenir_tous_les_utilisateurs_avec_statut()
-        return jsonify(all_users)
-    except Exception as e:
-        app.logger.error(f"Failed to get all users with status: {e}")
-        return jsonify({"error": "Impossible de récupérer la liste des utilisateurs."}), 500
+    all_users = logic.obtenir_tous_les_utilisateurs_avec_statut()
+    return jsonify(all_users)
 
 
 @main_bp.route("/api/users", methods=["POST"])
@@ -141,23 +150,15 @@ def get_recommendations():
     user_id = request.args.get("user_id", type=int)
     country = request.args.get("country")
     device = request.args.get("device")
-    try:
-        recos = logic.obtenir_recommandations_pour_utilisateur(user_id, country, device)
-        return jsonify(recos)
-    except Exception as e:
-        app.logger.error(f"Failed to get recommendations for user {user_id}: {e}")
-        return jsonify({"error": "Le service de recommandation est actuellement indisponible."}), 503
+    recos = logic.obtenir_recommandations_pour_utilisateur(user_id, country, device)
+    return jsonify(recos)
 
 
 @main_bp.route("/api/history/<int:user_id>", methods=["GET"])
 def get_history(user_id):
     """Obtient l'historique de consultation d'un utilisateur."""
-    try:
-        history = logic.obtenir_historique_utilisateur(user_id)
-        return jsonify(history)
-    except Exception as e:
-        app.logger.error(f"Failed to get history for user {user_id}: {e}")
-        return jsonify({"error": "Impossible de récupérer l'historique."}), 500
+    history = logic.obtenir_historique_utilisateur(user_id)
+    return jsonify(history)
 
 
 @main_bp.route("/api/interactions", methods=["POST"])
@@ -169,47 +170,31 @@ def post_interaction():
     rating = data.get("rating")
     if not all([user_id, article_id, rating]):
         return jsonify({"error": "Données manquantes : user_id, article_id et rating sont requis."}), 400
-    try:
-        logic.ajouter_ou_mettre_a_jour_interaction(int(user_id), int(article_id), int(rating))
-        return jsonify({"message": "Interaction enregistrée avec succès."}), 201
-    except Exception as e:
-        app.logger.error(f"Failed to post interaction for user {user_id}: {e}")
-        return jsonify({"error": "Impossible d'enregistrer l'interaction."}), 500
+    logic.ajouter_ou_mettre_a_jour_interaction(int(user_id), int(article_id), int(rating))
+    return jsonify({"message": "Interaction enregistrée avec succès."}), 201
 
 
 @main_bp.route("/api/global_trends", methods=["GET"])
 def get_trends():
     """Obtient les tendances globales."""
-    try:
-        trends = logic.obtenir_tendances_globales_clics()
-        return jsonify(trends)
-    except Exception as e:
-        app.logger.error(f"Failed to get global trends: {e}")
-        return jsonify({"error": "Impossible de récupérer les tendances globales."}), 500
+    trends = logic.obtenir_tendances_globales_clics()
+    return jsonify(trends)
 
 
 @main_bp.route("/api/performance", methods=["GET"])
 def get_model_performance():
     """Obtient les métriques de performance du modèle."""
-    try:
-        performance = logic.obtenir_performance_modele()
-        return jsonify(performance)
-    except Exception as e:
-        app.logger.error(f"Failed to get model performance: {e}")
-        return jsonify({"error": "Impossible de récupérer les performances du modèle."}), 500
+    performance = logic.obtenir_performance_modele()
+    return jsonify(performance)
 
 
 @main_bp.route("/api/user_context/<int:user_id>", methods=["GET"])
 def get_user_context(user_id):
     """Obtient le contexte (pays, appareil) d'un utilisateur."""
-    try:
-        context = logic.obtenir_contexte_utilisateur(user_id)
-        if context:
-            return jsonify(context)
-        return jsonify({"error": "Contexte non trouvé pour cet utilisateur."}), 404
-    except Exception as e:
-        app.logger.error(f"Failed to get context for user {user_id}: {e}")
-        return jsonify({"error": "Impossible de récupérer le contexte utilisateur."}), 500
+    context = logic.obtenir_contexte_utilisateur(user_id)
+    if context:
+        return jsonify(context)
+    return jsonify({"error": "Contexte non trouvé pour cet utilisateur."}), 404
 
 
 @main_bp.route("/api/articles", methods=["POST"])
@@ -221,23 +206,15 @@ def add_article():
     category_id = data.get("category_id")
     if not all([title, content, category_id is not None]):
         return jsonify({"error": "Données manquantes : title, content et category_id sont requis."}), 400
-    try:
-        new_article_id = logic.creer_nouvel_article(title, content, int(category_id))
-        return jsonify({"article_id": new_article_id, "message": f"Article {new_article_id} créé."}), 201
-    except Exception as e:
-        app.logger.error(f"Failed to add article: {e}")
-        return jsonify({"error": "Impossible de créer l'article."}), 500
+    new_article_id = logic.creer_nouvel_article(title, content, int(category_id))
+    return jsonify({"article_id": new_article_id, "message": f"Article {new_article_id} créé."}), 201
 
 
 @main_bp.route("/api/retraining_status", methods=["GET"])
 def get_retraining_status():
     """Obtient le statut du processus de ré-entraînement."""
-    try:
-        status = logic.obtenir_statut_reentrainement()
-        return jsonify(status)
-    except Exception as e:
-        app.logger.error(f"Failed to get retraining status: {e}")
-        return jsonify({"error": "Impossible de récupérer le statut."}), 500
+    status = logic.obtenir_statut_reentrainement()
+    return jsonify(status)
 
 
 # Enregistrer le Blueprint auprès de l'application Flask.
