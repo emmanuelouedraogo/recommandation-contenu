@@ -7,7 +7,6 @@ import logging  # type: ignore
 from datetime import datetime  # type: ignore
 from azure.storage.blob import BlobServiceClient  # type: ignore
 from azure.identity import DefaultAzureCredential  # type: ignore
-from io import StringIO
 from models import HybridRecommender  # Assurez-vous que vos classes de modèles sont importables
 from sklearn.model_selection import train_test_split
 
