@@ -22,9 +22,9 @@ app = Flask(
 )
 
 # --- Authentification pour la page Admin ---
-# Dans une application réelle, chargez-les depuis des variables d'environnement sécurisées.
-ADMIN_USERNAME = "admin"
-ADMIN_PASSWORD = "password"
+# Charger les identifiants depuis les variables d'environnement pour la sécurité.
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "password")
 
 
 def check_auth(username, password):
@@ -46,6 +46,11 @@ def requires_auth(f):
     def decorated(*args, **kwargs):
         auth = request.authorization
         if not auth or not check_auth(auth.username, auth.password):
+            # Journaliser la tentative de connexion échouée pour la surveillance de la sécurité.
+            # On inclut l'adresse IP de la source pour le contexte.
+            ip_address = request.remote_addr
+            username_attempt = auth.username if auth else "None"
+            app.logger.warning(f"Failed admin login attempt from IP: {ip_address} with username: '{username_attempt}'")
             return authenticate()
         return f(*args, **kwargs)
 
