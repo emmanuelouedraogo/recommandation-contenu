@@ -22,6 +22,7 @@ USERS_BLOB_NAME = "users.csv"  # Le nom du fichier reste le même
 ARTICLES_BLOB_NAME = "articles_metadata.csv"
 CLICKS_BLOB_NAME = "clicks_sample.csv"
 TRAINING_LOG_BLOB_NAME = "logs/training_log.csv"
+NEW_ARTICLES_LOG_BLOB_NAME = "articles/new_articles_log.csv"  # Append-only log for new articles
 INTERACTIONS_LOG_BLOB_NAME = "interactions/new_interactions_log.csv"  # For appending new interactions
 STATUS_BLOB_NAME = "status/retraining_status.json"  # Fichier pour le statut en direct
 CACHE_TTL_SECONDS = 600  # 10 minutes
@@ -76,22 +77,25 @@ def charger_df_depuis_blob(blob_name: str) -> pd.DataFrame:
         logger.info(f"Chargé depuis le format Parquet optimisé : {parquet_blob_name}")
         return df
     except ResourceNotFoundError:
-        # Si le Parquet n'existe pas, se rabattre sur le CSV
-        logger.warning(f"Blob Parquet non trouvé, tentative de chargement du CSV : {blob_name}")
-        downloader = blob_client.download_blob()
-        blob_data = downloader.readall().decode("utf-8")
-        df = pd.read_csv(StringIO(blob_data))
-        # Renomme la colonne 'click_article_id' en 'article_id' si elle existe, pour la cohérence
-        if "click_article_id" in df.columns:
-            df.rename(columns={"click_article_id": "article_id"}, inplace=True)
+        try:
+            # Si le Parquet n'existe pas, se rabattre sur le CSV
+            logger.warning(f"Blob Parquet non trouvé, tentative de chargement du CSV : {blob_name}")
+            downloader = blob_client.download_blob()
+            blob_data = downloader.readall().decode("utf-8")
+            df = pd.read_csv(StringIO(blob_data))
+            # Renomme la colonne 'click_article_id' en 'article_id' si elle existe, pour la cohérence
+            if "click_article_id" in df.columns:
+                df.rename(columns={"click_article_id": "article_id"}, inplace=True)
 
-        # Assurez-vous que 'article_id' est de type int pour les merges futurs
-        df["article_id"] = df["article_id"].astype(int)
-
-        return df
+            # Assurez-vous que 'article_id' est de type int pour les merges futurs
+            df["article_id"] = df["article_id"].astype(int)
+            return df
+        except ResourceNotFoundError:
+            logger.error(f"Ni le blob Parquet ni le blob CSV n'ont été trouvés pour '{blob_name}'.")
+            raise  # Propage l'exception pour un échec rapide
     except Exception as e:
-        logger.error(f"Erreur lors du chargement du blob {blob_name}: {e}")
-        return pd.DataFrame()
+        logger.error(f"Erreur inattendue lors du chargement du blob {blob_name}: {e}", exc_info=True)
+        raise  # Propage l'exception pour un échec rapide
 
 
 def sauvegarder_df_vers_blob(df: pd.DataFrame, blob_name: str):
@@ -115,6 +119,21 @@ def obtenir_recommandations_pour_utilisateur(user_id: int, country_filter: str =
     if user_id not in all_users:
         return {"error": f"L'utilisateur {user_id} n'existe pas."}
 
+    # --- Amélioration de la réactivité ---
+    # Charger les interactions récentes depuis le journal d'append pour des recommandations en temps réel.
+    try:
+        interactions_df = charger_df_depuis_blob(blob_name=INTERACTIONS_LOG_BLOB_NAME)
+        if not interactions_df.empty:
+            # Filtrer pour l'utilisateur actuel et renommer les colonnes pour correspondre au format de l'API
+            user_interactions = interactions_df[interactions_df['user_id'] == user_id]
+            if not user_interactions.empty:
+                # Simuler la structure de réponse de l'API de reco pour les interactions récentes
+                user_interactions = user_interactions.rename(columns={'rating': 'score'})
+                logger.info(f"Fusion de {len(user_interactions)} interactions récentes pour l'utilisateur {user_id}.")
+    except Exception:
+        # Si le fichier de log n'existe pas ou est vide, continuer sans.
+        user_interactions = pd.DataFrame()
+
     try:
         headers = {"Accept": "application/json"}
         response = requests.get(
@@ -122,6 +141,13 @@ def obtenir_recommandations_pour_utilisateur(user_id: int, country_filter: str =
         )
         response.raise_for_status()
         recos = response.json()
+
+        # Fusionner les recommandations de l'API avec les interactions récentes
+        if not user_interactions.empty:
+            recos_df = pd.DataFrame(recos)
+            # Concaténer et supprimer les doublons, en gardant l'interaction la plus récente (du log)
+            combined_df = pd.concat([user_interactions, recos_df]).drop_duplicates(subset=['article_id'], keep='first')
+            recos = combined_df.to_dict(orient='records')
 
         # Enrichir les recommandations avec les détails des articles
         if recos:
@@ -205,18 +231,31 @@ def ajouter_ou_mettre_a_jour_interaction(user_id: int, article_id: int, rating: 
 def creer_nouvel_utilisateur():
     """Crée un nouvel utilisateur avec un ID unique."""
     # Utilise la liste des utilisateurs existants (clics + users.csv) comme source de vérité
-    existing_users = obtenir_utilisateurs()
+    existing_users = obtenir_tous_les_utilisateurs_avec_statut()
     if not existing_users:
         new_user_id = 1
     else:
         max_id = max(user["user_id"] for user in existing_users)
         new_user_id = max_id + 1
 
-    # Ajoute le nouvel utilisateur au fichier users.csv pour persistance
-    users_df = charger_df_depuis_blob(blob_name=USERS_BLOB_NAME)
-    new_user_df = pd.DataFrame([{"user_id": new_user_id, "date_creation": pd.Timestamp.now(timezone.utc).isoformat()}])
-    updated_users_df = pd.concat([users_df, new_user_df], ignore_index=True) if not users_df.empty else new_user_df
-    sauvegarder_df_vers_blob(updated_users_df, USERS_BLOB_NAME)
+    # --- Refactoring for Performance: Use an Append-Only Log ---
+    # Append the new user record instead of rewriting the entire file.
+    blob_service_client = recuperer_client_blob_service()
+    append_blob_client = blob_service_client.get_blob_client(
+        container=AZURE_CONTAINER_NAME, blob=USERS_BLOB_NAME
+    )
+    try:
+        append_blob_client.get_blob_properties()
+    except ResourceNotFoundError:
+        logger.info(f"Creating new user status log blob: {USERS_BLOB_NAME}")
+        append_blob_client.create_blob(metadata={"blob_type": "AppendBlob"})
+        header = "user_id,status,date_creation\n"
+        append_blob_client.append_block(header.encode("utf-8"))
+
+    timestamp = pd.Timestamp.now(timezone.utc).isoformat()
+    log_entry = f'{new_user_id},active,"{timestamp}"\n'
+    append_blob_client.append_block(log_entry.encode("utf-8"))
+    logger.info(f"Logged new user with ID {new_user_id} and status 'active'.")
 
     # Invalider le cache des utilisateurs pour que le nouveau soit visible immédiatement
     obtenir_utilisateurs.cache_clear()
@@ -228,37 +267,31 @@ def supprimer_utilisateur(user_id: int):
     Désactive un utilisateur en le marquant comme 'deleted' (suppression douce).
     Cette opération est réversible et préserve l'historique des interactions.
     """
-    users_df = charger_df_depuis_blob(blob_name=USERS_BLOB_NAME)
+    # --- Refactoring for Performance: Use an Append-Only Log for status changes ---
+    # We append a new status record instead of rewriting the entire file.
+    # This is faster and avoids race conditions.
+    blob_service_client = recuperer_client_blob_service()
+    append_blob_client = blob_service_client.get_blob_client(
+        container=AZURE_CONTAINER_NAME, blob=USERS_BLOB_NAME
+    )
 
-    if users_df.empty:
-        logger.warning(
-            f"Tentative de suppression de l'utilisateur {user_id}, mais le fichier des utilisateurs est vide."
-        )
-        return False
+    try:
+        append_blob_client.get_blob_properties()
+    except ResourceNotFoundError:
+        logger.info(f"Creating new user status log blob: {USERS_BLOB_NAME}")
+        append_blob_client.create_blob(metadata={"blob_type": "AppendBlob"})
+        header = "user_id,status,date_creation\n"
+        append_blob_client.append_block(header.encode("utf-8"))
 
-    if "status" not in users_df.columns:
-        users_df["status"] = "active"
+    timestamp = pd.Timestamp.now(timezone.utc).isoformat()
+    log_entry = f'{user_id},deleted,"{timestamp}"\n'
+    append_blob_client.append_block(log_entry.encode("utf-8"))
+    logger.info(f"Logged 'deleted' status for user {user_id}.")
 
-    if user_id in users_df["user_id"].values:
-        # Marquer l'utilisateur comme supprimé
-        users_df.loc[users_df["user_id"] == user_id, "status"] = "deleted"
-        sauvegarder_df_vers_blob(users_df, USERS_BLOB_NAME)
-        logger.info(f"Utilisateur {user_id} marqué comme 'deleted' (soft delete).")
-
-        # Invalider le cache pour que la liste des utilisateurs soit mise à jour
-        obtenir_utilisateurs.cache_clear()
-        return True
-    else:
-        # Si l'utilisateur n'est pas dans users.csv, il est peut-être implicite via clicks_sample.csv
-        # Dans ce cas, on l'ajoute à users.csv avec le statut 'deleted'
-        logger.warning(f"Utilisateur {user_id} non trouvé dans {USERS_BLOB_NAME}. Ajout avec le statut 'deleted'.")
-        new_deleted_user = pd.DataFrame(
-            [{"user_id": user_id, "status": "deleted", "date_creation": pd.Timestamp.now(timezone.utc).isoformat()}]
-        )
-        updated_df = pd.concat([users_df, new_deleted_user], ignore_index=True)
-        sauvegarder_df_vers_blob(updated_df, USERS_BLOB_NAME)
-        obtenir_utilisateurs.cache_clear()
-        return True
+    # Invalidate caches to reflect the change immediately
+    obtenir_utilisateurs.cache_clear()
+    obtenir_tous_les_utilisateurs_avec_statut.cache_clear()
+    return True
 
 
 def reactiver_utilisateur(user_id: int):
@@ -266,23 +299,24 @@ def reactiver_utilisateur(user_id: int):
     Réactive un utilisateur qui a été marqué comme 'deleted'.
     """
     users_df = charger_df_depuis_blob(blob_name=USERS_BLOB_NAME)
+    last_status = users_df[users_df['user_id'] == user_id].sort_values('date_creation').iloc[-1] if not users_df.empty and user_id in users_df['user_id'].values else None
 
-    if users_df.empty:
-        return False
+    if last_status is not None and last_status['status'] == 'deleted':
+        blob_service_client = recuperer_client_blob_service()
+        append_blob_client = blob_service_client.get_blob_client(
+            container=AZURE_CONTAINER_NAME, blob=USERS_BLOB_NAME
+        )
+        timestamp = pd.Timestamp.now(timezone.utc).isoformat()
+        log_entry = f'{user_id},active,"{timestamp}"\n'
+        append_blob_client.append_block(log_entry.encode("utf-8"))
+        logger.info(f"Logged 'active' status for user {user_id}.")
 
-    # Si la colonne status n'existe pas, aucun utilisateur ne peut être réactivé.
-    if "status" not in users_df.columns:
-        return False
-
-    # Vérifier si l'utilisateur existe et est bien 'deleted'
-    user_mask = (users_df["user_id"] == user_id) & (users_df["status"] == "deleted")
-    if user_mask.any():
-        users_df.loc[user_mask, "status"] = "active"
-        sauvegarder_df_vers_blob(users_df, USERS_BLOB_NAME)
-        logger.info(f"Utilisateur {user_id} a été réactivé.")
+        # Invalidate caches
         obtenir_utilisateurs.cache_clear()
+        obtenir_tous_les_utilisateurs_avec_statut.cache_clear()
         return True
 
+    logger.warning(f"Could not reactivate user {user_id}. User not found or not in 'deleted' state.")
     return False
 
 
@@ -351,35 +385,40 @@ def obtenir_contexte_utilisateur(user_id: int):
 
 def creer_nouvel_article(title: str, content: str, category_id: int) -> int:
     """Crée un nouvel article et le sauvegarde dans le blob."""
+    # --- Refactoring for Performance and to Avoid Race Conditions ---
+    # Instead of Read-Modify-Write, we find the latest ID and append to a log.
     articles_df = charger_df_depuis_blob(blob_name=ARTICLES_BLOB_NAME)
+    max_id_main = articles_df["article_id"].max() if not articles_df.empty else 0
 
-    if articles_df.empty:
-        new_article_id = 1  # Démarrer à 1 si aucun article n'existe
-    else:
-        # Assurer que 'article_id' est numérique pour max()
-        articles_df["article_id"] = pd.to_numeric(articles_df["article_id"], errors="coerce").fillna(0).astype(int)
-        new_article_id = int(articles_df["article_id"].max()) + 1
+    # Check the append log for an even higher ID
+    try:
+        new_articles_df = charger_df_depuis_blob(blob_name=NEW_ARTICLES_LOG_BLOB_NAME)
+        max_id_log = new_articles_df["article_id"].max() if not new_articles_df.empty else 0
+    except Exception:
+        max_id_log = 0
+
+    new_article_id = int(max(max_id_main, max_id_log)) + 1
 
     # Calculer le nombre de mots à partir du contenu
     words_count = len(content.split())
 
-    new_article = pd.DataFrame(
-        [
-            {
-                "article_id": new_article_id,
-                "category_id": category_id,
-                "created_at_ts": int(pd.Timestamp.now().timestamp()),
-                "publisher_id": 0,  # publisher_id n'est pas fourni par le front, on met une valeur par défaut
-                "words_count": words_count,
-                # Note: 'title' et 'content' ne sont pas dans le schéma fourni, mais sont conservés pour l'affichage.
-                "title": title,
-            }
-        ]
-    )
-    updated_articles_df = (
-        pd.concat([articles_df, new_article], ignore_index=True) if not articles_df.empty else new_article
-    )
-    sauvegarder_df_vers_blob(updated_articles_df, ARTICLES_BLOB_NAME)
+    # Append the new article to the log file
+    blob_service_client = recuperer_client_blob_service()
+    append_blob_client = blob_service_client.get_blob_client(container=AZURE_CONTAINER_NAME, blob=NEW_ARTICLES_LOG_BLOB_NAME)
+
+    try:
+        append_blob_client.get_blob_properties()
+    except ResourceNotFoundError:
+        logger.info(f"Creating new article log blob: {NEW_ARTICLES_LOG_BLOB_NAME}")
+        append_blob_client.create_blob(metadata={"blob_type": "AppendBlob"})
+        header = "article_id,category_id,created_at_ts,publisher_id,words_count,title\n"
+        append_blob_client.append_block(header.encode("utf-8"))
+
+    timestamp = int(pd.Timestamp.now().timestamp())
+    log_entry = f'{new_article_id},{category_id},{timestamp},0,{words_count},"{title}"\n'
+    append_blob_client.append_block(log_entry.encode("utf-8"))
+    logger.info(f"Logged new article with ID {new_article_id}.")
+
     return new_article_id
 
 
