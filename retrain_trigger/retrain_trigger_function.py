@@ -1,5 +1,5 @@
 # /home/epikaizo/Desktop/recommandation-contenu/retrain_trigger_function.py
-
+ 
 import azure.functions as func
 import logging
 import os

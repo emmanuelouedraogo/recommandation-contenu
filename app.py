@@ -111,6 +111,7 @@ def get_users():
 def get_all_users_with_status():
     """Retourne la liste de tous les utilisateurs avec leur statut pour l'admin."""
     all_users = logic.obtenir_tous_les_utilisateurs_avec_statut()
+    app.logger.info(f"API /api/admin/users returning {len(all_users)} users.")
     return jsonify(all_users)
 
 

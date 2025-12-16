@@ -116,9 +116,7 @@ def obtenir_recommandations_pour_utilisateur(user_id: int, country_filter: str =
     Retourne un dictionnaire avec les résultats ou une erreur.
     """  # type: ignore
     # La vérification de l'existence de l'utilisateur est maintenant gérée par la liste unifiée
-    # This check is now implicitly handled by the logic that follows and the UI.
-
-    # --- Amélioration de la réactivité ---
+    # --- Amélioration de la réactivité et robustesse ---
     # Charger les interactions récentes depuis le journal d'append pour des recommandations en temps réel.
     try:
         interactions_df = charger_df_depuis_blob(blob_name=INTERACTIONS_LOG_BLOB_NAME)
@@ -272,6 +270,7 @@ def creer_nouvel_utilisateur():
 
     # Invalider le cache des utilisateurs pour que le nouveau soit visible immédiatement
     obtenir_utilisateurs.cache_clear()
+    obtenir_tous_les_utilisateurs_avec_statut.cache_clear()
     return new_user_id
 
 
@@ -344,35 +343,62 @@ def obtenir_utilisateurs():
     return [{"user_id": uid} for uid in active_user_ids]
 
 
+@timed_lru_cache(seconds=300)  # Cache de 5 minutes pour la liste complète des utilisateurs
 def obtenir_tous_les_utilisateurs_avec_statut():
     """
     Récupère la liste de tous les utilisateurs (actifs et supprimés) avec leur statut.
     Destiné à la page d'administration.
     """
+    logger.info("Début de obtenir_tous_les_utilisateurs_avec_statut.")
+    clicks_df = pd.DataFrame()
+    users_df = pd.DataFrame()
+    try:
+        clicks_df = charger_df_depuis_blob(blob_name=CLICKS_BLOB_NAME)
+        logger.info(f"Chargé clicks_df: {len(clicks_df)} lignes.")
+    except Exception as e:
+        logger.warning(f"Impossible de charger {CLICKS_BLOB_NAME}: {e}")
+
+    try:
+        users_df = charger_df_depuis_blob(blob_name=USERS_BLOB_NAME)
+        logger.info(f"Chargé users_df: {len(users_df)} lignes.")
+    except Exception as e:
+        logger.warning(f"Impossible de charger {USERS_BLOB_NAME}: {e}")
+
     clicks_df = charger_df_depuis_blob(blob_name=CLICKS_BLOB_NAME)
     users_df = charger_df_depuis_blob(blob_name=USERS_BLOB_NAME)
 
     # --- Fiabilisation des types de données ---
     if not clicks_df.empty and "user_id" in clicks_df.columns:
         clicks_df["user_id"] = pd.to_numeric(clicks_df["user_id"], errors="coerce").dropna().astype(int)
+        logger.info(f"clicks_df après conversion user_id: {clicks_df['user_id'].unique()}")
+    else:
+        logger.info("clicks_df est vide ou n'a pas de colonne 'user_id'.")
     if not users_df.empty and "user_id" in users_df.columns:
         users_df["user_id"] = pd.to_numeric(users_df["user_id"], errors="coerce").dropna().astype(int)
+        logger.info(f"users_df après conversion user_id: {users_df['user_id'].unique()}")
+    else:
+        logger.info("users_df est vide ou n'a pas de colonne 'user_id'.")
 
     # Unifier les IDs des deux sources
     click_user_ids = set(clicks_df["user_id"].unique()) if not clicks_df.empty else set()
     manual_user_ids = set(users_df["user_id"].unique()) if not users_df.empty else set()
+    logger.info(f"click_user_ids: {click_user_ids}")
+    logger.info(f"manual_user_ids: {manual_user_ids}")
     all_user_ids = sorted(list(click_user_ids.union(manual_user_ids)))
+    logger.info(f"all_user_ids (combined): {all_user_ids}")
 
     # Créer un dictionnaire de statuts à partir de users.df
-    status_map = {}  # Initialiser le dictionnaire pour éviter les UnboundLocalError
+    status_map = {}
     if not users_df.empty and "status" in users_df.columns:
-        # S'assurer qu'il n'y a pas de doublons d'ID utilisateur pour éviter les erreurs.
-        # On garde la dernière occurrence qui est la plus récente.
         users_status_df = users_df.drop_duplicates(subset=["user_id"], keep="last")
         status_map = dict(zip(users_status_df.user_id, users_status_df.status))
+        logger.info(f"status_map: {status_map}")
+    else:
+        logger.info("users_df est vide ou n'a pas de colonne 'status'.")
 
     # Construire la liste finale avec le statut (par défaut 'active')
     result = [{"user_id": uid, "status": status_map.get(uid, "active")} for uid in all_user_ids]
+    logger.info(f"Fin de obtenir_tous_les_utilisateurs_avec_statut, retournant {len(result)} utilisateurs.")
     return result
 
 

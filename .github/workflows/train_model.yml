@@ -8,7 +8,7 @@ on:
   # Exécute le workflow automatiquement tous les dimanches à 3h du matin
   schedule:
     - cron: '0 3 * * 0'
-
+ 
 # --- Variables d'environnement pour le workflow ---
 env:
   PYTHON_VERSION: '3.11'

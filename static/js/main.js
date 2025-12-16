@@ -1,7 +1,6 @@
 document.addEventListener('DOMContentLoaded', function() {
     const userInput = document.getElementById('user-input');
     const createUserButton = document.getElementById('create-user-button');
-    const performanceButton = document.getElementById('performance-button');
     const filterCountrySelect = document.getElementById('filter-country');
     const filterDeviceSelect = document.getElementById('filter-device');
 
@@ -21,6 +20,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const recommendationsTabContent = document.getElementById('recommendations-tab-content');
     const historyTabContent = document.getElementById('history-tab-content');
     const globalTrendsTabContent = document.getElementById('global-trends-tab-content');
+    const performanceTabContent = document.getElementById('performance-tab-content');
     const initialRecoMessage = document.getElementById('initial-reco-message');
 
     // Modal for adding articles
@@ -446,12 +446,63 @@ document.addEventListener('DOMContentLoaded', function() {
             });
     }
 
+    function displayModelPerformance() {
+        showLoader();
+        fetch('/api/performance')
+            .then(response => response.json())
+            .then(data => {
+                hideLoader();
+                if (!Array.isArray(data) || data.length === 0) {
+                    performanceTabContent.innerHTML = '<p>Aucune donnée de performance du modèle trouvée.</p>';
+                    return;
+                }
+
+                performanceTabContent.innerHTML = `
+                    <h2>Évolution des Performances du Modèle</h2>
+                    <canvas id="performance-chart"></canvas>
+                `;
+
+                const perfCtx = document.getElementById('performance-chart').getContext('2d');
+                const labels = data.map(d => new Date(d.timestamp).toLocaleDateString('fr-FR'));
+
+                new Chart(perfCtx, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Précision@10 (Validation)',
+                            data: data.map(d => d.precision_at_10),
+                            borderColor: 'rgb(75, 192, 192)',
+                            backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                            fill: true,
+                            tension: 0.1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            title: {
+                                display: true,
+                                text: 'Évolution de la Précision@10 par entraînement'
+                            }
+                        }
+                    }
+                });
+            })
+            .catch(error => {
+                hideLoader();
+                console.error("Erreur lors du chargement des performances:", error);
+                performanceTabContent.innerHTML = '<p>Impossible de charger les données de performance.</p>';
+            });
+    }
+
     // Function to switch between tabs
     function switchTab(tabName) {
         // Hide all tab contents
         recommendationsTabContent.classList.remove('active');
         historyTabContent.classList.remove('active');
         globalTrendsTabContent.classList.remove('active');
+        performanceTabContent.classList.remove('active');
 
         // Deactivate all tab buttons
         tabButtons.forEach(button => button.classList.remove('active'));
@@ -477,6 +528,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 document.querySelector('.tab-button[data-tab="global-trends"]').classList.add('active');
                 displayGlobalTrends();
                 break;
+            case 'performance':
+                performanceTabContent.classList.add('active');
+                document.querySelector('.tab-button[data-tab="performance"]').classList.add('active');
+                displayModelPerformance();
+                break;
         }
         currentActiveTab = tabName; // Update the active tab tracker
     }
@@ -501,59 +557,6 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     filterDeviceSelect.addEventListener('change', () => {
         if (currentActiveTab === 'recommendations') { displayRecommendations(userInput.value, filterCountrySelect.value, filterDeviceSelect.value); }
-    });
-
-    // Gérer le clic sur le bouton de performance
-    performanceButton.addEventListener('click', function() {
-        showLoader();
-        fetch('/api/performance')
-            .then(response => response.json())
-            .then(data => {
-                hideLoader();
-                if (!Array.isArray(data) || data.length === 0) {
-                    showNotification('Aucune donnée de performance du modèle trouvée.', 'info');
-                    return;
-                }
-                // This should probably open a modal or a dedicated view. For now, let's just log it.
-                console.log("Model performance data:", data);
-                showNotification("Les données de performance ont été chargées. Voir la console.", 'info');
-                
-                const labels = data.map(d => `Epoch ${d.epoch}`);
-                
-                new Chart(ctx, {
-                    type: 'line',
-                    data: {
-                        labels: labels,
-                        datasets: [
-                            {
-                                label: 'Recall@10 (Validation)',
-                                data: data.map(d => d.val_recall_at_10),
-                                borderColor: 'rgb(75, 192, 192)',
-                                tension: 0.1
-                            },
-                            {
-                                label: 'Precision@10 (Validation)',
-                                data: data.map(d => d.val_precision_at_10),
-                                borderColor: 'rgb(255, 99, 132)',
-                                tension: 0.1
-                            }
-                        ]
-                    },
-                    options: {
-                        responsive: true,
-                        plugins: {
-                            title: {
-                                display: true,
-                                text: 'Évolution des métriques de validation par époque'
-                            }
-                        }
-                    }
-                });
-            })
-            .catch(error => {
-                hideLoader();
-                console.error("Erreur lors du chargement des performances:", error);
-            });
     });
 
     // Fonction pour vérifier et afficher le statut du réentraînement
