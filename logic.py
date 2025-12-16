@@ -5,6 +5,7 @@ import requests
 import os
 import logging
 import time
+import random
 from datetime import timezone
 from azure.storage.blob import BlobServiceClient  # type: ignore
 from azure.identity import DefaultAzureCredential
@@ -64,39 +65,62 @@ def recuperer_client_blob_service() -> BlobServiceClient:
 
 @timed_lru_cache(seconds=600)
 def charger_df_depuis_blob(blob_name: str) -> pd.DataFrame:
-    """Charge un DataFrame depuis un blob CSV."""
+    """
+    Charge un DataFrame depuis un blob, en privilégiant le format Parquet et en se rabattant sur le CSV.
+    Intègre une stratégie de retry avec backoff exponentiel pour la résilience réseau.
+    """
     blob_service_client = recuperer_client_blob_service()
     blob_client = blob_service_client.get_blob_client(container=AZURE_CONTAINER_NAME, blob=blob_name)
-    # Adapter le nom pour la version Parquet.
     parquet_blob_name = blob_name.replace(".csv", ".parquet")
     parquet_blob_client = blob_service_client.get_blob_client(container=AZURE_CONTAINER_NAME, blob=parquet_blob_name)
 
+    def _download_with_retry(client):
+        """Tente de télécharger un blob avec plusieurs essais."""
+        max_retries = 3
+        backoff_seconds = 1
+        for attempt in range(max_retries):
+            try:
+                downloader = client.download_blob()
+                return downloader.readall()
+            except ResourceNotFoundError:
+                # Ce n'est pas une erreur transitoire, le fichier n'existe pas. On arrête les essais.
+                raise
+            except Exception as e:
+                if attempt + 1 == max_retries:
+                    logger.error(
+                        f"Échec final du téléchargement du blob {client.blob_name} après {max_retries} tentatives."
+                    )
+                    raise  # Propage l'exception finale
+
+                sleep_time = backoff_seconds + random.uniform(0, 1)
+                logger.warning(
+                    f"Tentative {attempt + 1}/{max_retries} échouée pour {client.blob_name}. "
+                    f"Nouvel essai dans {sleep_time:.2f}s. Erreur: {e}"
+                )
+                time.sleep(sleep_time)
+                backoff_seconds *= 2  # Backoff exponentiel
+        return None  # Ne devrait jamais être atteint
+
+    # 1. Essayer de charger le Parquet en priorité
     try:
-        # Essayer de charger le Parquet en priorité. Parquet attend un flux binaire.
-        downloader = parquet_blob_client.download_blob()
-        df = pd.read_parquet(downloader.readall())
-        logger.info(f"Chargé depuis le format Parquet optimisé : {parquet_blob_name}")
+        parquet_data = _download_with_retry(parquet_blob_client)
+        df = pd.read_parquet(BytesIO(parquet_data))
+        logger.info(f"Chargé avec succès depuis Parquet : {parquet_blob_name}")
         return df
     except ResourceNotFoundError:
+        # 2. Si le Parquet n'existe pas, se rabattre sur le CSV
+        logger.warning(f"Parquet non trouvé, tentative de chargement du CSV : {blob_name}")
         try:
-            # Si le Parquet n'existe pas, se rabattre sur le CSV
-            logger.warning(f"Blob Parquet non trouvé, tentative de chargement du CSV : {blob_name}")
-            downloader = blob_client.download_blob()
-            blob_data = downloader.readall().decode("utf-8")
+            csv_data = _download_with_retry(blob_client)
+            blob_data = csv_data.decode("utf-8")
             df = pd.read_csv(StringIO(blob_data))
-            # Renomme la colonne 'click_article_id' en 'article_id' si elle existe, pour la cohérence
             if "click_article_id" in df.columns:
                 df.rename(columns={"click_article_id": "article_id"}, inplace=True)
-
-            # Assurez-vous que 'article_id' est de type int pour les merges futurs
             df["article_id"] = df["article_id"].astype(int)
             return df
         except ResourceNotFoundError:
             logger.error(f"Ni le blob Parquet ni le blob CSV n'ont été trouvés pour '{blob_name}'.")
-            raise  # Propage l'exception pour un échec rapide
-    except Exception as e:
-        logger.error(f"Erreur inattendue lors du chargement du blob {blob_name}: {e}", exc_info=True)
-        raise  # Propage l'exception pour un échec rapide
+            raise
 
 
 def sauvegarder_df_vers_blob(df: pd.DataFrame, blob_name: str):
@@ -243,13 +267,24 @@ def ajouter_ou_mettre_a_jour_interaction(user_id: int, article_id: int, rating: 
 
 def creer_nouvel_utilisateur():
     """Crée un nouvel utilisateur avec un ID unique."""
-    # Utilise la liste des utilisateurs existants (clics + users.csv) comme source de vérité
-    existing_users = obtenir_tous_les_utilisateurs_avec_statut()
-    if not existing_users:
-        new_user_id = 1
-    else:
-        max_id = max(user["user_id"] for user in existing_users)
-        new_user_id = max_id + 1
+    # --- Refactoring pour la robustesse : Calculer l'ID max de manière plus directe ---
+    # Au lieu d'appeler une fonction complexe, on vérifie chaque source de données indépendamment.
+    max_id_clicks = 0
+    max_id_users = 0
+    try:
+        clicks_df = charger_df_depuis_blob(blob_name=CLICKS_BLOB_NAME)
+        if not clicks_df.empty and "user_id" in clicks_df.columns:
+            max_id_clicks = clicks_df["user_id"].max()
+    except Exception:
+        logger.warning("Impossible de charger le fichier de clics pour déterminer l'ID max.")
+    try:
+        users_df = charger_df_depuis_blob(blob_name=USERS_BLOB_NAME)
+        if not users_df.empty and "user_id" in users_df.columns:
+            max_id_users = users_df["user_id"].max()
+    except Exception:
+        logger.warning("Impossible de charger le fichier des utilisateurs pour déterminer l'ID max.")
+
+    new_user_id = int(max(max_id_clicks, max_id_users)) + 1
 
     # --- Refactoring for Performance: Use an Append-Only Log ---
     # Append the new user record instead of rewriting the entire file.
