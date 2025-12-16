@@ -49,19 +49,7 @@
         <div class="sidebar-section">
             <h2>Actions</h2>
             <button id="create-user-button">Créer un nouvel utilisateur</button>
-            <button id="global-trends-button" class="btn-secondary">Tendances Globales</button>
-            <button id="performance-button" class="btn-secondary">Performances du Modèle</button>
-        </div>
-
-        <div id="add-article-form" class="sidebar-section">
-            <h2>Ajouter un Article</h2>
-            <label for="article-title">Titre :</label>
-            <input type="text" id="article-title" name="title">
-            <label for="article-content">Contenu :</label>
-            <textarea id="article-content" name="content" rows="4"></textarea>
-            <label for="article-category">ID Catégorie :</label>
-            <input type="number" id="article-category" name="category_id" value="0" min="0">
-            <button id="add-article-button">Ajouter l'article</button>
+            <!-- Les autres actions sont maintenant dans les onglets -->
         </div>
     </aside>
 
@@ -74,6 +62,7 @@
                 <button class="tab-button active" data-tab="recommendations">Obtenir mes recommandations</button>
                 <button class="tab-button" data-tab="history">Voir mon historique</button>
                 <button class="tab-button" data-tab="global-trends">Tendances Globales</button>
+                <button class="tab-button" data-tab="add-article">Ajouter un Article</button>
             </div>
 
             <div id="recommendations-tab-content" class="tab-content active">
@@ -81,6 +70,18 @@
             </div>
             <div id="history-tab-content" class="tab-content"></div>
             <div id="global-trends-tab-content" class="tab-content"></div>
+            <div id="add-article-tab-content" class="tab-content">
+                <div id="add-article-form" class="sidebar-section" style="border-bottom: none;">
+                    <h2>Ajouter un Nouvel Article</h2>
+                    <label for="article-title">Titre :</label>
+                    <input type="text" id="article-title" name="title">
+                    <label for="article-content">Contenu :</label>
+                    <textarea id="article-content" name="content" rows="4"></textarea>
+                    <label for="article-category">ID Catégorie :</label>
+                    <input type="number" id="article-category" name="category_id" value="0" min="0">
+                    <button id="add-article-button">Ajouter l'article</button>
+                </div>
+            </div>
         </div>
     </main>
 

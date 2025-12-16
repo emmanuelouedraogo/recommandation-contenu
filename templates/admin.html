@@ -65,6 +65,10 @@
             font-size: 0.85em;
             letter-spacing: 0.05em;
         }
+        th[data-sort] {
+            cursor: pointer;
+            user-select: none;
+        }
         tr:hover { background-color: #f1f1f1; }
         .status {
             padding: 5px 10px;
@@ -185,11 +189,9 @@
         <div class="card">
             <table id="users-table" style="display:none;">
                 <thead>
-                    <tr>
-                        <th>ID Utilisateur</th>
-                        <th>Statut</th>
-                        <th>Actions</th>
-                    </tr>
+                    <th data-sort="user_id">ID Utilisateur</th>
+                    <th data-sort="status">Statut</th>
+                    <th>Actions</th>
                 </thead>
                 <tbody id="users-tbody">
                     <!-- Les lignes seront insérées ici par JavaScript -->
@@ -203,194 +205,7 @@
         </div>
     </div>
 
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const usersTbody = document.getElementById('users-tbody');
-            const loadingIndicator = document.getElementById('loading');
-            const usersTable = document.getElementById('users-table');
-            const searchInput = document.getElementById('search-input');
-            let allUsers = []; // Pour stocker la liste complète des utilisateurs
-            
-            // Pagination state
-            let currentPage = 1;
-            const rowsPerPage = 10;
-            const paginationControls = document.getElementById('pagination-controls');
-
-
-            // Fonction pour récupérer et afficher les utilisateurs
-            async function fetchAndDisplayUsers() {
-                try {
-                    const response = await fetch('/api/admin/users');
-                    if (!response.ok) {
-                        const errorData = await response.json().catch(() => null);
-                        const errorMessage = errorData?.error || `Erreur HTTP: ${response.status}`;
-                        throw new Error(errorMessage);
-                    }
-                    allUsers = await response.json();
-                    currentPage = 1; // Reset to first page on new fetch/search
-                    displayUsers(allUsers); // Display the first page
-                } catch (error) {
-                    loadingIndicator.textContent = `Erreur lors du chargement : ${error.message}`;
-                    console.error('Erreur détaillée:', error);
-                }
-            }
-
-            // Fonction pour afficher les utilisateurs (et appliquer le filtre)
-            function displayUsers(users, page = 1) {
-                usersTbody.innerHTML = ''; // Vider le tableau
-                currentPage = page;
-
-                const start = (currentPage - 1) * rowsPerPage;
-                const end = start + rowsPerPage;
-                const paginatedUsers = users.slice(start, end);
-
-                if (users.length === 0) {
-                    loadingIndicator.textContent = "Aucun utilisateur trouvé.";
-                    loadingIndicator.style.display = 'block';
-                    usersTable.style.display = 'none';
-                    paginationControls.style.display = 'none';
-                    return;
-                }
-
-                if (paginatedUsers.length === 0 && currentPage > 1) {
-                    // Handle case where user is on a page that no longer exists after filtering
-                    currentPage = 1;
-                    displayUsers(users, currentPage);
-                    return;
-                }
-
-                paginatedUsers.forEach(user => {
-                    const tr = document.createElement('tr');
-                    tr.dataset.userId = user.user_id; // Pour la recherche
-
-                    const statusClass = user.status === 'active' ? 'status-active' : 'status-deleted';
-
-                    let actionButton;
-                    if (user.status === 'active') {
-                        actionButton = `<button class="btn-delete" onclick="deleteUser(${user.user_id})">Supprimer</button>`;
-                    } else {
-                        actionButton = `<button class="btn-reactivate" onclick="reactivateUser(${user.user_id})">Réactiver</button>`;
-                    }
-
-                    tr.innerHTML = `
-                        <td>${user.user_id}</td>
-                        <td><span class="status ${statusClass}">${user.status}</span></td>
-                        <td>${actionButton}</td>
-                    `;
-                    usersTbody.appendChild(tr);
-                });
-
-                loadingIndicator.style.display = 'none';
-                usersTable.style.display = 'table';
-                updatePagination(users.length);
-            }
-
-            // Filtrer les utilisateurs lors de la saisie dans la barre de recherche
-            searchInput.addEventListener('input', (e) => {
-                const searchTerm = e.target.value.toLowerCase();
-                const filteredUsers = allUsers.filter(user =>
-                    user.user_id.toString().toLowerCase().includes(searchTerm)
-                );
-                currentPage = 1; // Reset to first page on new search
-                displayUsers(filteredUsers, currentPage);
-            });
-
-            // Update pagination controls UI
-            function updatePagination(totalUsers) {
-                const totalPages = Math.ceil(totalUsers / rowsPerPage);
-                const pageInfo = document.getElementById('page-info');
-                const prevBtn = document.getElementById('prev-page');
-                const nextBtn = document.getElementById('next-page');
-
-                if (totalPages <= 1) {
-                    paginationControls.style.display = 'none';
-                    return;
-                }
-
-                paginationControls.style.display = 'flex';
-                pageInfo.textContent = `Page ${currentPage} sur ${totalPages}`;
-                prevBtn.disabled = currentPage === 1;
-                nextBtn.disabled = currentPage === totalPages;
-            });
-
-            // Custom confirmation modal logic
-            const modal = document.getElementById('confirmation-modal');
-            const modalText = document.getElementById('modal-text');
-            const confirmBtn = document.getElementById('modal-confirm-btn');
-            const cancelBtn = document.getElementById('modal-cancel-btn');
-
-            async function showConfirmation(message, onConfirm) {
-                modalText.textContent = message;
-                modal.classList.add('visible');
-
-                // Use a one-time event listener to avoid stacking listeners
-                confirmBtn.onclick = async () => {
-                    // Show loading state
-                    const originalText = confirmBtn.textContent;
-                    confirmBtn.innerHTML = `<span class="btn-spinner"></span> Chargement...`;
-                    confirmBtn.disabled = true;
-                    cancelBtn.disabled = true;
-
-                    await onConfirm();
-
-                    // Restore button and hide modal
-                    confirmBtn.innerHTML = originalText;
-                    confirmBtn.disabled = false;
-                    cancelBtn.disabled = false;
-                    modal.classList.remove('visible');
-                };
-                cancelBtn.onclick = () => {
-                    modal.classList.remove('visible');
-                };
-            }
-
-            // Fonction pour supprimer un utilisateur
-            window.deleteUser = function(userId) {
-                showConfirmation(`Êtes-vous sûr de vouloir supprimer l'utilisateur ${userId} ?`, async () => {
-                    try {
-                        const response = await fetch(`/api/users/${userId}`, { method: 'DELETE' });
-                        if (!response.ok) throw new Error('La suppression a échoué.');
-                        fetchAndDisplayUsers(); // Recharger la liste
-                    } catch (error) {
-                        console.error(`Erreur lors de la suppression: ${error.message}`);
-                    }
-                });
-            };
-
-            // Fonction pour réactiver un utilisateur
-            window.reactivateUser = function(userId) {
-                showConfirmation(`Êtes-vous sûr de vouloir réactiver l'utilisateur ${userId} ?`, async () => {
-                    try {
-                        const response = await fetch(`/api/users/${userId}/reactivate`, { method: 'POST' });
-                        if (!response.ok) throw new Error('La réactivation a échoué.');
-                        fetchAndDisplayUsers(); // Recharger la liste
-                    } catch (error) {
-                        console.error(`Erreur lors de la réactivation: ${error.message}`);
-                    }
-                });
-            };
-
-            // Pagination event listeners
-            document.getElementById('prev-page').addEventListener('click', () => {
-                const searchTerm = searchInput.value.toLowerCase();
-                const filteredUsers = allUsers.filter(u => u.user_id.toString().toLowerCase().includes(searchTerm));
-                if (currentPage > 1) {
-                    displayUsers(filteredUsers, currentPage - 1);
-                }
-            });
-            document.getElementById('next-page').addEventListener('click', () => {
-                const searchTerm = searchInput.value.toLowerCase();
-                const filteredUsers = allUsers.filter(u => u.user_id.toString().toLowerCase().includes(searchTerm));
-                const totalPages = Math.ceil(filteredUsers.length / rowsPerPage);
-                if (currentPage < totalPages) {
-                    displayUsers(filteredUsers, currentPage + 1);
-                }
-            });
-
-            // Charger les données au démarrage
-            fetchAndDisplayUsers();
-        });
-    </script>
+    <script src="{{ url_for('static', filename='js/admin.js') }}"></script>
 
 </body>
 </html>
