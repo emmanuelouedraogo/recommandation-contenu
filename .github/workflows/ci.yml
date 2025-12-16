@@ -8,7 +8,7 @@ env:
   AZURE_FUNCTION_PLAN_NAME: plan-reco-function-premium # Nom pour le nouveau plan Premium
   AZURE_CONTAINER_NAME: reco-data # Nom du conteneur de stockage
   AZURE_RESOURCE_GROUP: rg-recommandation-contenu # Nom du groupe de ressources
-  AZURE_KEY_VAULT_NAME: "reco-key-vault-${{ github.run_id }}" # Nom unique pour le Key Vault
+  AZURE_KEY_VAULT_NAME: "reco-kv-${{ github.run_id }}" # Nom unique et court pour le Key Vault
   AZURE_LOCATION: 'francecentral' # Emplacement des ressources
 
 on:
@@ -125,6 +125,8 @@ jobs:
             # Utilisation des références Key Vault (@Microsoft.KeyVault(...)) au lieu des chaînes de connexion brutes
             STORAGE_KV_URI=$(az keyvault secret show --vault-name "${{ env.AZURE_KEY_VAULT_NAME }}" --name "storage-connection-string" --query id -o tsv)
             az functionapp config appsettings set --name ${{ env.AZURE_FUNCTIONAPP_NAME }} --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --settings \
+              "AzureWebJobsStorage=$STORAGE_CONNECTION_STRING" \
+              "WEBSITE_CONTENTAZUREFILECONNECTIONSTRING=$STORAGE_CONNECTION_STRING" \
               "AzureWebJobsStorage=@Microsoft.KeyVault(SecretUri=$STORAGE_KV_URI)" \
               "WEBSITE_CONTENTAZUREFILECONNECTIONSTRING=@Microsoft.KeyVault(SecretUri=$STORAGE_KV_URI)" \
               "AZURE_STORAGE_ACCOUNT_NAME=${{ env.AZURE_STORAGE_ACCOUNT_NAME }}" \
