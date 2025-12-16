@@ -399,9 +399,6 @@ def obtenir_tous_les_utilisateurs_avec_statut():
     except Exception as e:
         logger.warning(f"Impossible de charger {USERS_BLOB_NAME}: {e}")
 
-    clicks_df = charger_df_depuis_blob(blob_name=CLICKS_BLOB_NAME)
-    users_df = charger_df_depuis_blob(blob_name=USERS_BLOB_NAME)
-
     # --- Fiabilisation des types de données ---
     if not clicks_df.empty and "user_id" in clicks_df.columns:
         clicks_df["user_id"] = pd.to_numeric(clicks_df["user_id"], errors="coerce").dropna().astype(int)
