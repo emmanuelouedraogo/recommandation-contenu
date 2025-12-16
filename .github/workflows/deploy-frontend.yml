@@ -11,7 +11,7 @@ on:
       - 'requirements.txt'
       - '.github/workflows/deploy-frontend.yml'
   workflow_dispatch:
- 
+
 env:
   AZURE_WEBAPP_NAME: reco-contenu-interface
   AZURE_RESOURCE_GROUP: rg-recommandation-contenu
