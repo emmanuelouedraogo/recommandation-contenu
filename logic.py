@@ -395,19 +395,25 @@ def obtenir_tous_les_utilisateurs_avec_statut():
     Destiné à la page d'administration.
     """
     logger.info("Début de obtenir_tous_les_utilisateurs_avec_statut.")
-    clicks_df = pd.DataFrame()
-    users_df = pd.DataFrame()
     try:
         clicks_df = charger_df_depuis_blob(blob_name=CLICKS_BLOB_NAME)
         logger.info(f"Chargé clicks_df: {len(clicks_df)} lignes.")
+    except ResourceNotFoundError:
+        logger.warning(f"Le fichier principal des clics '{CLICKS_BLOB_NAME}' n'a pas été trouvé. On continue avec une liste vide.")
+        clicks_df = pd.DataFrame()
     except Exception as e:
-        logger.warning(f"Impossible de charger {CLICKS_BLOB_NAME}: {e}")
+        logger.error(f"Échec critique du chargement de {CLICKS_BLOB_NAME}: {e}")
+        raise  # Propage l'erreur pour retourner une réponse 500 au client
 
     try:
         users_df = charger_df_depuis_blob(blob_name=USERS_BLOB_NAME)
         logger.info(f"Chargé users_df: {len(users_df)} lignes.")
+    except ResourceNotFoundError:
+        logger.warning(f"Le fichier des utilisateurs '{USERS_BLOB_NAME}' n'a pas été trouvé. On continue avec une liste vide.")
+        users_df = pd.DataFrame()
     except Exception as e:
-        logger.warning(f"Impossible de charger {USERS_BLOB_NAME}: {e}")
+        logger.error(f"Échec critique du chargement de {USERS_BLOB_NAME}: {e}")
+        raise  # Propage l'erreur pour retourner une réponse 500 au client
 
     # --- Fiabilisation des types de données ---
     if not clicks_df.empty and "user_id" in clicks_df.columns:
