@@ -210,14 +210,31 @@ def obtenir_recommandations_pour_utilisateur(user_id: int, country_filter: str =
             return reco_details.to_dict(orient="records")
         return []
     except requests.exceptions.RequestException as e:
-        if e.response is not None and e.response.status_code == 404:
-            logger.error(f"L'endpoint de recommandation n'a pas été trouvé (404) pour user_id {user_id}: {e}")
-            return {"error": "Le point de terminaison de l'API de recommandation est introuvable."}
-        logger.error(f"Erreur API pour user_id {user_id}: {e}")
-        return {"error": "Le service de recommandation est indisponible."}
+        logger.error(f"Erreur API pour user_id {user_id}, utilisation du fallback: {e}")
+        return _obtenir_recommandations_fallback()
     except Exception as e:
-        logger.error(f"Erreur inattendue pour user_id {user_id}: {e}")
-        return {"error": "Une erreur inattendue est survenue."}
+        logger.error(f"Erreur inattendue pour user_id {user_id}, utilisation du fallback: {e}")
+        return _obtenir_recommandations_fallback()
+
+
+def _obtenir_recommandations_fallback(limite=5):
+    """
+    Fournit une liste des articles les plus populaires comme solution de repli.
+    Utilisé lorsque le service de recommandation principal est indisponible.
+    """
+    try:
+        logger.info("Utilisation de la logique de fallback : affichage des articles les plus populaires.")
+        clicks_df = charger_df_depuis_blob(blob_name=CLICKS_BLOB_NAME)
+        if clicks_df.empty:
+            return []
+
+        popular_articles = clicks_df["article_id"].value_counts().nlargest(limite).index.tolist()
+        articles_df = charger_df_depuis_blob(blob_name=ARTICLES_BLOB_NAME)
+        fallback_recos = articles_df[articles_df["article_id"].isin(popular_articles)]
+        return fallback_recos.to_dict(orient="records")
+    except Exception as e:
+        logger.error(f"Erreur lors de la génération des recommandations de fallback : {e}")
+        return []
 
 
 def obtenir_historique_utilisateur(user_id: int):
@@ -407,7 +424,7 @@ def obtenir_tous_les_utilisateurs_avec_statut():
         clicks_df = pd.DataFrame()
     except Exception as e:
         logger.error(f"Échec critique du chargement de {CLICKS_BLOB_NAME}: {e}")
-        raise  # Propage l'erreur pour retourner une réponse 500 au client
+        return []  # Retourne une liste vide pour éviter de faire planter l'admin
 
     try:
         users_df = charger_df_depuis_blob(blob_name=USERS_BLOB_NAME)  # type: ignore
@@ -419,7 +436,7 @@ def obtenir_tous_les_utilisateurs_avec_statut():
         users_df = pd.DataFrame()
     except Exception as e:
         logger.error(f"Échec critique du chargement de {USERS_BLOB_NAME}: {e}")
-        raise  # Propage l'erreur pour retourner une réponse 500 au client
+        return []  # Retourne une liste vide pour éviter de faire planter l'admin
 
     # --- Fiabilisation des types de données ---
     if not clicks_df.empty and "user_id" in clicks_df.columns:
@@ -552,9 +569,12 @@ def obtenir_performance_modele():
 @timed_lru_cache(seconds=900)  # Cache de 15 minutes
 def obtenir_tendances_globales_clics():
     """Récupère et agrège les données de clics pour les tendances globales par pays et par groupe d'appareils."""
-    clicks_df = charger_df_depuis_blob(blob_name=CLICKS_BLOB_NAME)
-
-    if clicks_df.empty:
+    try:
+        clicks_df = charger_df_depuis_blob(blob_name=CLICKS_BLOB_NAME)
+        if clicks_df.empty:
+            return {"clicks_by_country": [], "clicks_by_device": []}
+    except Exception as e:
+        logger.error(f"Impossible de charger les données de clics pour les tendances, retour de données vides: {e}")
         return {"clicks_by_country": [], "clicks_by_device": []}
 
     # Agrégation par pays
