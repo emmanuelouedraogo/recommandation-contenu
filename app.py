@@ -5,12 +5,7 @@ from flask import Flask, Blueprint, render_template, jsonify, request, Response
 from functools import wraps
 
 # --- Configuration and Initialization ---
-# We wrap the import in a try-except block to provide a user-friendly error
-# if the essential configuration is missing.
-try:
-
-# Determine the absolute path for the project directory.
-project_dir = os.path.dirname(os.path.abspath(__file__))
+project_dir = os.path.dirname(os.path.abspath(__file__)) # NOSONAR
 
 # Initialisation de l'application Flask
 app = Flask(
