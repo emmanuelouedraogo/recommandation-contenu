@@ -372,14 +372,18 @@
 
             // Pagination event listeners
             document.getElementById('prev-page').addEventListener('click', () => {
+                const searchTerm = searchInput.value.toLowerCase();
+                const filteredUsers = allUsers.filter(u => u.user_id.toString().toLowerCase().includes(searchTerm));
                 if (currentPage > 1) {
-                    displayUsers(allUsers.filter(u => u.user_id.toString().toLowerCase().includes(searchInput.value.toLowerCase())), currentPage - 1);
+                    displayUsers(filteredUsers, currentPage - 1);
                 }
             });
             document.getElementById('next-page').addEventListener('click', () => {
-                const totalPages = Math.ceil(allUsers.length / rowsPerPage);
+                const searchTerm = searchInput.value.toLowerCase();
+                const filteredUsers = allUsers.filter(u => u.user_id.toString().toLowerCase().includes(searchTerm));
+                const totalPages = Math.ceil(filteredUsers.length / rowsPerPage);
                 if (currentPage < totalPages) {
-                    displayUsers(allUsers.filter(u => u.user_id.toString().toLowerCase().includes(searchInput.value.toLowerCase())), currentPage + 1);
+                    displayUsers(filteredUsers, currentPage + 1);
                 }
             });
 

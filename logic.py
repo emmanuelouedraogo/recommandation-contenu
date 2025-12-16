@@ -1,5 +1,6 @@
 import pandas as pd
 from io import StringIO, BytesIO
+import csv
 import requests
 import os
 import logging
@@ -185,11 +186,29 @@ def obtenir_recommandations_pour_utilisateur(user_id: int, country_filter: str =
 
 def obtenir_historique_utilisateur(user_id: int):
     """Récupère l'historique des notations pour un utilisateur."""
-    clicks_df = charger_df_depuis_blob(blob_name=CLICKS_BLOB_NAME)
-    if clicks_df.empty:
+    # --- Refactoring for Consistency: Include recent interactions in history ---
+    # Load both the main history and the recent interaction log.
+    try:
+        main_history_df = charger_df_depuis_blob(blob_name=CLICKS_BLOB_NAME)
+    except Exception:
+        main_history_df = pd.DataFrame()
+
+    try:
+        recent_interactions_df = charger_df_depuis_blob(blob_name=INTERACTIONS_LOG_BLOB_NAME)
+        # Rename columns to match the main history format for merging
+        recent_interactions_df = recent_interactions_df.rename(
+            columns={"rating": "nb", "timestamp": "click_timestamp"}
+        )
+    except Exception:
+        recent_interactions_df = pd.DataFrame()
+
+    # Combine both dataframes
+    combined_history = pd.concat([main_history_df, recent_interactions_df], ignore_index=True)
+
+    if combined_history.empty:
         return []
 
-    user_history = clicks_df[clicks_df["user_id"] == user_id]
+    user_history = combined_history[combined_history["user_id"] == user_id]
     if user_history.empty:
         return []
     articles_df = charger_df_depuis_blob(blob_name=ARTICLES_BLOB_NAME)
@@ -413,8 +432,13 @@ def creer_nouvel_article(title: str, content: str, category_id: int) -> int:
         append_blob_client.append_block(header.encode("utf-8"))
 
     timestamp = int(pd.Timestamp.now().timestamp())
-    log_entry = f'{new_article_id},{category_id},{timestamp},0,{words_count},"{title}"\n'
-    append_blob_client.append_block(log_entry.encode("utf-8"))
+    
+    # Utiliser le module CSV pour une génération de ligne robuste et sécurisée
+    output = StringIO()
+    writer = csv.writer(output, quoting=csv.QUOTE_ALL)
+    writer.writerow([new_article_id, category_id, timestamp, 0, words_count, title])
+
+    append_blob_client.append_block(output.getvalue().encode("utf-8"))
     logger.info(f"Logged new article with ID {new_article_id}.")
 
     return new_article_id

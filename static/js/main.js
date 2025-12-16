@@ -28,10 +28,18 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // --- Notification System ---
     const notificationContainer = document.getElementById('notification-container');
-    function showNotification(message, type = 'info') { // type can be 'info', 'success', 'error'
+    async function showNotification(message, type = 'info') { // type can be 'info', 'success', 'error'
         const notification = document.createElement('div');
         notification.className = `notification ${type}`;
-        notification.textContent = message;
+
+        // Si le message est un objet Réponse, essayer d'extraire l'erreur JSON.
+        if (message instanceof Response) {
+            const errorData = await message.json().catch(() => ({ error: "Erreur de décodage de la réponse." }));
+            notification.textContent = `Erreur ${message.status}: ${errorData.error || message.statusText}`;
+        } else {
+            notification.textContent = message;
+        }
+
         notificationContainer.appendChild(notification);
         setTimeout(() => {
             notification.remove();
@@ -125,7 +133,7 @@ document.addEventListener('DOMContentLoaded', function() {
             })
             .catch(error => {
                 console.error("Erreur lors de la création de l'utilisateur:", error); // NOSONAR
-                showNotification("Impossible de créer un nouvel utilisateur.", 'error');
+                showNotification("Impossible de créer un nouvel utilisateur. Vérifiez la console pour les détails.", 'error');
             })
             .finally(() => {
                 createUserButton.textContent = 'Créer un nouvel utilisateur';
@@ -162,9 +170,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
         if (confirm(`Êtes-vous sûr de vouloir désactiver l'utilisateur ${userId} ? Il n'apparaîtra plus dans la liste, mais ses données seront conservées.`)) { // NOSONAR
             fetch(`/api/users/${userId}`, { method: 'DELETE' })
-                .then(response => response.json())
+                .then(response => {
+                    if (!response.ok) throw response; // Lancer la réponse pour la capture d'erreur
+                    return response.json();
+                })
                 .then(data => {
-                    showNotification(data.message || data.error, data.error ? 'error' : 'success');
+                    showNotification(data.message, 'success');
                     userInput.value = ''; // Vider le champ de saisie
                     loadUserContext(''); // Clear user context display
                     switchTab('recommendations'); // Go back to recommendations tab, which will show initial message
@@ -227,7 +238,7 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(response => {
                 if (response.ok) {
                     event.target.textContent = 'Merci !';
-                    event.target.disabled = true;
+                    event.target.closest('.reco-card').querySelector('.rating-select').disabled = true;
                 } else {
                     showNotification('Erreur lors de la notation.', 'error');
                 }
@@ -251,7 +262,10 @@ document.addEventListener('DOMContentLoaded', function() {
         if (device) { queryParams.append('device', device); }
 
         fetch(`/api/recommendations?${queryParams.toString()}`)
-            .then(response => response.json())
+            .then(response => {
+                if (!response.ok) throw response;
+                return response.json();
+            })
             .then(recos => {
                 hideLoader();
                 if (Array.isArray(recos) && recos.length > 0) {
@@ -264,8 +278,8 @@ document.addEventListener('DOMContentLoaded', function() {
             })
             .catch(error => {
                 hideLoader();
-                console.error("Erreur lors du chargement des recommandations:", error);
-                recommendationsTabContent.innerHTML = '<p>Impossible de charger les recommandations.</p>';
+                showNotification(error, 'error');
+                recommendationsTabContent.innerHTML = '<p class="error-message">Impossible de charger les recommandations. Vérifiez que l\'identité managée a le rôle "Storage Blob Data Reader" sur le compte de stockage.</p>';
             });
     }
 
