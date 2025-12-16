@@ -196,9 +196,7 @@ def obtenir_historique_utilisateur(user_id: int):
     try:
         recent_interactions_df = charger_df_depuis_blob(blob_name=INTERACTIONS_LOG_BLOB_NAME)
         # Rename columns to match the main history format for merging
-        recent_interactions_df = recent_interactions_df.rename(
-            columns={"rating": "nb", "timestamp": "click_timestamp"}
-        )
+        recent_interactions_df = recent_interactions_df.rename(columns={"rating": "nb", "timestamp": "click_timestamp"})
     except Exception:
         recent_interactions_df = pd.DataFrame()
 
@@ -432,7 +430,7 @@ def creer_nouvel_article(title: str, content: str, category_id: int) -> int:
         append_blob_client.append_block(header.encode("utf-8"))
 
     timestamp = int(pd.Timestamp.now().timestamp())
-    
+
     # Utiliser le module CSV pour une génération de ligne robuste et sécurisée
     output = StringIO()
     writer = csv.writer(output, quoting=csv.QUOTE_ALL)
