@@ -432,11 +432,16 @@ def obtenir_tous_les_utilisateurs_avec_statut():
     # Créer un dictionnaire de statuts à partir de users.df
     status_map = {}
     if not users_df.empty and "status" in users_df.columns:
-        users_status_df = users_df.drop_duplicates(subset=["user_id"], keep="last")
-        status_map = dict(zip(users_status_df.user_id, users_status_df.status))
+        # Assurer que la date de création est un datetime pour un tri fiable
+        users_df["date_creation"] = pd.to_datetime(users_df["date_creation"], errors="coerce")
+        # Supprimer les lignes où la date n'a pas pu être interprétée
+        users_df.dropna(subset=["date_creation"], inplace=True)
+        # Trier par date pour s'assurer que la dernière entrée est bien la plus récente
+        users_df.sort_values("date_creation", ascending=True, inplace=True)
+        # Garder uniquement la dernière entrée pour chaque utilisateur, qui représente son statut actuel
+        latest_status_df = users_df.drop_duplicates(subset=["user_id"], keep="last")
+        status_map = dict(zip(latest_status_df.user_id, latest_status_df.status))
         logger.info(f"status_map: {status_map}")
-    else:
-        logger.info("users_df est vide ou n'a pas de colonne 'status'.")
 
     # Construire la liste finale avec le statut (par défaut 'active')
     result = [{"user_id": uid, "status": status_map.get(uid, "active")} for uid in all_user_ids]
