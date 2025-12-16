@@ -1,5 +1,6 @@
 import os
 from secrets import compare_digest
+import logging
 from flask import Flask, Blueprint, render_template, jsonify, request, Response
 from functools import wraps
 
@@ -7,10 +8,6 @@ from functools import wraps
 # We wrap the import in a try-except block to provide a user-friendly error
 # if the essential configuration is missing.
 try:
-    import logic
-except ValueError as e:
-    # This will stop the app from starting and print a clear error message.
-    raise SystemExit(f"FATAL: Configuration error - {e}") from e
 
 # Determine the absolute path for the project directory.
 project_dir = os.path.dirname(os.path.abspath(__file__))
@@ -21,6 +18,16 @@ app = Flask(
     template_folder=os.path.join(project_dir, "templates"),
     static_folder=os.path.join(project_dir, "static"),
 )
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+
+try:
+    import logic
+except ValueError as e:
+    # Log the fatal error before exiting. This makes startup issues much easier to debug.
+    app.logger.critical(f"CRITICAL STARTUP FAILURE: {e}")
+    raise SystemExit(f"FATAL: Configuration error - {e}") from e
 
 # --- Authentification pour la page Admin ---
 # Charger les identifiants depuis les variables d'environnement pour la sécurité.

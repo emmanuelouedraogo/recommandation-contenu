@@ -42,6 +42,12 @@ jobs:
           echo "Activation du bilan de santé (Health Check)..."
           az webapp update --name ${{ env.AZURE_WEBAPP_NAME }} --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --set siteConfig.healthCheckPath="/health" siteConfig.healthCheckStatus="Healthy"
 
+          echo "Renforcement de la sécurité : Activation de HTTPS Uniquement et TLS 1.2..."
+          # Force toutes les connexions à utiliser HTTPS
+          az webapp update --name ${{ env.AZURE_WEBAPP_NAME }} --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --set httpsOnly=true
+          # Définit la version minimale de TLS à 1.2 pour une sécurité accrue
+          az webapp config set --name ${{ env.AZURE_WEBAPP_NAME }} --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --min-tls-version 1.2
+
           echo "Configuration des paramètres de l'application (App Settings)..."
           # Les secrets sont lus depuis les GitHub Secrets et injectés en tant que variables d'environnement.
           # L'application lira ces variables au démarrage, sans jamais contacter Key Vault.
@@ -50,7 +56,7 @@ jobs:
             WEBSITES_HEALTH_CHECK_PORT=8080 \
             SCM_DO_BUILD_DURING_DEPLOYMENT=true \
             WEBSITE_HEALTHCHECK_MAXPINGFAILURES="10" \
-            STORAGE_CONNECTION_STRING="${{ secrets.STORAGE_CONNECTION_STRING }}" \
+            AZURE_STORAGE_ACCOUNT_NAME="${{ secrets.AZURE_STORAGE_ACCOUNT_NAME }}" \
             API_URL="${{ secrets.API_URL }}"
 
           echo "Activation de la journalisation de l'application (sur le système de fichiers)..."

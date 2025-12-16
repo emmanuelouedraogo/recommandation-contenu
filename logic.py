@@ -13,12 +13,22 @@ from functools import lru_cache, wraps
 from azure.core.exceptions import ResourceNotFoundError
 
 # --- Configuration ---
+# --- Robust Configuration Check ---
+# This pattern makes it easy to add new required variables and provides clear, actionable error messages.
+REQUIRED_ENV_VARS = {
+    "AZURE_STORAGE_ACCOUNT_NAME": "The name of the Azure Storage account used for data.",
+    "API_URL": "The full URL of the content recommendation Azure Function.",
+}
+
+for var, desc in REQUIRED_ENV_VARS.items():
+    if not os.getenv(var):
+        raise ValueError(
+            f"Missing required environment variable: '{var}'. Description: {desc}. "
+            "Please set this in your App Service Configuration in the Azure Portal."
+        )
+
 STORAGE_ACCOUNT_NAME = os.getenv("AZURE_STORAGE_ACCOUNT_NAME")
-if not STORAGE_ACCOUNT_NAME:
-    raise ValueError("AZURE_STORAGE_ACCOUNT_NAME environment variable is not set. Application cannot start.")
 API_RECO_URL = os.getenv("API_URL")
-if not API_RECO_URL:
-    raise ValueError("API_URL environment variable is not set. Application cannot start.")
 AZURE_CONTAINER_NAME = "reco-data"
 USERS_BLOB_NAME = "users.csv"  # Le nom du fichier reste le même
 ARTICLES_BLOB_NAME = "articles_metadata.csv"

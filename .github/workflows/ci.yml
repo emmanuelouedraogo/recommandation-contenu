@@ -5,8 +5,10 @@ env:
   AZURE_FUNCTIONAPP_NAME: content-recommendation-function # Remplacez par le nom de votre Function App
   PYTHON_VERSION: '3.11'
   AZURE_STORAGE_ACCOUNT_NAME: recoappstorage123 # Nom du compte de stockage (doit être unique globalement, 3-24 caractères, minuscules et chiffres)
+  AZURE_FUNCTION_PLAN_NAME: plan-reco-function-premium # Nom pour le nouveau plan Premium
   AZURE_CONTAINER_NAME: reco-data # Nom du conteneur de stockage
   AZURE_RESOURCE_GROUP: rg-recommandation-contenu # Nom du groupe de ressources
+  AZURE_KEY_VAULT_NAME: "reco-key-vault-${{ github.run_id }}" # Nom unique pour le Key Vault
   AZURE_LOCATION: 'francecentral' # Emplacement des ressources
 
 on:
@@ -97,17 +99,55 @@ jobs:
             echo "Création du compte de stockage..."
             az storage account create --name ${{ env.AZURE_STORAGE_ACCOUNT_NAME }} --location "${{ env.AZURE_LOCATION }}" --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --sku Standard_LRS --https-only true
 
+            echo "Création d'un plan Premium pour la Function App (pour éviter les démarrages à froid)..."
+            az functionapp plan create --name ${{ env.AZURE_FUNCTION_PLAN_NAME }} --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --location "${{ env.AZURE_LOCATION }}" --sku EP1 --is-linux
+
             echo "Création de l'application de fonction..."
-            az functionapp create --name ${{ env.AZURE_FUNCTIONAPP_NAME }} --storage-account ${{ env.AZURE_STORAGE_ACCOUNT_NAME }} --consumption-plan-location "${{ env.AZURE_LOCATION }}" --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --runtime python --runtime-version ${{ env.PYTHON_VERSION }} --functions-version 4 --os-type linux
+            az functionapp create --name ${{ env.AZURE_FUNCTIONAPP_NAME }} --storage-account ${{ env.AZURE_STORAGE_ACCOUNT_NAME }} --plan ${{ env.AZURE_FUNCTION_PLAN_NAME }} --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --runtime python --runtime-version ${{ env.PYTHON_VERSION }} --functions-version 4
 
             echo "Récupération de la chaîne de connexion du stockage..."
-            AZURE_STORAGE_CONNECTION_STRING=$(az storage account show-connection-string --name ${{ env.AZURE_STORAGE_ACCOUNT_NAME }} --resource-group ${{ env.AZURE_RESOURCE_GROUP }} -o tsv)
+            STORAGE_CONNECTION_STRING=$(az storage account show-connection-string --name ${{ env.AZURE_STORAGE_ACCOUNT_NAME }} --resource-group ${{ env.AZURE_RESOURCE_GROUP }} -o tsv)
+
+            echo "Création du Key Vault (si nécessaire)..."
+            az keyvault create --name "${{ env.AZURE_KEY_VAULT_NAME }}" --resource-group "${{ env.AZURE_RESOURCE_GROUP }}" --location "${{ env.AZURE_LOCATION }}" --enable-rbac-authorization false
+
+            echo "Stockage de la chaîne de connexion dans le Key Vault..."
+            az keyvault secret set --vault-name "${{ env.AZURE_KEY_VAULT_NAME }}" --name "storage-connection-string" --value "$STORAGE_CONNECTION_STRING"
+
+            echo "Activation de l'identité managée pour la Function App..."
+            az functionapp identity assign --name ${{ env.AZURE_FUNCTIONAPP_NAME }} --resource-group ${{ env.AZURE_RESOURCE_GROUP }}
+            PRINCIPAL_ID=$(az functionapp identity show --name ${{ env.AZURE_FUNCTIONAPP_NAME }} --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --query principalId -o tsv)
+
+            echo "Attribution des permissions à l'identité managée pour lire les secrets du Key Vault..."
+            az keyvault set-policy --name "${{ env.AZURE_KEY_VAULT_NAME }}" --object-id "$PRINCIPAL_ID" --secret-permissions get
 
             echo "Configuration des paramètres de l'application..."
-            az functionapp config appsettings set --name ${{ env.AZURE_FUNCTIONAPP_NAME }} --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --settings "AzureWebJobsStorage=${AZURE_STORAGE_CONNECTION_STRING}" "WEBSITE_CONTENTAZUREFILECONNECTIONSTRING=${AZURE_STORAGE_CONNECTION_STRING}" "AZURE_STORAGE_ACCOUNT_NAME=${{ env.AZURE_STORAGE_ACCOUNT_NAME }}" "SCM_DO_BUILD_DURING_DEPLOYMENT=true" "AZURE_STORAGE_CONTAINER_NAME=${{ env.AZURE_CONTAINER_NAME }}"
+            # Utilisation des références Key Vault (@Microsoft.KeyVault(...)) au lieu des chaînes de connexion brutes
+            STORAGE_KV_URI=$(az keyvault secret show --vault-name "${{ env.AZURE_KEY_VAULT_NAME }}" --name "storage-connection-string" --query id -o tsv)
+            az functionapp config appsettings set --name ${{ env.AZURE_FUNCTIONAPP_NAME }} --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --settings \
+              "AzureWebJobsStorage=@Microsoft.KeyVault(SecretUri=$STORAGE_KV_URI)" \
+              "WEBSITE_CONTENTAZUREFILECONNECTIONSTRING=@Microsoft.KeyVault(SecretUri=$STORAGE_KV_URI)" \
+              "AZURE_STORAGE_ACCOUNT_NAME=${{ env.AZURE_STORAGE_ACCOUNT_NAME }}" \
+              "SCM_DO_BUILD_DURING_DEPLOYMENT=true"
 
             echo "Attente de 30 secondes pour permettre à Azure de stabiliser les ressources..."
             sleep 30
+
+      - name: Configuration de la mise à l'échelle automatique pour le Plan Premium
+        uses: azure/CLI@v1
+        with:
+          inlineScript: |
+            echo "Création/Mise à jour du profil de mise à l'échelle automatique pour le plan de fonction..."
+            az monitor autoscale create \
+              --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+              --resource ${{ env.AZURE_FUNCTION_PLAN_NAME }} \
+              --resource-type "Microsoft.Web/serverfarms" \
+              --name "autoscale-function-plan-cpu" \
+              --min-count 1 --max-count 3 --count 1 || echo "Le profil autoscale existe déjà, nous continuons."
+
+            echo "Configuration des règles de mise à l'échelle basées sur le CPU..."
+            az monitor autoscale rule create --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --autoscale-name "autoscale-function-plan-cpu" --scale "out 1" --condition "CpuPercentage > 70 avg 5m"
+            az monitor autoscale rule create --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --autoscale-name "autoscale-function-plan-cpu" --scale "in 1" --condition "CpuPercentage < 30 avg 5m"
 
       - name: Déploiement sur Azure Functions
         uses: azure/functions-action@v1
