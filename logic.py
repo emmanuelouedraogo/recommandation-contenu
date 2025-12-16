@@ -97,7 +97,9 @@ def charger_df_depuis_blob(blob_name: str) -> pd.DataFrame:
                 raise
             except Exception as e:
                 if attempt + 1 == max_retries:
-                    logger.error(f"Échec final du téléchargement du blob {client.blob_name} après {max_retries} tentatives.")
+                    logger.error(
+                        f"Échec final du téléchargement du blob {client.blob_name} après {max_retries} tentatives."
+                    )
                     raise  # Propage l'exception finale
 
                 sleep_time = backoff_seconds + random.uniform(0, 1)
@@ -193,11 +195,15 @@ def obtenir_recommandations_pour_utilisateur(user_id: int, country_filter: str =
 
                 if country_filter:
                     reco_details = reco_details[
-                        reco_details["unique_countries"].apply(lambda x: country_filter in x if isinstance(x, list) else False)
+                        reco_details["unique_countries"].apply(
+                            lambda x: country_filter in x if isinstance(x, list) else False
+                        )
                     ]
                 if device_filter:
                     reco_details = reco_details[
-                        reco_details["unique_devices"].apply(lambda x: device_filter in x if isinstance(x, list) else False)
+                        reco_details["unique_devices"].apply(
+                            lambda x: device_filter in x if isinstance(x, list) else False
+                        )
                     ]
 
             # Retourner les recommandations enrichies et filtrées
