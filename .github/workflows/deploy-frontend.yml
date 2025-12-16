@@ -75,4 +75,3 @@ jobs:
         app-name: ${{ env.AZURE_WEBAPP_NAME }}
         resource-group-name: ${{ env.AZURE_RESOURCE_GROUP }}
         package: .
-        startup-command: 'gunicorn --bind=0.0.0.0 --workers 3 --threads 2 --timeout 600 app:app'

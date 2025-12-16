@@ -60,6 +60,9 @@ jobs:
             AZURE_STORAGE_ACCOUNT_NAME="${{ secrets.AZURE_STORAGE_ACCOUNT_NAME }}" \
             API_URL="${{ secrets.API_URL }}"
 
+          echo "Configuration de la commande de démarrage..."
+          az webapp config set --name ${{ env.AZURE_WEBAPP_NAME }} --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --startup-file "gunicorn --bind=0.0.0.0 --workers 3 --threads 2 --timeout 600 app:app"
+
           echo "Activation de la journalisation de l'application (sur le système de fichiers)..."
           az webapp log config --name ${{ env.AZURE_WEBAPP_NAME }} --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --application-logging filesystem --level verbose
 
