@@ -5,7 +5,7 @@ from flask import Flask, Blueprint, render_template, jsonify, request, Response
 from functools import wraps
 
 # --- Configuration and Initialization ---
-project_dir = os.path.dirname(os.path.abspath(__file__)) # NOSONAR
+project_dir = os.path.dirname(os.path.abspath(__file__))  # NOSONAR
 
 # Initialisation de l'application Flask
 app = Flask(
