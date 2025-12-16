@@ -122,9 +122,7 @@ def charger_df_depuis_blob(blob_name: str) -> pd.DataFrame:
             csv_data = _download_with_retry(blob_client)
             blob_data = csv_data.decode("utf-8")
             df = pd.read_csv(StringIO(blob_data))
-            if (
-                "click_article_id" in df.columns
-            ):  # Vérifier l'existence avant de renommer pour éviter KeyError sur les fichiers sans cette colonne
+            if "click_article_id" in df.columns:
                 df.rename(columns={"click_article_id": "article_id"}, inplace=True)
             df["article_id"] = df["article_id"].astype(int)
             return df
@@ -170,7 +168,8 @@ def obtenir_recommandations_pour_utilisateur(user_id: int, country_filter: str =
     try:
         headers = {"Accept": "application/json"}
         response = requests.get(
-            f"{API_RECO_URL}/api/recommend", params={"user_id": user_id}, headers=headers, timeout=20)
+            f"{API_RECO_URL}/api/recommend", params={"user_id": user_id}, headers=headers, timeout=20
+        )
         response.raise_for_status()
         recos = response.json()
 
@@ -192,10 +191,14 @@ def obtenir_recommandations_pour_utilisateur(user_id: int, country_filter: str =
                 article_context = _get_article_context()  # type: ignore
                 reco_details = reco_details.merge(article_context, on="article_id", how="left")
 
-                if country_filter:  # Filtrer par pays si spécifié
-                    reco_details = reco_details[reco_details["unique_countries"].apply(lambda x: country_filter in x if isinstance(x, list) else False)]
-                if device_filter:  # Filtrer par appareil si spécifié
-                    reco_details = reco_details[reco_details["unique_devices"].apply(lambda x: device_filter in x if isinstance(x, list) else False)]
+                if country_filter:
+                    reco_details = reco_details[
+                        reco_details["unique_countries"].apply(lambda x: country_filter in x if isinstance(x, list) else False)
+                    ]
+                if device_filter:
+                    reco_details = reco_details[
+                        reco_details["unique_devices"].apply(lambda x: device_filter in x if isinstance(x, list) else False)
+                    ]
 
             # Retourner les recommandations enrichies et filtrées
             return reco_details.to_dict(orient="records")
@@ -222,10 +225,7 @@ def obtenir_historique_utilisateur(user_id: int):
 
     try:
         recent_interactions_df = charger_df_depuis_blob(blob_name=INTERACTIONS_LOG_BLOB_NAME)
-        # Rename columns to match the main history format for merging
-        recent_interactions_df = recent_interactions_df.rename(
-            columns={"rating": "nb", "timestamp": "click_timestamp"}
-        )
+        recent_interactions_df = recent_interactions_df.rename(columns={"rating": "nb", "timestamp": "click_timestamp"})
     except Exception:
         recent_interactions_df = pd.DataFrame()
 
@@ -256,13 +256,10 @@ def ajouter_ou_mettre_a_jour_interaction(user_id: int, article_id: int, rating: 
         container=AZURE_CONTAINER_NAME, blob=INTERACTIONS_LOG_BLOB_NAME
     )
 
-    # Create the append blob with a header if it doesn't exist
     try:
         append_blob_client.get_blob_properties()
     except ResourceNotFoundError:
-        logger.info(
-            f"Creating new interaction log blob: {INTERACTIONS_LOG_BLOB_NAME}"
-        )
+        logger.info(f"Creating new interaction log blob: {INTERACTIONS_LOG_BLOB_NAME}")
         append_blob_client.create_blob(metadata={"blob_type": "AppendBlob"})
         header = "user_id,article_id,rating,timestamp\n"
         append_blob_client.append_block(header.encode("utf-8"))
@@ -302,9 +299,7 @@ def creer_nouvel_utilisateur():
     try:
         append_blob_client.get_blob_properties()
     except ResourceNotFoundError:
-        logger.info(
-            f"Creating new user status log blob: {USERS_BLOB_NAME}"
-        )
+        logger.info(f"Creating new user status log blob: {USERS_BLOB_NAME}")
         append_blob_client.create_blob(metadata={"blob_type": "AppendBlob"})
         header = "user_id,status,date_creation\n"
         append_blob_client.append_block(header.encode("utf-8"))
@@ -334,9 +329,7 @@ def supprimer_utilisateur(user_id: int):
     try:
         append_blob_client.get_blob_properties()
     except ResourceNotFoundError:
-        logger.info(
-            f"Creating new user status log blob: {USERS_BLOB_NAME}"
-        )
+        logger.info(f"Creating new user status log blob: {USERS_BLOB_NAME}")
         append_blob_client.create_blob(metadata={"blob_type": "AppendBlob"})
         header = "user_id,status,date_creation\n"
         append_blob_client.append_block(header.encode("utf-8"))
@@ -358,9 +351,8 @@ def reactiver_utilisateur(user_id: int):
     """
     users_df = charger_df_depuis_blob(blob_name=USERS_BLOB_NAME)
     last_status = (
-        users_df[users_df["user_id"] == user_id].sort_values("date_creation").iloc[-1]  # Obtenir le dernier statut
-        if not users_df.empty
-        and user_id in users_df["user_id"].values  # Vérifier si l'utilisateur existe
+        users_df[users_df["user_id"] == user_id].sort_values("date_creation").iloc[-1]
+        if not users_df.empty and user_id in users_df["user_id"].values
         else None
     )
 
@@ -400,7 +392,7 @@ def obtenir_tous_les_utilisateurs_avec_statut():
     """
     logger.info("Début de obtenir_tous_les_utilisateurs_avec_statut.")
     try:
-        clicks_df = charger_df_depuis_blob(blob_name=CLICKS_BLOB_NAME)
+        clicks_df = charger_df_depuis_blob(blob_name=CLICKS_BLOB_NAME)  # type: ignore
         logger.info(f"Chargé clicks_df: {len(clicks_df)} lignes.")  # Log le nombre de lignes chargées
     except ResourceNotFoundError:
         logger.warning(
@@ -412,7 +404,7 @@ def obtenir_tous_les_utilisateurs_avec_statut():
         raise  # Propage l'erreur pour retourner une réponse 500 au client
 
     try:
-        users_df = charger_df_depuis_blob(blob_name=USERS_BLOB_NAME)
+        users_df = charger_df_depuis_blob(blob_name=USERS_BLOB_NAME)  # type: ignore
         logger.info(f"Chargé users_df: {len(users_df)} lignes.")  # Log le nombre de lignes chargées
     except ResourceNotFoundError:
         logger.warning(
@@ -425,16 +417,12 @@ def obtenir_tous_les_utilisateurs_avec_statut():
 
     # --- Fiabilisation des types de données ---
     if not clicks_df.empty and "user_id" in clicks_df.columns:
-        clicks_df["user_id"] = (
-            pd.to_numeric(clicks_df["user_id"], errors="coerce").dropna().astype(int)
-        )
+        clicks_df["user_id"] = pd.to_numeric(clicks_df["user_id"], errors="coerce").dropna().astype(int)
         logger.info(f"clicks_df après conversion user_id: {clicks_df['user_id'].unique()}")  # Log les IDs uniques
     else:
         logger.info("clicks_df est vide ou n'a pas de colonne 'user_id'.")
     if not users_df.empty and "user_id" in users_df.columns:
-        users_df["user_id"] = (
-            pd.to_numeric(users_df["user_id"], errors="coerce").dropna().astype(int)
-        )
+        users_df["user_id"] = pd.to_numeric(users_df["user_id"], errors="coerce").dropna().astype(int)
         logger.info(f"users_df après conversion user_id: {users_df['user_id'].unique()}")  # Log les IDs uniques
     else:
         logger.info("users_df est vide ou n'a pas de colonne 'user_id'.")
@@ -443,25 +431,18 @@ def obtenir_tous_les_utilisateurs_avec_statut():
     click_user_ids = set(clicks_df["user_id"].unique()) if not clicks_df.empty else set()
     manual_user_ids = set(users_df["user_id"].unique()) if not users_df.empty else set()
     logger.info(f"click_user_ids: {click_user_ids}")
-    logger.info(f"manual_user_ids: {manual_user_ids}")  # Log les IDs manuels
+    logger.info(f"manual_user_ids: {manual_user_ids}")
     all_user_ids = sorted(list(click_user_ids.union(manual_user_ids)))
     logger.info(f"all_user_ids (combined): {all_user_ids}")
 
     # Créer un dictionnaire de statuts à partir de users.df
     status_map = {}
     if not users_df.empty and "status" in users_df.columns:
-        # Assurer que la date de création est un datetime pour un tri fiable
-        users_df["date_creation"] = pd.to_datetime(
-            users_df["date_creation"], errors="coerce"
-        )
-        # Supprimer les lignes où la date n'a pas pu être interprétée
+        users_df["date_creation"] = pd.to_datetime(users_df["date_creation"], errors="coerce")
         users_df.dropna(subset=["date_creation"], inplace=True)
-        # Trier par date pour s'assurer que la dernière entrée est bien la plus récente
         users_df.sort_values("date_creation", ascending=True, inplace=True)
-        # Garder uniquement la dernière entrée pour chaque utilisateur, qui représente son statut actuel
-        latest_status_df = users_df.drop_duplicates(
-            subset=["user_id"], keep="last"
-        )
+
+        latest_status_df = users_df.drop_duplicates(subset=["user_id"], keep="last")
         status_map = dict(zip(latest_status_df.user_id, latest_status_df.status))
         logger.info(f"status_map: {status_map}")
 
@@ -529,9 +510,7 @@ def creer_nouvel_article(title: str, content: str, category_id: int) -> int:
 
     # Utiliser le module CSV pour une génération de ligne robuste et sécurisée
     output = StringIO()
-    writer = csv.writer(
-        output, quoting=csv.QUOTE_ALL
-    )  # Utilisation de QUOTE_ALL pour gérer les virgules dans le titre
+    writer = csv.writer(output, quoting=csv.QUOTE_ALL)
     writer.writerow([new_article_id, category_id, timestamp, 0, words_count, title])
 
     append_blob_client.append_block(output.getvalue().encode("utf-8"))
@@ -547,9 +526,7 @@ def obtenir_statut_reentrainement():
     try:
         downloader = blob_client.download_blob()
         status_data = downloader.readall()
-        return pd.read_json(
-            StringIO(status_data.decode("utf-8")), typ="series"
-        ).to_dict()
+        return pd.read_json(StringIO(status_data.decode("utf-8")), typ="series").to_dict()
     except ResourceNotFoundError:
         # Si le fichier n'existe pas, retourner un statut par défaut
         return {"status": "idle", "last_update": "N/A"}
@@ -598,14 +575,8 @@ def _get_article_context() -> pd.DataFrame:  # type: ignore
     article_context = (
         clicks_df.groupby("article_id")
         .agg(
-            unique_countries=(
-                "click_country",
-                lambda x: list(x.unique()),
-            ),  # Liste des pays uniques
-            unique_devices=(
-                "click_deviceGroup",
-                lambda x: list(x.unique()),
-            ),  # Liste des appareils uniques
+            unique_countries=("click_country", lambda x: list(x.unique())),
+            unique_devices=("click_deviceGroup", lambda x: list(x.unique())),
         )
         .reset_index()
     )
