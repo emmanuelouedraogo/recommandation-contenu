@@ -58,7 +58,7 @@ jobs:
     - name: Attendre la stabilisation de l'App Service
       run: sleep 30
       shell: bash
- 
+
     - name: Configuration des paramètres de l'application Azure
       uses: Azure/appservice-settings@v1
       with:
