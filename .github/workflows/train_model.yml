@@ -12,6 +12,7 @@ on:
 # --- Variables d'environnement pour le workflow ---
 env:
   PYTHON_VERSION: '3.11'
+  AZURE_STORAGE_ACCOUNT_NAME: 'recoappstorage123' # Centralisation du nom du compte
   AZURE_CONTAINER_NAME: 'reco-data'
   MODEL_BLOB_NAME: 'models/hybrid_recommender_pipeline.pkl'
   LOCAL_MODEL_PATH: '/tmp/hybrid_recommender_pipeline.pkl'
@@ -30,32 +31,35 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-      
+          cache: 'pip'
+
       # Étape 3: Installation des dépendances
       - name: Installation des dépendances
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      # Étape 4: Exécution du script d'entraînement
-      # Le script va utiliser la chaîne de connexion pour lire les données depuis Azure
-      # et sauvegarder le modèle entraîné dans /tmp/
-      - name: Exécution du script d'entraînement
-        run: python reco_model_script.py
-        env:
-          AZURE_CONNECTION_STRING: ${{ secrets.AZURE_CONNECTION_STRING }}
-
-      # Étape 5: Chargement du nouveau modèle vers Azure Blob Storage
+      # Étape 4: Connexion à Azure via l'identité de charge de travail (Workload Identity)
       - name: Connexion à Azure
         uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
+      # Étape 5: Exécution du script d'entraînement
+      # Le script utilise maintenant DefaultAzureCredential, qui hérite de l'authentification de l'étape précédente.
+      - name: Exécution du script d'entraînement
+        run: python reco_model_script.py
+        env:
+          # Nous passons uniquement les noms des ressources, pas les secrets.
+          AZURE_STORAGE_ACCOUNT_NAME: ${{ env.AZURE_STORAGE_ACCOUNT_NAME }}
+
+      # Étape 6: Chargement du nouveau modèle vers Azure Blob Storage
+      # Cette étape utilise également l'authentification héritée.
       - name: Chargement du modèle vers Azure
         uses: azure/CLI@v1
         with:
           inlineScript: |
-            az storage blob upload --account-name recoappstorage123 --container-name ${{ env.AZURE_CONTAINER_NAME }} --file ${{ env.LOCAL_MODEL_PATH }} --name ${{ env.MODEL_BLOB_NAME }} --overwrite
+            az storage blob upload --account-name ${{ env.AZURE_STORAGE_ACCOUNT_NAME }} --container-name ${{ env.AZURE_CONTAINER_NAME }} --file ${{ env.LOCAL_MODEL_PATH }} --name ${{ env.MODEL_BLOB_NAME }} --overwrite --auth-mode login
 
       - name: Nettoyage
         run: echo "Entraînement et déploiement du modèle terminés."

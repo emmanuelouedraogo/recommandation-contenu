@@ -3,7 +3,7 @@ name: Configurer l'Infrastructure Azure
 on:
   # Déclenchement manuel depuis l'interface GitHub Actions
   workflow_dispatch:
-
+ 
 env:
   AZURE_WEBAPP_NAME: reco-contenu-interface
   AZURE_RESOURCE_GROUP: rg-recommandation-contenu

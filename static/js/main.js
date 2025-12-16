@@ -1,6 +1,5 @@
 document.addEventListener('DOMContentLoaded', function() {
     const userInput = document.getElementById('user-input');
-    const mainLoader = document.getElementById('main-loader');
     const createUserButton = document.getElementById('create-user-button');
     const performanceButton = document.getElementById('performance-button');
     const filterCountrySelect = document.getElementById('filter-country');
@@ -14,6 +13,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const contextDeviceSpan = document.getElementById('context-device');
     const deleteUserButton = document.getElementById('delete-user-button');
     const addArticleButton = document.getElementById('add-article-button');
+    const mainLoader = document.getElementById('main-loader');
 
     const mainContentArea = document.getElementById('main-content-area');
     // New tab-related constants
@@ -22,6 +22,11 @@ document.addEventListener('DOMContentLoaded', function() {
     const historyTabContent = document.getElementById('history-tab-content');
     const globalTrendsTabContent = document.getElementById('global-trends-tab-content');
     const initialRecoMessage = document.getElementById('initial-reco-message');
+
+    // Modal for adding articles
+    const addArticleModal = document.getElementById('add-article-modal');
+    const openAddArticleModalBtn = document.getElementById('open-add-article-modal-btn');
+    const closeAddArticleModalBtn = document.getElementById('close-add-article-modal-btn');
 
     let debounceTimer;
     let currentActiveTab = 'recommendations'; // Keep track of the currently active tab
@@ -318,35 +323,49 @@ document.addEventListener('DOMContentLoaded', function() {
     // Gérer le clic sur le bouton d'ajout d'article
     addArticleButton.addEventListener('click', function() {
         const title = articleTitleInput.value;
-        // Pour un vrai formulaire, on utiliserait un textarea pour le contenu.
         const content = articleContentInput.value;
         const categoryId = articleCategoryInput.value;
 
         if (!title || !content || !categoryId) {
-            showNotification("Le titre, le contenu et l'ID de catégorie ne peuvent pas être vides.", 'error');
+            showNotification("Veuillez remplir tous les champs pour ajouter un article.", 'error');
             return;
         }
 
+        // --- Amélioration de l'UX : Ajout d'un spinner et gestion des erreurs ---
         addArticleButton.textContent = 'Ajout en cours...';
         addArticleButton.disabled = true;
+        // Remplacer le texte par un spinner (nécessite CSS pour .btn-spinner)
+        addArticleButton.innerHTML = '<span class="btn-spinner"></span> Ajout en cours...';
 
         fetch('/api/articles', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                title: title,
-                content: content,
-                category_id: parseInt(categoryId)
-            })
+            body: JSON.stringify({ title, content, category_id: parseInt(categoryId) })
         })
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                // Si l'erreur est une erreur d'authentification, afficher un message spécifique.
+                if (response.status === 401) {
+                    throw new Error("Action non autorisée. Veuillez vous connecter en tant qu'administrateur.");
+                }
+                throw new Error(`Erreur HTTP ${response.status}`);
+            }
+            return response.json();
+        })
         .then(data => {
             showNotification(`Article ajouté avec l'ID : ${data.article_id}`, 'success');
             articleTitleInput.value = ''; // Réinitialiser le champ
             articleContentInput.value = ''; // Réinitialiser le champ
+            addArticleModal.classList.remove('visible'); // Fermer la modale après succès
         })
-        .catch(error => console.error("Erreur lors de l'ajout de l'article:", error))
-        .finally(() => { addArticleButton.textContent = "Ajouter l'article"; addArticleButton.disabled = false; });
+        .catch(error => {
+            console.error("Erreur lors de l'ajout de l'article:", error);
+            showNotification(error.message, 'error');
+        })
+        .finally(() => {
+            addArticleButton.innerHTML = "Ajouter l'article"; // Restaurer le texte original
+            addArticleButton.disabled = false;
+        });
     });
     
     function displayGlobalTrends() {
@@ -467,6 +486,13 @@ document.addEventListener('DOMContentLoaded', function() {
         button.addEventListener('click', () => {
             switchTab(button.dataset.tab);
         });
+    });
+
+    // --- Modal Logic for Adding Articles ---
+    openAddArticleModalBtn.addEventListener('click', () => addArticleModal.classList.add('visible'));
+    closeAddArticleModalBtn.addEventListener('click', () => addArticleModal.classList.remove('visible'));
+    addArticleModal.addEventListener('click', (e) => {
+        if (e.target === addArticleModal) addArticleModal.classList.remove('visible');
     });
 
     // Event listeners for filter changes (should only affect recommendations tab)

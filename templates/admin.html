@@ -69,6 +69,18 @@
             cursor: pointer;
             user-select: none;
         }
+        .sort-icon {
+            display: inline-block;
+            margin-left: 8px;
+            opacity: 0.6;
+            transition: opacity 0.2s, transform 0.2s;
+        }
+        th[data-sort]:hover .sort-icon {
+            opacity: 1;
+        }
+        .sort-icon.asc { transform: rotate(0deg); }
+        .sort-icon.desc { transform: rotate(180deg); }
+        }
         tr:hover { background-color: #f1f1f1; }
         .status {
             padding: 5px 10px;
@@ -189,8 +201,8 @@
         <div class="card">
             <table id="users-table" style="display:none;">
                 <thead>
-                    <th data-sort="user_id">ID Utilisateur</th>
-                    <th data-sort="status">Statut</th>
+                    <th data-sort="user_id">ID Utilisateur<span class="sort-icon"></span></th>
+                    <th data-sort="status">Statut<span class="sort-icon"></span></th>
                     <th>Actions</th>
                 </thead>
                 <tbody id="users-tbody">

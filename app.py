@@ -198,6 +198,7 @@ def get_user_context(user_id):
 
 
 @main_bp.route("/api/articles", methods=["POST"])
+@requires_auth
 def add_article():
     """Crée un nouvel article."""
     data = request.json
