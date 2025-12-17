@@ -24,7 +24,9 @@ class TestGenerateRecommendations(unittest.TestCase):
         self.mock_pipeline = MagicMock()
 
         # Instancier le Recommender une seule fois avec les données et le mock
-        self.recommender = Recommender(pipeline=self.mock_pipeline, articles_df=self.articles_df, clicks_df=self.clicks_df)
+        self.recommender = Recommender(
+            pipeline=self.mock_pipeline, articles_df=self.articles_df, clicks_df=self.clicks_df
+        )
 
     def test_recommendations_standard(self):
         """

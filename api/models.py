@@ -268,9 +268,7 @@ class ContentBasedTimeDecayRecommender(ContentBasedRecommender):
         # Une interaction récente avec un "rating" élevé aura le plus de poids.
         final_weights = (click_uid_df["nb"] * time_decay_weight).values.reshape(-1, 1)
         user_item_profiles = np.array([emb_matrix[dic_ri[iid]] for iid in click_uid_df["article_id"]])
-        weighted_avg_profile = np.sum(user_item_profiles * final_weights, axis=0) / np.sum(
-            final_weights
-        )
+        weighted_avg_profile = np.sum(user_item_profiles * final_weights, axis=0) / np.sum(final_weights)
         return preprocessing.normalize(weighted_avg_profile.reshape(1, -1))
 
 
