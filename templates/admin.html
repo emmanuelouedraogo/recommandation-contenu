@@ -75,7 +75,10 @@
             opacity: 0.6;
             transition: opacity 0.2s, transform 0.2s;
         }
-        th[data-sort]:hover .sort-icon {
+        th[data-sort].sort-active .sort-icon {
+            opacity: 1;
+        }
+        th[data-sort]:not(.sort-active):hover .sort-icon {
             opacity: 1;
         }
         .sort-icon.asc { transform: rotate(0deg); }
@@ -103,8 +106,18 @@
         }
         button:hover { filter: brightness(1.1); }
         .btn-delete { background-color: var(--danger-color); }
-        .btn-reactivate { background-color: var(--info-color); }
-        #loading { font-style: italic; color: var(--dark-gray); text-align: center; padding: 2em; }
+        .btn-reactivate { background-color: var(--info-color); }        
+        #loading-indicator { 
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 1em;
+            font-style: italic; 
+            color: var(--dark-gray); 
+            text-align: center; 
+            padding: 2em; 
+            font-size: 1.1em;
+        }
 
         /* Custom Modal Styles */
         .modal-overlay {
@@ -159,6 +172,26 @@
         .pagination button:disabled { background-color: var(--dark-gray); }
         .pagination span { font-weight: bold; }
 
+        /* Toast Notification Styles */
+        #toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 2000;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .toast {
+            background-color: var(--dark-gray);
+            color: var(--white);
+            padding: 12px 20px;
+            border-radius: 6px;
+            box-shadow: var(--shadow);
+            opacity: 0;
+            transition: opacity 0.3s, transform 0.3s;
+            transform: translateX(100%);
+        }
 
         /* Spinner for modal button */
         .btn-spinner {
@@ -180,6 +213,9 @@
 </head>
 <body>
     <!-- Modal Structure -->
+    <div id="toast-container"></div>
+
+    <!-- Modal Structure -->
     <div id="confirmation-modal" class="modal-overlay">
         <div class="modal-content">
             <p id="modal-text">Êtes-vous sûr ?</p>
@@ -197,15 +233,24 @@
                 <input type="text" id="search-input" placeholder="Rechercher par ID utilisateur...">
             </div>
         </div>
-        <div id="loading">Chargement des utilisateurs...</div>
+        <div id="loading-indicator" role="status">
+            <div class="btn-spinner"></div>
+            <span>Chargement des utilisateurs...</span>
+        </div>
         <div class="card">
             <table id="users-table" style="display:none;">
                 <thead>
-                    <th data-sort="user_id">ID Utilisateur<span class="sort-icon"></span></th>
-                    <th data-sort="status">Statut<span class="sort-icon"></span></th>
+                    <th data-sort="user_id">ID Utilisateur<span class="sort-icon"><svg width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M5 0L10 5H0L5 0Z" fill="currentColor"/></svg></span></th>
+                    <th data-sort="status">Statut<span class="sort-icon"><svg width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M5 0L10 5H0L5 0Z" fill="currentColor"/></svg></span></th>
                     <th>Actions</th>
                 </thead>
                 <tbody id="users-tbody">
+                    <!-- Template pour l'état vide -->
+                    <tr id="empty-state-row" style="display: none;">
+                        <td colspan="3" style="text-align: center; font-style: italic; color: var(--dark-gray); padding: 2em;">
+                            Aucun utilisateur trouvé.
+                        </td>
+                    </tr>
                     <!-- Les lignes seront insérées ici par JavaScript -->
                 </tbody>
             </table>
@@ -217,7 +262,11 @@
         </div>
     </div>
 
-    <script src="{{ url_for('static', filename='js/admin.js') }}"></script>
+    <!-- Dans un environnement Flask, utilisez url_for. Pour un test local, utilisez un chemin relatif. -->
+    <!-- <script src="{{ url_for('static', filename='js/admin.js') }}"></script> -->
+    
+    <!-- Pour un test simple en ouvrant le fichier HTML directement -->
+    <script src="../static/js/admin.js"></script>
 
 </body>
 </html>
