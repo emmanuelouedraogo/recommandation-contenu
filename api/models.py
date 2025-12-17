@@ -273,9 +273,7 @@ class ContentBasedTimeDecayRecommender(ContentBasedRecommender):
         if sum_of_weights == 0 or len(user_item_profiles) == 0:
             return np.zeros((1, self.items_embedding.shape[1]))
 
-        weighted_avg_profile = (
-            np.sum(user_item_profiles * final_weights, axis=0) / sum_of_weights
-        )
+        weighted_avg_profile = np.sum(user_item_profiles * final_weights, axis=0) / sum_of_weights
         return preprocessing.normalize(weighted_avg_profile.reshape(1, -1))
 
 
@@ -415,9 +413,7 @@ class HybridRecommender:  # Combine les scores de plusieurs modèles
         if not reco_cb.empty:
             min_val = reco_cb["cb_cosine_with_profile"].min()
             max_val = reco_cb["cb_cosine_with_profile"].max()
-            reco_cb["norm_score"] = (reco_cb["cb_cosine_with_profile"] - min_val) / (
-                max_val - min_val + 1e-5
-            )
+            reco_cb["norm_score"] = (reco_cb["cb_cosine_with_profile"] - min_val) / (max_val - min_val + 1e-5)
         else:
             reco_cb = pd.DataFrame(columns=["article_id", "norm_score"])  # Ensure columns exist even if empty
 

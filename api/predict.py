@@ -75,9 +75,7 @@ def _generate_recommendations_logic(
 
         # 2. Valider le type de la sortie du modèle.
         if not isinstance(recommendations_df, pd.DataFrame):
-            logger.error(
-                f"La méthode 'recommend_items' a retourné un type inattendu : {type(recommendations_df)}"
-            )
+            logger.error(f"La méthode 'recommend_items' a retourné un type inattendu : {type(recommendations_df)}")
             return []
 
         if recommendations_df.empty:

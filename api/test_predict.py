@@ -8,7 +8,6 @@ import os
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 
-
 class TestGenerateRecommendations(unittest.TestCase):
 
     def setUp(self):
@@ -54,6 +53,7 @@ class TestGenerateRecommendations(unittest.TestCase):
         from api.predict import (
             Recommender,
         )  # Import here to avoid issues with path modification
+
         recommender = Recommender(pipeline=self.mock_pipeline, articles_df=self.articles_df, clicks_df=self.clicks_df)
         recommendations = recommender.generate_recommendations(user_id=1, top_n=2)
 
@@ -71,6 +71,7 @@ class TestGenerateRecommendations(unittest.TestCase):
         from api.predict import (
             _generate_recommendations_logic,
         )  # Import here to avoid issues with path modification
+
         recommendations = _generate_recommendations_logic(
             user_id=1, pipeline=invalid_pipeline, articles_df=self.articles_df, clicks_df=self.clicks_df
         )
@@ -84,6 +85,7 @@ class TestGenerateRecommendations(unittest.TestCase):
         from api.predict import (
             _generate_recommendations_logic,
         )  # Import here to avoid issues with path modification
+
         recommendations = _generate_recommendations_logic(
             user_id=1, pipeline=self.mock_pipeline, articles_df=self.articles_df, clicks_df=self.clicks_df
         )
@@ -99,6 +101,7 @@ class TestGenerateRecommendations(unittest.TestCase):
         from api.predict import (
             _generate_recommendations_logic,
         )  # Import here to avoid issues with path modification
+
         recommendations = _generate_recommendations_logic(
             user_id=1, pipeline=self.mock_pipeline, articles_df=self.articles_df, clicks_df=self.clicks_df
         )
