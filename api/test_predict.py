@@ -6,7 +6,7 @@ import os
 
 # Ajouter le répertoire racine au path pour permettre l'import de 'api.predict'
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from api.predict import Recommender, _generate_recommendations_logic
+from api.predict import Recommender
 
 
 class TestGenerateRecommendations(unittest.TestCase):
@@ -69,7 +69,9 @@ class TestGenerateRecommendations(unittest.TestCase):
         invalid_pipeline = object()  # Un objet simple qui n'a pas la méthode requise
         # Nous testons la logique via l'interface publique en créant un Recommender avec le pipeline invalide
         recommender_with_invalid_pipeline = Recommender(
-            user_id=1, pipeline=invalid_pipeline, articles_df=self.articles_df, clicks_df=self.clicks_df
+            pipeline=invalid_pipeline,
+            articles_df=self.articles_df,
+            clicks_df=self.clicks_df,
         )
         recommendations = recommender_with_invalid_pipeline.generate_recommendations(user_id=1)
         self.assertEqual(recommendations, [])
