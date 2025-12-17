@@ -6,6 +6,7 @@ import os
 
 # Ajouter le répertoire racine au path pour permettre l'import de 'api.predict'
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from api.predict import Recommender
 
 
 class TestGenerateRecommendations(unittest.TestCase):
@@ -68,7 +69,10 @@ class TestGenerateRecommendations(unittest.TestCase):
         from api.predict import _generate_recommendations_logic
 
         recommendations = _generate_recommendations_logic(
-            user_id=1, pipeline=invalid_pipeline, articles_df=self.articles_df, clicks_df=self.clicks_df
+            user_id=1,
+            pipeline=invalid_pipeline,
+            articles_df=self.articles_df,
+            clicks_df=self.clicks_df,
         )
         self.assertEqual(recommendations, [])
 
