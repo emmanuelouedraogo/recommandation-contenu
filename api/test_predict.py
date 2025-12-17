@@ -6,6 +6,7 @@ import os
 
 # Ajouter le répertoire racine au path pour permettre l'import de 'api.predict'
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from api.predict import Recommender, _generate_recommendations_logic
 
 
 class TestGenerateRecommendations(unittest.TestCase):
@@ -22,6 +23,9 @@ class TestGenerateRecommendations(unittest.TestCase):
         # Créer un faux pipeline qui simule l'interface de HybridRecommender
         self.mock_pipeline = MagicMock()
 
+        # Instancier le Recommender une seule fois avec les données et le mock
+        self.recommender = Recommender(pipeline=self.mock_pipeline, articles_df=self.articles_df, clicks_df=self.clicks_df)
+
     def test_recommendations_standard(self):
         """
         Teste le cas nominal où des recommandations sont générées pour un utilisateur.
@@ -30,13 +34,8 @@ class TestGenerateRecommendations(unittest.TestCase):
         reco_df = pd.DataFrame({"article_id": [40, 50], "final_score": [0.9, 0.8]})
         self.mock_pipeline.recommend_items.return_value = reco_df
 
-        from api.predict import Recommender
-
-        # Instancier le Recommender avec les données de test en mémoire
-        recommender = Recommender(pipeline=self.mock_pipeline, articles_df=self.articles_df, clicks_df=self.clicks_df)
-
         user_id = 1
-        recommendations = recommender.generate_recommendations(user_id=user_id, top_n=5)
+        recommendations = self.recommender.generate_recommendations(user_id=user_id, top_n=5)
 
         # Vérifications
         self.assertEqual(len(recommendations), 2)
@@ -52,11 +51,8 @@ class TestGenerateRecommendations(unittest.TestCase):
         """
         # Configurer le mock pour qu'il lève une exception lors de l'appel
         self.mock_pipeline.recommend_items.side_effect = Exception("Erreur de prédiction simulée")
-        from api.predict import Recommender
 
-        recommender = Recommender(pipeline=self.mock_pipeline, articles_df=self.articles_df, clicks_df=self.clicks_df)
-
-        recommendations = recommender.generate_recommendations(user_id=1, top_n=2)
+        recommendations = self.recommender.generate_recommendations(user_id=1, top_n=2)
 
         # Vérifications du fallback
         # Dans nos données de test, les articles 10 et 30 sont les plus populaires (2 clics chacun)
@@ -69,14 +65,11 @@ class TestGenerateRecommendations(unittest.TestCase):
         Teste que la fonction retourne une liste vide si l'objet pipeline est invalide (pas de méthode 'recommend_items').
         """
         invalid_pipeline = object()  # Un objet simple qui n'a pas la méthode requise
-        from api.predict import _generate_recommendations_logic
-
-        recommendations = _generate_recommendations_logic(
-            user_id=1,
-            pipeline=invalid_pipeline,
-            articles_df=self.articles_df,
-            clicks_df=self.clicks_df,
+        # Nous testons la logique via l'interface publique en créant un Recommender avec le pipeline invalide
+        recommender_with_invalid_pipeline = Recommender(
+            user_id=1, pipeline=invalid_pipeline, articles_df=self.articles_df, clicks_df=self.clicks_df
         )
+        recommendations = recommender_with_invalid_pipeline.generate_recommendations(user_id=1)
         self.assertEqual(recommendations, [])
 
     def test_model_returns_non_dataframe(self):
@@ -84,14 +77,7 @@ class TestGenerateRecommendations(unittest.TestCase):
         Teste que la fonction retourne une liste vide si le pipeline retourne un type incorrect (pas un DataFrame).
         """
         self.mock_pipeline.recommend_items.return_value = None  # Retourne None au lieu d'un DataFrame
-        from api.predict import _generate_recommendations_logic
-
-        recommendations = _generate_recommendations_logic(
-            user_id=1,
-            pipeline=self.mock_pipeline,
-            articles_df=self.articles_df,
-            clicks_df=self.clicks_df,
-        )
+        recommendations = self.recommender.generate_recommendations(user_id=1)
         self.assertEqual(recommendations, [])
 
     def test_model_returns_df_with_missing_columns(self):
@@ -101,14 +87,7 @@ class TestGenerateRecommendations(unittest.TestCase):
         # Retourne un DataFrame avec des noms de colonnes incorrects
         invalid_reco_df = pd.DataFrame({"id": [40], "prediction": [0.9]})
         self.mock_pipeline.recommend_items.return_value = invalid_reco_df
-        from api.predict import _generate_recommendations_logic
-
-        recommendations = _generate_recommendations_logic(
-            user_id=1,
-            pipeline=self.mock_pipeline,
-            articles_df=self.articles_df,
-            clicks_df=self.clicks_df,
-        )
+        recommendations = self.recommender.generate_recommendations(user_id=1)
         self.assertEqual(recommendations, [])
 
 
