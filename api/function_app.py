@@ -87,7 +87,6 @@ async def health_check(req: func.HttpRequest) -> func.HttpResponse:
     Endpoint de vérification de l'état.
     Vérifie si le modèle de recommandation est chargé et prêt à servir les requêtes.
     """
-    global recommender_instance
     logging.info("Health check request received.")
 
     if recommender_instance is not None:
