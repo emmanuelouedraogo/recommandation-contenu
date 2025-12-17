@@ -3,7 +3,7 @@ import pandas as pd
 from pathlib import Path
 import joblib
 import logging
-from models import HybridRecommender, ContentBasedTimeDecayRecommender # Classes nécessaires pour le unpickling
+from models import HybridRecommender, ContentBasedTimeDecayRecommender  # Classes nécessaires pour le unpickling
 
 
 # Configuration du logging
@@ -50,7 +50,9 @@ def load_pipeline(path: str):
         raise
 
 
-def _generate_recommendations_logic(user_id: int, pipeline, articles_df: pd.DataFrame, clicks_df: pd.DataFrame, top_n: int = 10):
+def _generate_recommendations_logic(
+    user_id: int, pipeline, articles_df: pd.DataFrame, clicks_df: pd.DataFrame, top_n: int = 10
+):
     """
     Génère des recommandations pour un utilisateur donné.
 
@@ -65,7 +67,7 @@ def _generate_recommendations_logic(user_id: int, pipeline, articles_df: pd.Data
         list: Une liste de dictionnaires, chaque dictionnaire représentant un article recommandé.
     """
     # 1. Vérifier que le pipeline est un objet valide avant de l'utiliser.
-    if not hasattr(pipeline, 'recommend_items'):
+    if not hasattr(pipeline, "recommend_items"):
         logger.error(f"L'objet pipeline fourni n'a pas de méthode 'recommend_items'. Type de l'objet: {type(pipeline)}")
         return []
 
@@ -79,17 +81,21 @@ def _generate_recommendations_logic(user_id: int, pipeline, articles_df: pd.Data
             return []
 
         if recommendations_df.empty:
-            logger.warning(f"Aucune recommandation générée pour l'utilisateur {user_id} (cold start ou pas d'articles pertinents). Retour d'une liste vide.")
+            logger.warning(
+                f"Aucune recommandation générée pour l'utilisateur {user_id} (cold start ou pas d'articles pertinents). Retour d'une liste vide."
+            )
             return []
 
         # 3. Valider la présence des colonnes nécessaires avant de les utiliser.
-        required_cols = {'article_id', 'final_score'}
+        required_cols = {"article_id", "final_score"}
         if not required_cols.issubset(recommendations_df.columns):
-            logger.error(f"Le DataFrame de recommandations ne contient pas les colonnes requises {required_cols}. Colonnes présentes : {list(recommendations_df.columns)}")
+            logger.error(
+                f"Le DataFrame de recommandations ne contient pas les colonnes requises {required_cols}. Colonnes présentes : {list(recommendations_df.columns)}"
+            )
             return []
 
-        recommendations_df = recommendations_df.rename(columns={'final_score': 'score'})
-        return recommendations_df[['article_id', 'score']].to_dict(orient="records")
+        recommendations_df = recommendations_df.rename(columns={"final_score": "score"})
+        return recommendations_df[["article_id", "score"]].to_dict(orient="records")
 
     except Exception as e:
         logger.error(f"Erreur lors de la prédiction avec le pipeline pour l'utilisateur {user_id}: {e}", exc_info=True)
@@ -101,13 +107,19 @@ def _generate_recommendations_logic(user_id: int, pipeline, articles_df: pd.Data
                 return []
 
             # Calculer les articles les plus populaires en comptant les occurrences de chaque article_id
-            click_counts = clicks_df['click_article_id'].value_counts()
+            click_counts = clicks_df["click_article_id"].value_counts()
             popular_articles = click_counts.nlargest(top_n).reset_index()
-            popular_articles.columns = ['article_id', 'score'] # Renommer les colonnes pour correspondre au format de sortie
+            popular_articles.columns = [
+                "article_id",
+                "score",
+            ]  # Renommer les colonnes pour correspondre au format de sortie
 
             return popular_articles.to_dict(orient="records")
         except Exception as fallback_e:
-            logger.error(f"Erreur critique lors de la tentative de fallback pour l'utilisateur {user_id}: {fallback_e}", exc_info=True)
+            logger.error(
+                f"Erreur critique lors de la tentative de fallback pour l'utilisateur {user_id}: {fallback_e}",
+                exc_info=True,
+            )
             return []
 
 
@@ -116,6 +128,7 @@ class Recommender:
     Classe qui encapsule le pipeline de recommandation et les données nécessaires.
     Les données (articles, clics) sont chargées une seule fois lors de l'initialisation.
     """
+
     def __init__(self, pipeline, articles_df: pd.DataFrame, clicks_df: pd.DataFrame):
         """Initialise le Recommender avec des objets déjà chargés en mémoire."""
         self.pipeline = pipeline
@@ -138,11 +151,7 @@ class Recommender:
             return []
 
         return _generate_recommendations_logic(
-            user_id=user_id,
-            pipeline=self.pipeline,
-            articles_df=self.articles_df,
-            clicks_df=self.clicks_df,
-            top_n=top_n
+            user_id=user_id, pipeline=self.pipeline, articles_df=self.articles_df, clicks_df=self.clicks_df, top_n=top_n
         )
 
 

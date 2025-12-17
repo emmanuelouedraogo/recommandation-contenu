@@ -7,6 +7,7 @@ from flask_wtf.csrf import CSRFProtect
 
 # --- Configuration and Initialization ---
 import config  # Importer le nouveau fichier de configuration
+
 project_dir = os.path.dirname(os.path.abspath(__file__))  # NOSONAR
 
 # Initialisation de l'application Flask
@@ -32,6 +33,7 @@ except ValueError as e:
     raise SystemExit(f"FATAL: Configuration error - {e}") from e
 
 # --- Logique d'authentification (pourrait être dans son propre module auth.py) ---
+
 
 def check_auth(username, password):
     """Vérifie si un couple nom d'utilisateur/mot de passe est valide."""
@@ -72,15 +74,18 @@ def not_found_error(error):
     """Affiche une page 404 personnalisée."""
     return render_template("error.html", error_code=404, error_message="Page non trouvée"), 404
 
+
 @app.errorhandler(500)
 def internal_error(error):
     """Affiche une page 500 personnalisée."""
     app.logger.error(f"Server Error: {error}", exc_info=True)
     return render_template("error.html", error_code=500, error_message="Erreur interne du serveur"), 500
 
+
 # --- Création des Blueprints ---
 from blueprints.api import api_bp
 from blueprints.views import views_bp
+
 
 # --- Gestionnaire d'erreurs pour l'API (enregistré sur le blueprint API) ---
 @api_bp.errorhandler(Exception)
@@ -94,307 +99,13 @@ def handle_api_error(e):
     # Retourner une réponse générique à l'utilisateur
     return jsonify({"error": "Une erreur interne inattendue est survenue sur le serveur."}), 500
 
+
 # Enregistrer le Blueprint auprès de l'application Flask.
 app.register_blueprint(views_bp)
-app.register_blueprint(api_bp, url_prefix="/api") # Toutes les routes de l'API auront le préfixe /api
+app.register_blueprint(api_bp, url_prefix="/api")  # Toutes les routes de l'API auront le préfixe /api
 
 if __name__ == "__main__":
     # Permet de lancer l'application en local pour le développement
     # Le port est configurable via la variable d'environnement PORT, avec 5000 par défaut.
     port = int(os.getenv("PORT", 8080))
     app.run(debug=True, port=port)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    

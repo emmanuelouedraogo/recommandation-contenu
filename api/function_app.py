@@ -9,7 +9,7 @@ from io import BytesIO
 from azure.core.exceptions import ResourceNotFoundError
 from azure.storage.blob import BlobServiceClient
 from azure.identity import DefaultAzureCredential  # type: ignore
-from .predict import Recommender # Importe la classe Recommender
+from .predict import Recommender  # Importe la classe Recommender
 
 # --- Configuration ---
 # La chaîne de connexion est récupérée depuis les paramètres de l'application
@@ -50,7 +50,7 @@ async def load_model_from_blob(storage_account_name: str, container_name: str):
         model_data, articles_data, clicks_data = await asyncio.gather(
             asyncio.to_thread(download_blob_to_memory, model_blob_name),
             asyncio.to_thread(download_blob_to_memory, articles_blob_name),
-            asyncio.to_thread(download_blob_to_memory, clicks_blob_name)
+            asyncio.to_thread(download_blob_to_memory, clicks_blob_name),
         )
 
         # Charger les objets en mémoire
@@ -91,17 +91,12 @@ async def health_check(req: func.HttpRequest) -> func.HttpResponse:
     logging.info("Health check request received.")
 
     if recommender_instance is not None:
-        return func.HttpResponse(
-            "Service is healthy and model is loaded.",
-            status_code=200,
-            mimetype="text/plain"
-        )
+        return func.HttpResponse("Service is healthy and model is loaded.", status_code=200, mimetype="text/plain")
     else:
         return func.HttpResponse(
-            "Service is unhealthy (model not loaded).",
-            status_code=503, # Service Unavailable
-            mimetype="text/plain"
+            "Service is unhealthy (model not loaded).", status_code=503, mimetype="text/plain"  # Service Unavailable
         )
+
 
 @app.route(route="/recommend", methods=[func.HttpMethod.GET])
 async def recommend(req: func.HttpRequest) -> func.HttpResponse:
