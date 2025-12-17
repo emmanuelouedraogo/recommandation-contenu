@@ -268,7 +268,9 @@ class ContentBasedTimeDecayRecommender(ContentBasedRecommender):
         # Une interaction récente avec un "rating" élevé aura le plus de poids.
         final_weights = (click_uid_df["nb"] * time_decay_weight).values.reshape(-1, 1)
         user_item_profiles = np.array([emb_matrix[dic_ri[iid]] for iid in click_uid_df["article_id"]])
-        weighted_avg_profile = np.sum(user_item_profiles * final_weights, axis=0) / np.sum(final_weights)
+        weighted_avg_profile = np.sum(user_item_profiles * final_weights, axis=0) / np.sum(
+            final_weights
+        )
         return preprocessing.normalize(weighted_avg_profile.reshape(1, -1))
 
 
@@ -296,7 +298,7 @@ class CollabFiltRecommender:  # Modèle de base pour les algorithmes de Surprise
         trainset = data.build_full_trainset()
         # 2. Entraîne l'algorithme SVD++, une version améliorée de SVD qui prend en compte les interactions implicites.
         self.algo = SVDpp(n_epochs=20, lr_all=0.007, reg_all=0.1, random_state=42)
-        self.algo.fit(trainset)
+        self.algo.fit(trainset)  # type: ignore
 
     def recommend_items(self, uid, topn=5):
         # 1. Identifie les articles que l'utilisateur n'a pas encore vus
@@ -405,8 +407,8 @@ class HybridRecommender:  # Combine les scores de plusieurs modèles
             reco_cf = pd.DataFrame(columns=["article_id", "norm_score"])  # Ensure columns exist even if empty
 
         if not reco_cb.empty:
-            reco_cb["norm_score"] = (reco_cb["cb_cosine_with_profile"] - reco_cb["cb_cosine_with_profile"].min()) / (
-                reco_cb["cb_cosine_with_profile"].max() - reco_cb["cb_cosine_with_profile"].min() + 1e-5
+            reco_cb["norm_score"] = (reco_cb["cb_cosine_with_profile"] - reco_cb["cb_cosine_with_profile"].min()) / (  # type: ignore
+                reco_cb["cb_cosine_with_profile"].max() - reco_cb["cb_cosine_with_profile"].min() + 1e-5  # type: ignore
             )
         else:
             reco_cb = pd.DataFrame(columns=["article_id", "norm_score"])  # Ensure columns exist even if empty
@@ -414,7 +416,7 @@ class HybridRecommender:  # Combine les scores de plusieurs modèles
         # 3. Fusionner les recommandations sur l'ID de l'article
         reco = pd.merge(
             reco_cf[["article_id", "norm_score"]],
-            reco_cb[["article_id", "norm_score"]],
+            reco_cb[["article_id", "norm_score"]],  # type: ignore
             on="article_id",
             how="outer",
             suffixes=("_cf", "_cb"),
@@ -422,7 +424,9 @@ class HybridRecommender:  # Combine les scores de plusieurs modèles
         reco.fillna(0, inplace=True)
 
         # 4. Calculer le score final comme une somme pondérée et filtrer les articles déjà vus
-        reco["final_score"] = (self.cf_weight * reco["norm_score_cf"]) + (self.cb_weight * reco["norm_score_cb"])
+        reco["final_score"] = (self.cf_weight * reco["norm_score_cf"]) + (  # type: ignore
+            self.cb_weight * reco["norm_score_cb"]
+        )
         # 5. Trier par score final et filtrer les articles déjà vus
         reco = reco.sort_values("final_score", ascending=False)
 
