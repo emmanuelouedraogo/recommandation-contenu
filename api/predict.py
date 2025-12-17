@@ -1,10 +1,8 @@
-import os
 import pandas as pd
 from pathlib import Path
 import joblib
 import logging
-from models import HybridRecommender, ContentBasedTimeDecayRecommender  # Classes nécessaires pour le unpickling
-
+from models import HybridRecommender, ContentBasedTimeDecayRecommender  # noqa: F401
 
 # Configuration du logging
 logging.basicConfig(level=logging.INFO)
@@ -77,12 +75,15 @@ def _generate_recommendations_logic(
 
         # 2. Valider le type de la sortie du modèle.
         if not isinstance(recommendations_df, pd.DataFrame):
-            logger.error(f"La méthode 'recommend_items' a retourné un type inattendu : {type(recommendations_df)}")
+            logger.error(
+                f"La méthode 'recommend_items' a retourné un type inattendu : {type(recommendations_df)}"
+            )
             return []
 
         if recommendations_df.empty:
             logger.warning(
-                f"Aucune recommandation générée pour l'utilisateur {user_id} (cold start ou pas d'articles pertinents). Retour d'une liste vide."
+                f"Aucune recommandation générée pour l'utilisateur {user_id} "
+                f"(cold start ou pas d'articles pertinents). Retour d'une liste vide."
             )
             return []
 
@@ -90,7 +91,8 @@ def _generate_recommendations_logic(
         required_cols = {"article_id", "final_score"}
         if not required_cols.issubset(recommendations_df.columns):
             logger.error(
-                f"Le DataFrame de recommandations ne contient pas les colonnes requises {required_cols}. Colonnes présentes : {list(recommendations_df.columns)}"
+                f"Le DataFrame de recommandations ne contient pas les colonnes requises {required_cols}. "
+                f"Colonnes présentes : {list(recommendations_df.columns)}"
             )
             return []
 

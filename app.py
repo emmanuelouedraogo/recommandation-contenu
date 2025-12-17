@@ -5,6 +5,10 @@ from flask import Flask, render_template, jsonify, request, Response
 from functools import wraps
 from flask_wtf.csrf import CSRFProtect
 
+# --- Création des Blueprints ---
+from blueprints.api import api_bp
+from blueprints.views import views_bp
+
 # --- Configuration and Initialization ---
 import config  # Importer le nouveau fichier de configuration
 
@@ -26,7 +30,7 @@ csrf = CSRFProtect(app)
 logging.basicConfig(level=logging.INFO)
 
 try:
-    import logic
+    import logic  # noqa: F401
 except ValueError as e:
     # Log the fatal error before exiting. This makes startup issues much easier to debug.
     app.logger.critical(f"CRITICAL STARTUP FAILURE: {e}")
@@ -80,11 +84,6 @@ def internal_error(error):
     """Affiche une page 500 personnalisée."""
     app.logger.error(f"Server Error: {error}", exc_info=True)
     return render_template("error.html", error_code=500, error_message="Erreur interne du serveur"), 500
-
-
-# --- Création des Blueprints ---
-from blueprints.api import api_bp
-from blueprints.views import views_bp
 
 
 # --- Gestionnaire d'erreurs pour l'API (enregistré sur le blueprint API) ---
