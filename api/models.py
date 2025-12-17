@@ -422,9 +422,9 @@ class HybridRecommender:  # Combine les scores de plusieurs modèles
         reco.fillna(0, inplace=True)
 
         # 4. Calculer le score final comme une somme pondérée et filtrer les articles déjà vus
-        reco["final_score"] = (self.cf_weight * reco["norm_score_cf"]) + (  # type: ignore
+        reco["final_score"] = (self.cf_weight * reco["norm_score_cf"]) + (
             self.cb_weight * reco["norm_score_cb"]
-        )
+        )  # type: ignore
         # 5. Trier par score final et filtrer les articles déjà vus
         reco = reco.sort_values("final_score", ascending=False)
 
