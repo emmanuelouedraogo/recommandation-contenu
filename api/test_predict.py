@@ -6,7 +6,6 @@ import os
 
 # Ajouter le répertoire racine au path pour permettre l'import de 'api.predict'
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from api.predict import Recommender, _generate_recommendations_logic
 
 
 class TestGenerateRecommendations(unittest.TestCase):
@@ -66,11 +65,10 @@ class TestGenerateRecommendations(unittest.TestCase):
         Teste que la fonction retourne une liste vide si l'objet pipeline est invalide (pas de méthode 'recommend_items').
         """
         invalid_pipeline = object()  # Un objet simple qui n'a pas la méthode requise
+        from api.predict import _generate_recommendations_logic
+
         recommendations = _generate_recommendations_logic(
-            user_id=1,
-            pipeline=invalid_pipeline,
-            articles_df=self.articles_df,
-            clicks_df=self.clicks_df,
+            user_id=1, pipeline=invalid_pipeline, articles_df=self.articles_df, clicks_df=self.clicks_df
         )
         self.assertEqual(recommendations, [])
 
@@ -79,6 +77,8 @@ class TestGenerateRecommendations(unittest.TestCase):
         Teste que la fonction retourne une liste vide si le pipeline retourne un type incorrect (pas un DataFrame).
         """
         self.mock_pipeline.recommend_items.return_value = None  # Retourne None au lieu d'un DataFrame
+        from api.predict import _generate_recommendations_logic
+
         recommendations = _generate_recommendations_logic(
             user_id=1,
             pipeline=self.mock_pipeline,
@@ -94,6 +94,8 @@ class TestGenerateRecommendations(unittest.TestCase):
         # Retourne un DataFrame avec des noms de colonnes incorrects
         invalid_reco_df = pd.DataFrame({"id": [40], "prediction": [0.9]})
         self.mock_pipeline.recommend_items.return_value = invalid_reco_df
+        from api.predict import _generate_recommendations_logic
+
         recommendations = _generate_recommendations_logic(
             user_id=1,
             pipeline=self.mock_pipeline,
