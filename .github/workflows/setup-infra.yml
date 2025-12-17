@@ -1,5 +1,5 @@
 name: Configurer l'Infrastructure Azure
- 
+
 on:
   # Déclenchement manuel depuis l'interface GitHub Actions
   workflow_dispatch:

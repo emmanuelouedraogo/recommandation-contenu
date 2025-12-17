@@ -52,7 +52,7 @@ class TestGenerateRecommendations(unittest.TestCase):
         # Configurer le mock pour qu'il lève une exception lors de l'appel
         self.mock_pipeline.recommend_items.side_effect = Exception("Erreur de prédiction simulée")
         recommender = Recommender(pipeline=self.mock_pipeline, articles_df=self.articles_df, clicks_df=self.clicks_df)
-        
+
         recommendations = recommender.generate_recommendations(user_id=1, top_n=2)
 
         # Vérifications du fallback
@@ -67,7 +67,10 @@ class TestGenerateRecommendations(unittest.TestCase):
         """
         invalid_pipeline = object()  # Un objet simple qui n'a pas la méthode requise
         recommendations = _generate_recommendations_logic(
-            user_id=1, pipeline=invalid_pipeline, articles_df=self.articles_df, clicks_df=self.clicks_df
+            user_id=1,
+            pipeline=invalid_pipeline,
+            articles_df=self.articles_df,
+            clicks_df=self.clicks_df,
         )
         self.assertEqual(recommendations, [])
 
@@ -77,7 +80,10 @@ class TestGenerateRecommendations(unittest.TestCase):
         """
         self.mock_pipeline.recommend_items.return_value = None  # Retourne None au lieu d'un DataFrame
         recommendations = _generate_recommendations_logic(
-            user_id=1, pipeline=self.mock_pipeline, articles_df=self.articles_df, clicks_df=self.clicks_df
+            user_id=1,
+            pipeline=self.mock_pipeline,
+            articles_df=self.articles_df,
+            clicks_df=self.clicks_df,
         )
         self.assertEqual(recommendations, [])
 
@@ -89,7 +95,10 @@ class TestGenerateRecommendations(unittest.TestCase):
         invalid_reco_df = pd.DataFrame({"id": [40], "prediction": [0.9]})
         self.mock_pipeline.recommend_items.return_value = invalid_reco_df
         recommendations = _generate_recommendations_logic(
-            user_id=1, pipeline=self.mock_pipeline, articles_df=self.articles_df, clicks_df=self.clicks_df
+            user_id=1,
+            pipeline=self.mock_pipeline,
+            articles_df=self.articles_df,
+            clicks_df=self.clicks_df,
         )
         self.assertEqual(recommendations, [])
 

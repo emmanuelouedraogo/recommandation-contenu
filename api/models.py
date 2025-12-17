@@ -30,7 +30,9 @@ class PopularityFiltRecommender:  # Modèle le plus simple
     def fit(self):
         # Calcule la popularité de chaque article en sommant le nombre de clics ('nb').
         # Ici, 'nb' agit comme un "rating" : plus il est élevé, plus l'article est populaire.
-        self.raw_reco = self.train_user_interact.groupby("article_id")["nb"].sum().sort_values(ascending=False).reset_index()
+        self.raw_reco = (
+            self.train_user_interact.groupby("article_id")["nb"].sum().sort_values(ascending=False).reset_index()
+        )
 
     def recommend_items(self, uid, topn=5):
         # Recommande simplement les N articles les plus populaires, quelle que soit l'utilisateur
@@ -52,9 +54,7 @@ class RecentPopularityRecommender:  # Modèle de popularité sensible au temps
         recent_time_threshold = self.train_user_interact["click_timestamp"].quantile(0.75)
         recent_clicks = self.train_user_interact[self.train_user_interact["click_timestamp"] >= recent_time_threshold]
         # La popularité est calculée en sommant le "rating" implicite ('nb') des clics récents.
-        self.raw_reco = (
-            recent_clicks.groupby("article_id")["nb"].sum().sort_values(ascending=False).reset_index()
-        )
+        self.raw_reco = recent_clicks.groupby("article_id")["nb"].sum().sort_values(ascending=False).reset_index()
 
     def recommend_items(self, uid, topn=5):
         # Recommande les articles qui sont devenus populaires récemment
@@ -86,7 +86,9 @@ class PopularityByCategoryRecommender:  # Modèle de popularité personnalisé p
 
         if user_items.empty:
             # Pour les nouveaux utilisateurs (cold start), on se rabat sur la popularité globale
-            pop_reco = self.category_popularity.groupby("article_id")["nb"].sum().sort_values(ascending=False).reset_index()
+            pop_reco = (
+                self.category_popularity.groupby("article_id")["nb"].sum().sort_values(ascending=False).reset_index()
+            )
             return pop_reco.head(topn)
 
         # 2. Identifier les 3 catégories les plus lues par l'utilisateur
@@ -270,9 +272,7 @@ class ContentBasedTimeDecayRecommender(ContentBasedRecommender):
         if sum_of_weights == 0 or len(user_item_profiles) == 0:
             return np.zeros((1, self.items_embedding.shape[1]))
 
-        weighted_avg_profile = (
-            np.sum(user_item_profiles * final_weights, axis=0) / sum_of_weights
-        )
+        weighted_avg_profile = np.sum(user_item_profiles * final_weights, axis=0) / sum_of_weights
         return preprocessing.normalize(weighted_avg_profile.reshape(1, -1))
 
 
@@ -402,14 +402,16 @@ class HybridRecommender:  # Combine les scores de plusieurs modèles
         # 2. Normaliser les scores de chaque modèle (entre 0 et 1) pour les rendre comparables
         # La normalisation Min-Max est une technique courante pour cela.
         if not reco_cf.empty:
-            reco_cf["norm_score"] = (reco_cf["pred"] - reco_cf["pred"].min()) / (reco_cf["pred"].max() - reco_cf["pred"].min() + 1e-5)
+            reco_cf["norm_score"] = (reco_cf["pred"] - reco_cf["pred"].min()) / (
+                reco_cf["pred"].max() - reco_cf["pred"].min() + 1e-5
+            )
         else:
             reco_cf = pd.DataFrame(columns=["article_id", "norm_score"])  # Ensure columns exist even if empty
 
         if not reco_cb.empty:
-            reco_cb["norm_score"] = (
-                reco_cb["cb_cosine_with_profile"] - reco_cb["cb_cosine_with_profile"].min()
-            ) / (reco_cb["cb_cosine_with_profile"].max() - reco_cb["cb_cosine_with_profile"].min() + 1e-5)
+            reco_cb["norm_score"] = (reco_cb["cb_cosine_with_profile"] - reco_cb["cb_cosine_with_profile"].min()) / (
+                reco_cb["cb_cosine_with_profile"].max() - reco_cb["cb_cosine_with_profile"].min() + 1e-5
+            )
         else:
             reco_cb = pd.DataFrame(columns=["article_id", "norm_score"])  # Ensure columns exist even if empty
 
@@ -510,9 +512,7 @@ class ModelEvaluator:
         sum_reciprocal_rank = 0
 
         for iid in uid_test_clicked_items:
-            uid_non_clicked_items_sample = self.get_random_sample(
-                uid, sample_size=100, seed=int(iid) % (2**32)
-            )
+            uid_non_clicked_items_sample = self.get_random_sample(uid, sample_size=100, seed=int(iid) % (2**32))
             items_to_rank = list(uid_non_clicked_items_sample.union({iid}))
 
             uid_reco = model.recommend_items(uid, topn=0)

@@ -1,5 +1,5 @@
 name: Vérification, Build et Déploiement
- 
+
 # --- Déclencheurs du Workflow ---
 env:
   AZURE_FUNCTIONAPP_NAME: content-recommendation-function # Remplacez par le nom de votre Function App
