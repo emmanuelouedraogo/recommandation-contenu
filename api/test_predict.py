@@ -69,8 +69,7 @@ class TestGenerateRecommendations(unittest.TestCase):
         invalid_pipeline = object()  # Un objet simple qui n'a pas la méthode requise
         from api.predict import _generate_recommendations_logic
         recommendations = _generate_recommendations_logic(
-            user_id=1, pipeline=invalid_pipeline, articles_df=self.articles_df, 
-            clicks_df=self.clicks_df
+            user_id=1, pipeline=invalid_pipeline, articles_df=self.articles_df, clicks_df=self.clicks_df
         )
         self.assertEqual(recommendations, [])
 

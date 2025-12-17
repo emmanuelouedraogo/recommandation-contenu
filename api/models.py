@@ -30,9 +30,7 @@ class PopularityFiltRecommender:  # Modèle le plus simple
     def fit(self):
         # Calcule la popularité de chaque article en sommant le nombre de clics ('nb').
         # Ici, 'nb' agit comme un "rating" : plus il est élevé, plus l'article est populaire.
-        self.raw_reco = (
-            self.train_user_interact.groupby("article_id")["nb"].sum().sort_values(ascending=False).reset_index()
-        )
+        self.raw_reco = self.train_user_interact.groupby("article_id")["nb"].sum().sort_values(ascending=False).reset_index()
 
     def recommend_items(self, uid, topn=5):
         # Recommande simplement les N articles les plus populaires, quelle que soit l'utilisateur
@@ -54,7 +52,9 @@ class RecentPopularityRecommender:  # Modèle de popularité sensible au temps
         recent_time_threshold = self.train_user_interact["click_timestamp"].quantile(0.75)
         recent_clicks = self.train_user_interact[self.train_user_interact["click_timestamp"] >= recent_time_threshold]
         # La popularité est calculée en sommant le "rating" implicite ('nb') des clics récents.
-        self.raw_reco = recent_clicks.groupby("article_id")["nb"].sum().sort_values(ascending=False).reset_index()
+        self.raw_reco = (
+            recent_clicks.groupby("article_id")["nb"].sum().sort_values(ascending=False).reset_index()
+        )
 
     def recommend_items(self, uid, topn=5):
         # Recommande les articles qui sont devenus populaires récemment
@@ -86,9 +86,7 @@ class PopularityByCategoryRecommender:  # Modèle de popularité personnalisé p
 
         if user_items.empty:
             # Pour les nouveaux utilisateurs (cold start), on se rabat sur la popularité globale
-            pop_reco = (
-                self.category_popularity.groupby("article_id")["nb"].sum().sort_values(ascending=False).reset_index()
-            )
+            pop_reco = self.category_popularity.groupby("article_id")["nb"].sum().sort_values(ascending=False).reset_index()
             return pop_reco.head(topn)
 
         # 2. Identifier les 3 catégories les plus lues par l'utilisateur
@@ -120,7 +118,9 @@ class ContentBasedRecommender:  # Modèle basé sur le contenu, profil utilisate
         """Construit le profil d'un utilisateur comme la moyenne pondérée des embeddings des articles qu'il a lus."""
         click_uid_df = click_df.loc[click_df.user_id == uid]
         # Récupère les embeddings des articles lus
-        user_item_profiles = np.array([emb_matrix[dic_ri[iid]] for iid in click_uid_df["article_id"] if iid in dic_ri])
+        user_item_profiles = np.array(
+            [emb_matrix[dic_ri[iid]] for iid in click_uid_df["article_id"] if iid in dic_ri]
+        )
         if len(user_item_profiles) == 0:
             return np.zeros((1, self.items_embedding.shape[1]))
 
@@ -132,7 +132,9 @@ class ContentBasedRecommender:  # Modèle basé sur le contenu, profil utilisate
         if sum_of_strengths == 0:
             return np.zeros((1, self.items_embedding.shape[1]))
 
-        user_item_strengths_weighted_avg = np.sum(user_item_profiles * user_item_strengths, axis=0) / sum_of_strengths
+        user_item_strengths_weighted_avg = (
+            np.sum(user_item_profiles * user_item_strengths, axis=0) / sum_of_strengths
+        )
         # Normalise le profil pour que sa norme soit de 1 (important pour la similarité cosinus)
         return preprocessing.normalize(user_item_strengths_weighted_avg.reshape(1, -1))
 
@@ -154,7 +156,9 @@ class ContentBasedRecommender:  # Modèle basé sur le contenu, profil utilisate
         cosine_similarities = cosine_similarity(self.user_profiles[uid], self.items_embedding)
         # 2. Trie les articles par similarité décroissante
         similar_indices = cosine_similarities.argsort().flatten()[::-1]
-        similar_items = [(self.dic_ir[i], cosine_similarities[0, i]) for i in similar_indices if i in self.dic_ir]
+        similar_items = [
+            (self.dic_ir[i], cosine_similarities[0, i]) for i in similar_indices if i in self.dic_ir
+        ]
 
         # 3. Filtre les articles que l'utilisateur a déjà lus
         items_to_ignore = set(self.train_user_interact.loc[self.train_user_interact.user_id == uid].article_id)
@@ -191,7 +195,9 @@ class ContentBasedLastClickRecommender(ContentBasedRecommender):  # Basé sur l'
         # 3. Recommande des articles similaires à ce dernier article
         cosine_similarities = cosine_similarity(user_profile, self.items_embedding)
         similar_indices = cosine_similarities.argsort().flatten()[::-1]
-        similar_items = [(self.dic_ir[i], cosine_similarities[0, i]) for i in similar_indices if i in self.dic_ir]
+        similar_items = [
+            (self.dic_ir[i], cosine_similarities[0, i]) for i in similar_indices if i in self.dic_ir
+        ]
 
         # 4. Filtre et retourne le top N
         items_to_ignore = set(user_clicks.article_id)
@@ -229,7 +235,9 @@ class ContentBasedMostInteractedItemRecommender(ContentBasedRecommender):  # Bas
         # 3. Recommande des articles similaires à cet article "préféré"
         cosine_similarities = cosine_similarity(user_profile, self.items_embedding)
         similar_indices = cosine_similarities.argsort().flatten()[::-1]
-        similar_items = [(self.dic_ir[i], cosine_similarities[0, i]) for i in similar_indices if i in self.dic_ir]
+        similar_items = [
+            (self.dic_ir[i], cosine_similarities[0, i]) for i in similar_indices if i in self.dic_ir
+        ]
 
         # 4. Filtre et retourne le top N
         items_to_ignore = set(user_clicks.article_id)
@@ -512,7 +520,9 @@ class ModelEvaluator:
         sum_reciprocal_rank = 0
 
         for iid in uid_test_clicked_items:
-            uid_non_clicked_items_sample = self.get_random_sample(uid, sample_size=100, seed=int(iid) % (2**32))
+            uid_non_clicked_items_sample = self.get_random_sample(
+                uid, sample_size=100, seed=int(iid) % (2**32)
+            )
             items_to_rank = list(uid_non_clicked_items_sample.union({iid}))
 
             uid_reco = model.recommend_items(uid, topn=0)
