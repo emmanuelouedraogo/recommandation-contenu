@@ -276,7 +276,7 @@ class ContentBasedTimeDecayRecommender(ContentBasedRecommender):
         return preprocessing.normalize(weighted_avg_profile.reshape(1, -1))
 
 
-### **Modèles de Filtrage Collaboratif (avec `surprise`)**
+# ### **Modèles de Filtrage Collaboratif (avec `surprise`)**
 # Ces modèles utilisent les interactions explicites (ici, le nombre de clics `nb` comme un "rating") pour trouver des
 # similarités.
 
