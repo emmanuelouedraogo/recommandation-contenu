@@ -74,8 +74,11 @@ jobs:
         pip install -r requirements.txt -t .deployment/dependencies
 
         # Créer l'archive zip
-        # Combine all files and directories into a single zip command for clarity.
-        zip -r release.zip .deployment/dependencies templates/ static/ app.py requirements.txt config.py
+        # 1. Zip the installed dependencies first
+        (cd .deployment/dependencies && zip -r ../../release.zip .)
+        # 2. Add the application files to the root of the same zip archive
+        zip -g release.zip app.py config.py requirements.txt
+        zip -r -g release.zip static templates
         # Copier logic.py seulement s'il existe pour éviter les erreurs
         if [ -f logic.py ]; then zip -r release.zip logic.py; fi
 
