@@ -7,7 +7,8 @@ on:
     paths:
       - 'app.py'
       - 'logic.py'
-      - 'frontend/**'
+      - 'templates/**'
+      - 'static/**'
       - 'requirements.txt'
       - '.github/workflows/deploy-frontend.yml'
   workflow_dispatch:
@@ -72,7 +73,7 @@ jobs:
         # Créer un répertoire de déploiement
         mkdir -p release
         # Copier les fichiers de l'application
-        cp -r frontend/ app.py logic.py requirements.txt release/
+        cp -r templates/ static/ app.py logic.py requirements.txt release/
         # Installer les dépendances dans le package
         python -m pip install --upgrade pip
         pip install -r release/requirements.txt -t release/
