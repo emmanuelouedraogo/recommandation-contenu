@@ -1,6 +1,6 @@
 from flask import Blueprint
 
-# Crée une instance de Blueprint pour les vues web
-views_bp = Blueprint("views", __name__, template_folder="templates")
+# Crée une instance de Blueprint pour l'API
+api_bp = Blueprint("api", __name__)
 
-from . import routes  # Importe les routes
+from . import routes  # noqa: F401, E402
