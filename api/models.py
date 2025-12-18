@@ -267,16 +267,12 @@ class ContentBasedTimeDecayRecommender(ContentBasedRecommender):
         # PRISE EN COMPTE DU RATING : Le poids final est une combinaison du "rating" ('nb') et de la décroissance temporelle.
         # Une interaction récente avec un "rating" élevé aura le plus de poids.
         final_weights = (click_uid_df["nb"] * time_decay_weight).values.reshape(-1, 1)
-        user_item_profiles = np.array(
-            [emb_matrix[dic_ri[iid]] for iid in click_uid_df["article_id"]]
-        )
+        user_item_profiles = np.array([emb_matrix[dic_ri[iid]] for iid in click_uid_df["article_id"]])
         sum_of_weights = np.sum(final_weights)
         if sum_of_weights == 0 or len(user_item_profiles) == 0:
             return np.zeros((1, self.items_embedding.shape[1]))
 
-        weighted_avg_profile = (
-            np.sum(user_item_profiles * final_weights, axis=0) / sum_of_weights
-        )
+        weighted_avg_profile = np.sum(user_item_profiles * final_weights, axis=0) / sum_of_weights
         return preprocessing.normalize(weighted_avg_profile.reshape(1, -1))
 
 
@@ -412,9 +408,7 @@ class HybridRecommender:  # Combine les scores de plusieurs modèles
             reco_cf = pd.DataFrame(columns=["article_id", "norm_score"])  # Ensure columns exist even if empty
 
         if not reco_cb.empty:
-            min_cos, max_cos = (
-                reco_cb["cb_cosine_with_profile"].min(), reco_cb["cb_cosine_with_profile"].max()
-            )
+            min_cos, max_cos = (reco_cb["cb_cosine_with_profile"].min(), reco_cb["cb_cosine_with_profile"].max())
             reco_cb["norm_score"] = (reco_cb["cb_cosine_with_profile"] - min_cos) / (max_cos - min_cos + 1e-5)
         else:
             reco_cb = pd.DataFrame(columns=["article_id", "norm_score"])  # Ensure columns exist even if empty
@@ -430,9 +424,7 @@ class HybridRecommender:  # Combine les scores de plusieurs modèles
         reco.fillna(0, inplace=True)
 
         # 4. Calculer le score final comme une somme pondérée et filtrer les articles déjà vus
-        reco["final_score"] = (self.cf_weight * reco["norm_score_cf"]) + (
-            self.cb_weight * reco["norm_score_cb"]
-        )
+        reco["final_score"] = (self.cf_weight * reco["norm_score_cf"]) + (self.cb_weight * reco["norm_score_cb"])
         # 5. Trier par score final et filtrer les articles déjà vus
         reco = reco.sort_values("final_score", ascending=False)
 
