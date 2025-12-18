@@ -5,8 +5,6 @@ from flask import Flask, render_template, jsonify, request, Response
 from functools import wraps
 from flask_wtf.csrf import CSRFProtect
 
-from flask import render_template, request, jsonify, Response
-
 # --- Configuration and Initialization ---
 import config  # Importer le nouveau fichier de configuration
 
