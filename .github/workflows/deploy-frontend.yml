@@ -67,6 +67,8 @@ jobs:
 
     - name: Création de l'artefact de déploiement
       run: |
+        pwd
+        ls -la
         # Créer un répertoire de déploiement
         mkdir -p release
         # Copier les fichiers de l'application
