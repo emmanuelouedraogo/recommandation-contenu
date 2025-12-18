@@ -55,15 +55,16 @@ jobs:
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-    - name: settings-json: |
+    - name: Configuration des paramètres de l'application Azure
+      uses: Azure/appservice-settings@v1
+      with:
+        app-name: ${{ env.AZURE_WEBAPP_NAME }}
+        resource-group-name: ${{ env.AZURE_RESOURCE_GROUP }}
+        settings-json: |
           [
             { "name": "AZURE_STORAGE_ACCOUNT_NAME", "value": "${{ secrets.AZURE_STORAGE_ACCOUNT_NAME }}", "slotSetting": false },
             { "name": "API_URL", "value": "${{ secrets.API_URL }}", "slotSetting": false }
           ]
-
-    - name: Attendre la stabilisation de l'App Service après la mise à jour des paramètres
-      run: sleep 30
-      shell: bash
 
     - name: Déploiement sur Azure App Service
       uses: azure/webapps-deploy@v3
