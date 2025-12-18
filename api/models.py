@@ -30,7 +30,9 @@ class PopularityFiltRecommender:  # Modèle le plus simple
     def fit(self):
         # Calcule la popularité de chaque article en sommant le nombre de clics ('nb').
         # Ici, 'nb' agit comme un "rating" : plus il est élevé, plus l'article est populaire.
-        self.raw_reco = self.train_user_interact.groupby("article_id")["nb"].sum().sort_values(ascending=False).reset_index()
+        self.raw_reco = (
+            self.train_user_interact.groupby("article_id")["nb"].sum().sort_values(ascending=False).reset_index()
+        )
 
     def recommend_items(self, uid, topn=5):
         # Recommande simplement les N articles les plus populaires, quelle que soit l'utilisateur
@@ -86,7 +88,9 @@ class PopularityByCategoryRecommender:  # Modèle de popularité personnalisé p
 
         if user_items.empty:
             # Pour les nouveaux utilisateurs (cold start), on se rabat sur la popularité globale
-            pop_reco = self.category_popularity.groupby("article_id")["nb"].sum().sort_values(ascending=False).reset_index()
+            pop_reco = (
+                self.category_popularity.groupby("article_id")["nb"].sum().sort_values(ascending=False).reset_index()
+            )
             return pop_reco.head(topn)
 
         # 2. Identifier les 3 catégories les plus lues par l'utilisateur
@@ -276,13 +280,17 @@ class ContentBasedTimeDecayRecommender(ContentBasedRecommender):
         # Une interaction récente avec un "rating" élevé aura le plus de poids.
         final_weights = (click_uid_df["nb"] * time_decay_weight).values.reshape(-1, 1)
         user_item_profiles = np.array([emb_matrix[dic_ri[iid]] for iid in click_uid_df["article_id"]])
-        weighted_avg_profile = np.sum(user_item_profiles * final_weights, axis=0) / np.sum(
-            final_weights
+        sum_of_weights = np.sum(final_weights)
+        if sum_of_weights == 0 or len(user_item_profiles) == 0:
+            return np.zeros((1, self.items_embedding.shape[1]))
+
+        weighted_avg_profile = (
+            np.sum(user_item_profiles * final_weights, axis=0) / sum_of_weights
         )
         return preprocessing.normalize(weighted_avg_profile.reshape(1, -1))
 
 
-# ### **Modèles de Filtrage Collaboratif (avec `surprise`)**
+### **Modèles de Filtrage Collaboratif (avec `surprise`)**
 # Ces modèles utilisent les interactions explicites (ici, le nombre de clics `nb` comme un "rating") pour trouver des
 # similarités.
 
@@ -319,9 +327,7 @@ class CollabFiltRecommender:  # Modèle de base pour les algorithmes de Surprise
 
         # 3. Trie les prédictions et retourne le top N
         recs = [(pred.iid, pred.est) for pred in predictions]
-        recommendations_df = pd.DataFrame(recs, columns=["article_id", "pred"]).sort_values(
-            by="pred", ascending=False
-        )
+        recommendations_df = pd.DataFrame(recs, columns=["article_id", "pred"]).sort_values(by="pred", ascending=False)
 
         return recommendations_df.head(topn) if topn > 0 else recommendations_df
 
@@ -410,15 +416,13 @@ class HybridRecommender:  # Combine les scores de plusieurs modèles
         # 2. Normaliser les scores de chaque modèle (entre 0 et 1) pour les rendre comparables
         # La normalisation Min-Max est une technique courante pour cela.
         if not reco_cf.empty:
-            reco_cf["norm_score"] = (reco_cf["pred"] - reco_cf["pred"].min()) / (
-                reco_cf["pred"].max() - reco_cf["pred"].min() + 1e-5
-            )
+            reco_cf["norm_score"] = (reco_cf["pred"] - reco_cf["pred"].min()) / (reco_cf["pred"].max() - reco_cf["pred"].min() + 1e-5)
         else:
             reco_cf = pd.DataFrame(columns=["article_id", "norm_score"])  # Ensure columns exist even if empty
 
         if not reco_cb.empty:
-            reco_cb["norm_score"] = (reco_cb["cb_cosine_with_profile"] - reco_cb["cb_cosine_with_profile"].min()) / (  # type: ignore
-                reco_cb["cb_cosine_with_profile"].max() - reco_cb["cb_cosine_with_profile"].min() + 1e-5  # type: ignore
+            reco_cb["norm_score"] = (reco_cb["cb_cosine_with_profile"] - reco_cb["cb_cosine_with_profile"].min()) / (
+                reco_cb["cb_cosine_with_profile"].max() - reco_cb["cb_cosine_with_profile"].min() + 1e-5
             )
         else:
             reco_cb = pd.DataFrame(columns=["article_id", "norm_score"])  # Ensure columns exist even if empty
@@ -426,7 +430,7 @@ class HybridRecommender:  # Combine les scores de plusieurs modèles
         # 3. Fusionner les recommandations sur l'ID de l'article
         reco = pd.merge(
             reco_cf[["article_id", "norm_score"]],
-            reco_cb[["article_id", "norm_score"]],  # type: ignore
+            reco_cb[["article_id", "norm_score"]],
             on="article_id",
             how="outer",
             suffixes=("_cf", "_cb"),
