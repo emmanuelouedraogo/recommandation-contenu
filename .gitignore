@@ -23,7 +23,7 @@ dist/
 *.egg-info/
 
 # Fichiers générés par les IDE
-.vscode/
+
 .idea/
 
 # Artefacts de modèle, de logs et d'expérimentation

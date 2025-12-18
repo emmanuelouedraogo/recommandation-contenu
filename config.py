@@ -1,9 +1,14 @@
 import os
-from dotenv import load_dotenv
 
-# Charger les variables d'environnement depuis un fichier .env, s'il existe.
-# C'est utile pour le développement local.
-load_dotenv()
+try:
+    from dotenv import load_dotenv
+
+    # Charger les variables d'environnement depuis un fichier .env, s'il existe.
+    # C'est utile pour le développement local.
+    load_dotenv()
+except ImportError:
+    # Le module dotenv n'est pas nécessaire en production.
+    pass
 
 
 class Config:
