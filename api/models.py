@@ -1,4 +1,5 @@
 import random
+from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
@@ -21,37 +22,37 @@ Nous définissons une structure de classes standard pour tous nos modèles. Chaq
 class PopularityFiltRecommender:  # Modèle le plus simple
     MODEL_NAME = "Popularity-Filtering"
 
-    def __init__(self, data_map):
-        self.train_user_interact = data_map
-        self.raw_reco = None
+    def __init__(self, data_map: pd.DataFrame):
+        self.train_user_interact: pd.DataFrame = data_map
+        self.raw_reco: Optional[pd.DataFrame] = None
 
-    def get_model_name(self):
+    def get_model_name(self) -> str:
         return self.MODEL_NAME
 
-    def fit(self):
+    def fit(self) -> None:
         # Calcule la popularité de chaque article en sommant le nombre de clics ('nb').
         # 'nb' agit comme un "rating": plus il est élevé, plus l'article
         # est populaire.  # noqa: E501
         self.raw_reco = self.train_user_interact.groupby("article_id")["nb"].sum()
         self.raw_reco = self.raw_reco.sort_values(ascending=False).reset_index()
 
-    def recommend_items(self, uid, topn=5):
+    def recommend_items(self, uid: Any, topn: int = 5) -> pd.DataFrame:
         # Recommande simplement les N articles les plus populaires,
         # quelle que soit l'utilisateur  # noqa: E501
-        return self.raw_reco.head(topn) if topn > 0 else self.raw_reco
+        return self.raw_reco.head(topn) if topn > 0 else self.raw_reco  # type: ignore
 
 
 class RecentPopularityRecommender:  # Popularity model sensitive to time
     MODEL_NAME = "Recent-Popularity"
 
-    def __init__(self, data_map):
-        self.train_user_interact = data_map
-        self.raw_reco = None
+    def __init__(self, data_map: pd.DataFrame):
+        self.train_user_interact: pd.DataFrame = data_map
+        self.raw_reco: Optional[pd.DataFrame] = None
 
-    def get_model_name(self):
+    def get_model_name(self) -> str:
         return self.MODEL_NAME
 
-    def fit(self):
+    def fit(self) -> None:
         # Calcule la popularité uniquement sur les interactions les plus
         # récentes (dernier quartile)
         quantile_75 = self.train_user_interact["click_timestamp"].quantile(0.75)
@@ -61,23 +62,23 @@ class RecentPopularityRecommender:  # Popularity model sensitive to time
         self.raw_reco = recent_clicks.groupby("article_id")["nb"].sum()
         self.raw_reco = self.raw_reco.sort_values(ascending=False).reset_index()
 
-    def recommend_items(self, uid, topn=5):
+    def recommend_items(self, uid: Any, topn: int = 5) -> pd.DataFrame:
         # Recommande les articles qui sont devenus populaires récemment
-        return self.raw_reco.head(topn) if topn > 0 else self.raw_reco
+        return self.raw_reco.head(topn) if topn > 0 else self.raw_reco  # type: ignore
 
 
 class PopularityByCategoryRecommender:  # Custom popularity model by category
     MODEL_NAME = "Popularity-By-Category"
 
-    def __init__(self, data_map, items_df):
-        self.train_user_interact = data_map
-        self.items_df = items_df
-        self.category_popularity = None
+    def __init__(self, data_map: pd.DataFrame, items_df: pd.DataFrame):
+        self.train_user_interact: pd.DataFrame = data_map
+        self.items_df: pd.DataFrame = items_df
+        self.category_popularity: Optional[pd.DataFrame] = None
 
-    def get_model_name(self):
+    def get_model_name(self) -> str:
         return self.MODEL_NAME
 
-    def fit(self):
+    def fit(self) -> None:
         # Pre-calculates the popularity of each item within its category
         merged_df = self.train_user_interact.merge(self.items_df[["article_id", "category_id"]], on="article_id")
         # La popularité par catégorie est aussi basée sur la somme des
@@ -87,7 +88,7 @@ class PopularityByCategoryRecommender:  # Custom popularity model by category
         )  # noqa: E501
         self.category_popularity = self.category_popularity.sort_values("nb", ascending=False)
 
-    def recommend_items(self, uid, topn=5):
+    def recommend_items(self, uid: Any, topn: int = 5) -> pd.DataFrame:
         # 1. Trouver les catégories préférées de l'utilisateur
         user_clicks = self.train_user_interact[self.train_user_interact["user_id"] == uid]
         user_items = user_clicks.merge(self.items_df[["article_id", "category_id"]], on="article_id")
@@ -116,14 +117,16 @@ class PopularityByCategoryRecommender:  # Custom popularity model by category
 class ContentBasedRecommender:  # Content-based model, full user profile
     MODEL_NAME = "Content-Based"
 
-    def __init__(self, data_map, i2vec, dic_ri, dic_ir):
-        self.dic_ir = dic_ir
-        self.dic_ri = dic_ri
-        self.items_embedding = i2vec
-        self.train_user_interact = data_map
-        self.user_profiles = {}
+    def __init__(self, data_map: pd.DataFrame, i2vec: np.ndarray, dic_ri: Dict[Any, int], dic_ir: Dict[int, Any]):
+        self.dic_ir: Dict[int, Any] = dic_ir
+        self.dic_ri: Dict[Any, int] = dic_ri
+        self.items_embedding: np.ndarray = i2vec
+        self.train_user_interact: pd.DataFrame = data_map
+        self.user_profiles: Dict[Any, np.ndarray] = {}
 
-    def _build_users_profile(self, uid, click_df, emb_matrix, dic_ri):
+    def _build_users_profile(
+        self, uid: Any, click_df: pd.DataFrame, emb_matrix: np.ndarray, dic_ri: Dict[Any, int]
+    ) -> np.ndarray:
         """Builds a user profile as the weighted average of the embeddings of
         the articles they have read."""
         click_uid_df = click_df.loc[click_df.user_id == uid]
@@ -148,10 +151,10 @@ class ContentBasedRecommender:  # Content-based model, full user profile
         # similarity)
         return preprocessing.normalize(user_item_strengths_weighted_avg.reshape(1, -1))  # noqa: E501  # noqa: E501
 
-    def get_model_name(self):
+    def get_model_name(self) -> str:
         return self.MODEL_NAME
 
-    def fit(self):  # noqa: E501
+    def fit(self) -> None:
         # Construit le profil pour chaque utilisateur unique dans les données
         # d'entraînement
         for uid in tqdm(self.train_user_interact.user_id.unique(), desc="Building User Profiles"):
@@ -159,7 +162,7 @@ class ContentBasedRecommender:  # Content-based model, full user profile
                 uid, self.train_user_interact, self.items_embedding, self.dic_ri
             )
 
-    def recommend_items(self, uid, topn=10, items_to_filter=None):
+    def recommend_items(self, uid: Any, topn: int = 10, items_to_filter: Optional[List[Any]] = None) -> pd.DataFrame:
         if uid not in self.user_profiles:
             return pd.DataFrame(columns=["article_id", "cb_cosine_with_profile"])
 
@@ -187,10 +190,10 @@ class ContentBasedRecommender:  # Content-based model, full user profile
 class ContentBasedLastClickRecommender(ContentBasedRecommender):  # Based on short-term interest
     MODEL_NAME = "Content-Based-Last-Click"
 
-    def fit(self):  # noqa: E501
+    def fit(self) -> None:
         pass  # Pas de fit global, le profil est calculé à la volée
 
-    def recommend_items(self, uid, topn=10, items_to_filter=None):
+    def recommend_items(self, uid: Any, topn: int = 10, items_to_filter: Optional[List[Any]] = None) -> pd.DataFrame:
         user_clicks = self.train_user_interact[self.train_user_interact.user_id == uid]
         if user_clicks.empty:
             return pd.DataFrame(columns=["article_id", "cb_cosine_with_profile"])
@@ -224,10 +227,10 @@ class ContentBasedLastClickRecommender(ContentBasedRecommender):  # Based on sho
 class ContentBasedMostInteractedItemRecommender(ContentBasedRecommender):  # Based on "favorite" item
     MODEL_NAME = "Content-Based-Most-Interacted"
 
-    def fit(self):  # noqa: E501
+    def fit(self) -> None:
         pass  # Pas de fit global
 
-    def recommend_items(self, uid, topn=10, items_to_filter=None):
+    def recommend_items(self, uid: Any, topn: int = 10, items_to_filter: Optional[List[Any]] = None) -> pd.DataFrame:
         user_clicks = self.train_user_interact[self.train_user_interact.user_id == uid]
         if user_clicks.empty:
             return pd.DataFrame(columns=["article_id", "cb_cosine_with_profile"])
@@ -262,12 +265,21 @@ class ContentBasedMostInteractedItemRecommender(ContentBasedRecommender):  # Bas
 class ContentBasedTimeDecayRecommender(ContentBasedRecommender):
     MODEL_NAME = "Content-Based-Time-Decay"
 
-    def __init__(self, data_map, i2vec, dic_ri, dic_ir, decay_rate=0.05):
+    def __init__(
+        self,
+        data_map: pd.DataFrame,
+        i2vec: np.ndarray,
+        dic_ri: Dict[Any, int],
+        dic_ir: Dict[int, Any],
+        decay_rate: float = 0.05,
+    ):
         super().__init__(data_map, i2vec, dic_ri, dic_ir)
-        self.decay_rate = decay_rate  # Lambda (λ) pour la décroissance
+        self.decay_rate: float = decay_rate  # Lambda (λ) pour la décroissance
         self.MODEL_NAME = f"Content-Based-Time-Decay(λ={decay_rate})"
 
-    def _build_users_profile(self, uid, click_df, emb_matrix, dic_ri):
+    def _build_users_profile(
+        self, uid: Any, click_df: pd.DataFrame, emb_matrix: np.ndarray, dic_ri: Dict[Any, int]
+    ) -> np.ndarray:
         """Surcharge la méthode pour inclure la décroissance temporelle."""
         # Filtrer en amont pour ne garder que les articles présents dans le
         # dictionnaire d'embeddings
@@ -304,14 +316,14 @@ class ContentBasedTimeDecayRecommender(ContentBasedRecommender):
 class CollabFiltRecommender:  # Base model for Surprise algorithms
     MODEL_NAME = "Collaborative-Filtering-SVDpp"
 
-    def __init__(self, data_map):
-        self.train_user_interact = data_map
-        self.algo = None
+    def __init__(self, data_map: pd.DataFrame):
+        self.train_user_interact: pd.DataFrame = data_map
+        self.algo: Optional[Any] = None
 
-    def get_model_name(self):
+    def get_model_name(self) -> str:
         return self.MODEL_NAME
 
-    def fit(self):
+    def fit(self) -> None:
         # 1. Prépare les données pour la bibliothèque Surprise
         # L'échelle est indicative, les vraies valeurs peuvent dépasser 5.
         reader = Reader(rating_scale=(0, 5))
@@ -325,7 +337,7 @@ class CollabFiltRecommender:  # Base model for Surprise algorithms
         self.algo = SVDpp(n_epochs=20, lr_all=0.007, reg_all=0.1, random_state=42)
         self.algo.fit(trainset)
 
-    def recommend_items(self, uid, topn=5):
+    def recommend_items(self, uid: Any, topn: int = 5) -> pd.DataFrame:
         # 1. Identifie les articles que l'utilisateur n'a pas encore vus
         iid_to_ignore = set(
             self.train_user_interact.loc[self.train_user_interact.user_id == uid, "article_id"]  # noqa: E501
@@ -348,7 +360,7 @@ class CollabFiltRecommender:  # Base model for Surprise algorithms
 class CollabFiltSVDRecommender(CollabFiltRecommender):  # Classic matrix factorization
     MODEL_NAME = "Collaborative-Filtering-SVD"
 
-    def fit(self):
+    def fit(self) -> None:
         reader = Reader(rating_scale=(0, 5))
         # PRISE EN COMPTE DU RATING : Comme pour SVDpp, 'nb' est utilisé comme
         # le rating.
@@ -362,7 +374,7 @@ class CollabFiltSVDRecommender(CollabFiltRecommender):  # Classic matrix factori
 class CollabFiltKNNRecommender(CollabFiltRecommender):  # Neighbor-based approach
     MODEL_NAME = "Collaborative-Filtering-KNN"
 
-    def fit(self):
+    def fit(self) -> None:
         reader = Reader(rating_scale=(0, 5))
         # PRISE EN COMPTE DU RATING : 'nb' est également utilisé ici pour
         # calculer les similarités entre articles.
@@ -393,23 +405,34 @@ deux modèles.
 class HybridRecommender:  # Combines scores from multiple models
     MODEL_NAME = "Hybrid-Filtering"
 
-    def __init__(self, data_map, i2vec, dic_ri, dic_ir, items_df, cf_weight=0.5, cb_weight=0.5):
-        self.train_user_interact = data_map
-        self.dic_ir = dic_ir
-        self.dic_ri = dic_ri
-        self.items_embedding = i2vec
-        self.items_df = items_df
-        self.cf_weight = cf_weight
-        self.cb_weight = cb_weight
+    def __init__(
+        self,
+        data_map: pd.DataFrame,
+        i2vec: np.ndarray,
+        dic_ri: Dict[Any, int],
+        dic_ir: Dict[int, Any],
+        items_df: pd.DataFrame,
+        cf_weight: float = 0.5,
+        cb_weight: float = 0.5,
+    ):
+        self.train_user_interact: pd.DataFrame = data_map
+        self.dic_ir: Dict[int, Any] = dic_ir
+        self.dic_ri: Dict[Any, int] = dic_ri
+        self.items_embedding: np.ndarray = i2vec
+        self.items_df: pd.DataFrame = items_df
+        self.cf_weight: float = cf_weight
+        self.cb_weight: float = cb_weight
         self.MODEL_NAME = f"Hybrid-W(cf={cf_weight:.2f},cb={cb_weight:.2f})"
-        self.cf_model = None
-        self.cb_model = None
-        self.pf_model = None
+        self.cf_model: Optional[Any] = None
+        self.cb_model: Optional[Any] = None
+        self.pf_model: Optional[Any] = None
 
-    def get_model_name(self):
+    def get_model_name(self) -> str:
         return self.MODEL_NAME
 
-    def fit(self, cf_model=None, cb_model=None, pf_model=None):
+    def fit(
+        self, cf_model: Optional[Any] = None, cb_model: Optional[Any] = None, pf_model: Optional[Any] = None
+    ) -> None:
         # Entraîne chaque sous-modèle. On peut aussi passer des modèles
         # pré-entraînés pour l'optimisation.
         self.cf_model = cf_model or CollabFiltRecommender(self.train_user_interact)  # Utilise SVDpp par défaut
@@ -426,7 +449,7 @@ class HybridRecommender:  # Combines scores from multiple models
         self.pf_model = pf_model or PopularityFiltRecommender(self.train_user_interact)
         self.pf_model.fit()
 
-    def recommend_items(self, uid, topn=10):
+    def recommend_items(self, uid: Any, topn: int = 10) -> pd.DataFrame:
         # Handle cold start users (users not in the training data)
         if uid not in self.train_user_interact["user_id"].unique():
             # Return an empty DataFrame with the expected columns for
@@ -489,15 +512,23 @@ class HybridRecommender:  # Combines scores from multiple models
 
 # ## **6. Définition du Cadre d'Évaluation (`ModelEvaluator`)**
 class ModelEvaluator:
-    def __init__(self, data_map, data_map_train, data_map_test, items_df, i2vec, dic_ri):
-        self.full_user_interact = data_map
-        self.train_user_interact = data_map_train
-        self.test_user_interact = data_map_test
-        self.full_items = items_df
-        self.i2vec = i2vec  # Nécessaire pour la métrique de diversité
-        self.dic_ri = dic_ri  # Nécessaire pour la métrique de diversité
+    def __init__(
+        self,
+        data_map: pd.DataFrame,
+        data_map_train: pd.DataFrame,
+        data_map_test: pd.DataFrame,
+        items_df: pd.DataFrame,
+        i2vec: np.ndarray,
+        dic_ri: Dict[Any, int],
+    ):
+        self.full_user_interact: pd.DataFrame = data_map
+        self.train_user_interact: pd.DataFrame = data_map_train
+        self.test_user_interact: pd.DataFrame = data_map_test
+        self.full_items: pd.DataFrame = items_df
+        self.i2vec: np.ndarray = i2vec  # Nécessaire pour la métrique de diversité
+        self.dic_ri: Dict[Any, int] = dic_ri  # Nécessaire pour la métrique de diversité
 
-    def get_random_sample(self, uid, sample_size=100, seed=42):
+    def get_random_sample(self, uid: Any, sample_size: int = 100, seed: int = 42) -> set:
         # Récupère tous les articles sur lesquels l'utilisateur a interagi
         # dans l'ensemble de données complet
         user_interacted_items = set(
@@ -513,7 +544,7 @@ class ModelEvaluator:
         non_clicked_items_sample = set(random.sample(list(non_clicked_items), sample_size))
         return non_clicked_items_sample
 
-    def _verify_hit_top_n(self, iid, recommended_items, topn):
+    def _verify_hit_top_n(self, iid: Any, recommended_items: Any, topn: int) -> Tuple[int, int]:
         """Vérifie si un item est dans le top-N d'une liste de recommandations."""
         if isinstance(recommended_items, pd.Series):
             recommended_items = recommended_items.values
@@ -525,7 +556,7 @@ class ModelEvaluator:
         hit = int(index != -1 and index < topn)
         return hit, index
 
-    def _calculate_intra_list_similarity(self, recommended_items_ids):
+    def _calculate_intra_list_similarity(self, recommended_items_ids: List[Any]) -> float:
         """Calcule la diversité d'une liste de recommandations
         (Intra-List Similarity)."""
         if len(recommended_items_ids) < 2:
@@ -540,7 +571,7 @@ class ModelEvaluator:
         upper_triangle_indices = np.triu_indices_from(similarity_matrix, k=1)
         return np.mean(similarity_matrix[upper_triangle_indices])
 
-    def evaluate_model_for_user(self, model, uid):  # noqa: C901  # noqa: E501
+    def evaluate_model_for_user(self, model: Any, uid: Any) -> Dict[str, Any]:
         """Évalue les recommandations pour un seul utilisateur."""
         all_available_item_ids = set(self.full_items["article_id"])
         user_clicks_in_test = self.test_user_interact["user_id"] == uid
@@ -599,7 +630,7 @@ class ModelEvaluator:
             "intra_list_similarity": intra_list_similarity,
         }
 
-    def evaluate_model(self, model, breaknb):
+    def evaluate_model(self, model: Any, breaknb: int) -> Tuple[Dict[str, Any], pd.DataFrame]:
         """Évalue un modèle sur un échantillon d'utilisateurs du jeu de test."""
         people_metrics = []
 
