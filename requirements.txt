@@ -8,3 +8,6 @@ azure-identity
 pyarrow
 scikit-learn
 Flask-WTF
+numpy
+scikit-surprise
+tqdm
