@@ -342,10 +342,9 @@ def supprimer_utilisateur(user_id: int):
     """
     Désactive un utilisateur en le marquant comme 'deleted' (suppression douce).
     Cette opération est réversible et préserve l'historique des interactions.
-    """
-    # --- Refactoring for Performance: Use an Append-Only Log for status changes ---
-    # We append a new status record instead of rewriting the entire file.
-    # This is faster and avoids race conditions.
+    """  # --- Refactoring for Performance: Use an Append-Only Log for status changes ---
+    # We simply append a new status record. The logic to determine the *current* status
+    # is handled by the read function (obtenir_tous_les_utilisateurs_avec_statut).
     blob_service_client = recuperer_client_blob_service()
     append_blob_client = blob_service_client.get_blob_client(container=AZURE_CONTAINER_NAME, blob=USERS_BLOB_NAME)
 
@@ -371,29 +370,28 @@ def supprimer_utilisateur(user_id: int):
 def reactiver_utilisateur(user_id: int):
     """
     Réactive un utilisateur qui a été marqué comme 'deleted'.
-    """
-    users_df = charger_df_depuis_blob(blob_name=USERS_BLOB_NAME)
-    last_status = (
-        users_df[users_df["user_id"] == user_id].sort_values("date_creation").iloc[-1]
-        if not users_df.empty and user_id in users_df["user_id"].values
-        else None
-    )
+    """  # This function simply logs the 'active' status. The read logic will determine the final state.
+    blob_service_client = recuperer_client_blob_service()
+    append_blob_client = blob_service_client.get_blob_client(container=AZURE_CONTAINER_NAME, blob=USERS_BLOB_NAME)
 
-    if last_status is not None and last_status["status"] == "deleted":
-        blob_service_client = recuperer_client_blob_service()
-        append_blob_client = blob_service_client.get_blob_client(container=AZURE_CONTAINER_NAME, blob=USERS_BLOB_NAME)
-        timestamp = pd.Timestamp.now(timezone.utc).isoformat()
-        log_entry = f'{user_id},active,"{timestamp}"\n'
-        append_blob_client.append_block(log_entry.encode("utf-8"))
-        logger.info(f"Logged 'active' status for user {user_id}.")
+    try:
+        append_blob_client.get_blob_properties()
+    except ResourceNotFoundError:
+        # This case is unlikely if the user was previously deleted, but it's safe to handle.
+        logger.info(f"Creating new user status log blob: {USERS_BLOB_NAME}")
+        append_blob_client.create_blob(metadata={"blob_type": "AppendBlob"})
+        header = "user_id,status,date_creation\n"
+        append_blob_client.append_block(header.encode("utf-8"))
 
-        # Invalidate caches
-        obtenir_utilisateurs.cache_clear()
-        obtenir_tous_les_utilisateurs_avec_statut.cache_clear()
-        return True
+    timestamp = pd.Timestamp.now(timezone.utc).isoformat()
+    log_entry = f'{user_id},active,"{timestamp}"\n'
+    append_blob_client.append_block(log_entry.encode("utf-8"))
+    logger.info(f"Logged 'active' status for user {user_id}.")
 
-    logger.warning(f"Could not reactivate user {user_id}. User not found or not in 'deleted' state.")
-    return False
+    # Invalidate caches to reflect the change immediately
+    obtenir_utilisateurs.cache_clear()
+    obtenir_tous_les_utilisateurs_avec_statut.cache_clear()
+    return True
 
 
 @timed_lru_cache(seconds=300)  # Cache de 5 minutes
@@ -451,12 +449,12 @@ def obtenir_tous_les_utilisateurs_avec_statut():
         logger.info("users_df est vide ou n'a pas de colonne 'user_id'.")
 
     # Unifier les IDs des deux sources
-    click_user_ids = set(clicks_df["user_id"].unique()) if not clicks_df.empty else set()
-    manual_user_ids = set(users_df["user_id"].unique()) if not users_df.empty else set()
-    logger.info(f"click_user_ids: {click_user_ids}")
-    logger.info(f"manual_user_ids: {manual_user_ids}")
-    all_user_ids = sorted(list(click_user_ids.union(manual_user_ids)))
-    logger.info(f"all_user_ids (combined): {all_user_ids}")
+    all_user_ids = pd.concat(
+        [
+            clicks_df["user_id"] if not clicks_df.empty and "user_id" in clicks_df.columns else pd.Series(dtype=int),
+            users_df["user_id"] if not users_df.empty and "user_id" in users_df.columns else pd.Series(dtype=int),
+        ]
+    ).unique()
 
     # Créer un dictionnaire de statuts à partir de users.df
     status_map = {}
@@ -532,11 +530,10 @@ def creer_nouvel_article(title: str, content: str, category_id: int) -> int:
     timestamp = int(pd.Timestamp.now().timestamp())
 
     # Utiliser le module CSV pour une génération de ligne robuste et sécurisée
-    output = StringIO()
-    writer = csv.writer(output, quoting=csv.QUOTE_ALL)
-    writer.writerow([new_article_id, category_id, timestamp, 0, words_count, title])
-
-    append_blob_client.append_block(output.getvalue().encode("utf-8"))
+    with StringIO() as output:
+        writer = csv.writer(output, quoting=csv.QUOTE_ALL)
+        writer.writerow([new_article_id, category_id, timestamp, 0, words_count, title])
+        append_blob_client.append_block(output.getvalue().encode("utf-8"))
     logger.info(f"Logged new article with ID {new_article_id}.")
 
     return new_article_id

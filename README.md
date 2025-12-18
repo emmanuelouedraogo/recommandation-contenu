@@ -1,17 +1,17 @@
 # 📚 Système de Recommandation de Contenu
 
-Ce projet est une interface web front-end pour un système de recommandation de contenu. Il offre une interface utilisateur riche pour visualiser des recommandations, interagir avec des articles, et consulter des statistiques sur l'utilisation et les performances du modèle.
+Ce projet est un système de recommandation de contenu complet, composé d'une **interface web front-end** et d'une **API back-end** pour la prédiction. Il offre une interface utilisateur riche pour visualiser des recommandations, interagir avec des articles, et consulter des statistiques.
 
-L'interface est conçue pour communiquer avec une API back-end qui gère la logique métier, les données et les modèles de machine learning.
+L'architecture est découplée : l'interface web (servie par Flask) communique avec une API de machine learning (déployée sur Azure Functions) qui exécute les modèles de recommandation.
 
 ## Table des Matières
 1.  Vue d'ensemble
 2.  Stack Technique
 3.  Structure des Fichiers
-4.  Fonctionnalités Détaillées
-5.  Guide de l'API Back-end
-6.  Installation et Lancement
-7.  Améliorations Possibles
+4.  Fonctionnalités de l'Interface
+5.  Guide de l'API
+6.  Installation et Déploiement
+7.  Améliorations et Prochaines Étapes
 
 ---
 
@@ -19,17 +19,25 @@ L'interface est conçue pour communiquer avec une API back-end qui gère la logi
 
 Ce projet fournit une interface web complète pour interagir avec un système de recommandation. Il ne s'agit pas seulement d'un outil de visualisation, mais aussi d'une plateforme d'administration et de monitoring. Les utilisateurs peuvent obtenir des recommandations personnalisées, tandis que les administrateurs peuvent gérer le contenu et surveiller la santé et les performances du système.
 
-L'architecture est découplée : un front-end dynamique (ce projet) communique avec un back-end (à implémenter) via une API RESTful.
+L'architecture est composée de deux services principaux :
+1.  **Interface Web (Flask)** : Une application web qui sert l'interface utilisateur (HTML/CSS/JS) et gère l'authentification des administrateurs.
+2.  **API de Recommandation (Azure Function)** : Un service serverless qui charge un modèle de machine learning et expose un endpoint pour générer des recommandations.
 
 ## 💻 Stack Technique
 
-- **Front-end** :
-  - **HTML5** : Structure sémantique de la page.
-  - **CSS3** : Style et mise en page, avec une approche de type Flexbox.
-  - **JavaScript (ES6+)** : Logique applicative, manipulation du DOM, et appels API (`fetch`).
-  - **Chart.js** : Bibliothèque pour la visualisation de données (graphiques en camembert et en barres).
-- **Back-end (implicite)** :
-  - **Python/Flask** : Le templating Jinja2 (`{{ url_for(...) }}`) indique que le projet est servi par un serveur Flask.
+- **Interface Web & Serveur** :
+  - **Python / Flask** : Pour servir l'application web et gérer les templates.
+  - **Flask-WTF** : Pour la protection contre les attaques CSRF.
+  - **HTML5, CSS3, JavaScript (ES6+)** : Pour la structure, le style et la logique de l'interface.
+  - **Chart.js** : Pour la visualisation des données.
+
+- **API & Machine Learning** :
+  - **Azure Functions** : Pour héberger l'API de recommandation de manière serverless.
+  - **Azure Blob Storage** : Pour stocker les modèles de ML (`.pkl`) et les datasets.
+  - **Pandas, Scikit-learn, Joblib** : Pour la manipulation des données et l'utilisation du modèle.
+
+- **CI/CD & Déploiement** :
+  - **GitHub Actions** : Pour l'intégration continue, les tests (linting) et le déploiement automatisé sur Azure.
 
 ## 📂 Structure des Fichiers
 

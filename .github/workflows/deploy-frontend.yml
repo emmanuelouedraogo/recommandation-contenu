@@ -66,20 +66,24 @@ jobs:
             { "name": "API_URL", "value": "${{ secrets.API_URL }}", "slotSetting": false }
           ]
 
-    - name: Création de l'artefact de déploiement
+    - name: Création et archivage de l'artefact de déploiement
       run: |
-        pwd
-        ls -la
-        # Créer un répertoire de déploiement
-        mkdir -p release
-        # Copier les fichiers de l'application
-        cp -r templates/ static/ app.py logic.py requirements.txt release/
-        # Installer les dépendances dans le package
+        # Créer un répertoire de déploiement pour les dépendances
+        mkdir -p .deployment/dependencies
         python -m pip install --upgrade pip
-        pip install -r release/requirements.txt -t release/
+        pip install -r requirements.txt -t .deployment/dependencies
+
         # Créer l'archive zip
-        cd release
-        zip -r ../release.zip .
+        zip -r release.zip .deployment/dependencies
+        zip -r release.zip templates/ static/ app.py requirements.txt
+        # Copier logic.py seulement s'il existe pour éviter les erreurs
+        if [ -f logic.py ]; then zip -r release.zip logic.py; fi
+
+    - name: Upload de l'artefact de déploiement
+      uses: actions/upload-artifact@v4
+      with:
+        name: frontend-package
+        path: release.zip
 
     - name: Déploiement sur Azure App Service
       uses: azure/webapps-deploy@v3

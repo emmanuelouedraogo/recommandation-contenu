@@ -82,12 +82,7 @@ jobs:
         with:
           inlineScript: |
             echo "Enregistrement du fournisseur 'Microsoft.AlertsManagement' et attente de la confirmation..."
-            az provider register --namespace Microsoft.AlertsManagement --wait
-            # L'enregistrement peut prendre plusieurs minutes. Attendre qu'il soit terminé.
-            while [[ $(az provider show --namespace Microsoft.AlertsManagement --query registrationState) != "\"Registered\"" ]]; do
-              echo "En attente de l'enregistrement du fournisseur 'Microsoft.AlertsManagement'..."
-              sleep 30
-            done
+            az provider register --namespace Microsoft.AlertsManagement --wait # Le flag --wait bloque jusqu'à ce que l'enregistrement soit terminé.
             echo "Fournisseur 'Microsoft.AlertsManagement' enregistré avec succès."
 
       - name: Création des ressources Azure pour la Function App (si nécessaire)
