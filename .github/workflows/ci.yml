@@ -1,20 +1,21 @@
+---
 name: Vérification, Build et Déploiement
 
 # --- Déclencheurs du Workflow ---
 env:
-  AZURE_FUNCTIONAPP_NAME: content-recommendation-function # Remplacez par le nom de votre Function App
+  AZURE_FUNCTIONAPP_NAME: content-recommendation-function  # Nom de votre Function App
   PYTHON_VERSION: '3.11'
-  AZURE_STORAGE_ACCOUNT_NAME: recoappstorage123 # Nom du compte de stockage (doit être unique globalement, 3-24 caractères, minuscules et chiffres)
-  AZURE_FUNCTION_PLAN_NAME: plan-reco-function-premium # Nom pour le nouveau plan Premium
-  AZURE_CONTAINER_NAME: reco-data # Nom du conteneur de stockage
-  AZURE_RESOURCE_GROUP: rg-recommandation-contenu # Nom du groupe de ressources
-  AZURE_LOCATION: 'francecentral' # Emplacement des ressources
+  AZURE_STORAGE_ACCOUNT_NAME: recoappstorage123  # Nom du compte de stockage (unique globalement)
+  AZURE_FUNCTION_PLAN_NAME: plan-reco-function-premium  # Nom pour le nouveau plan Premium
+  AZURE_CONTAINER_NAME: reco-data  # Conteneur de stockage pour les données du modèle
+  AZURE_RESOURCE_GROUP: rg-recommandation-contenu  # Nom du groupe de ressources
+  AZURE_LOCATION: 'francecentral'  # Emplacement des ressources Azure
 
 on:
   push:
     branches:
       - main
-  workflow_dispatch:
+  workflow_dispatch: {} # Permet de déclencher le workflow manuellement
   pull_request:
     branches:
       - main
@@ -37,19 +38,16 @@ jobs:
       - name: Installation des dépendances de vérification
         run: |
           python -m pip install --upgrade pip
-          pip install flake8 black
-
-      - name: Clear pip cache
-        run: pip cache purge
-
+          pip install flake8 black  # Outils de linting et formatage
+          pip cache purge  # Nettoie le cache pip pour s'assurer des installations fraîches
           # Installe les dépendances de chaque projet pour que flake8 puisse vérifier les imports
           if [ -f api/requirements.txt ]; then pip install -r api/requirements.txt; fi
           if [ -f backend/requirements.txt ]; then pip install -r backend/requirements.txt; fi
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
       - name: Vérifier le formatage avec Black
         run: |
           black --check --line-length 120 .
-    
       - name: Linter le code avec Flake8
         run: |
           flake8 .
@@ -57,15 +55,14 @@ jobs:
   build-and-deploy:
     name: Build and Deploy to Azure
     runs-on: ubuntu-latest
-    needs: lint # Le déploiement dépend de la réussite de la vérification
-    environment: production # Optionnel. À décommenter si vous configurez un environnement dans les paramètres du dépôt.
+    needs: lint  # Le déploiement dépend de la réussite de la vérification du code
+    environment: production  # Environnement de déploiement (peut être configuré dans GitHub)
     steps:
       - name: Checkout du code
         uses: actions/checkout@v4
 
       - name: Connexion à Azure
-        id: login-to-azure
-        uses: azure/login@v1
+        uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
@@ -74,77 +71,107 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: 'pip'
-
       - name: Installation des dépendances de l'application
         run: |
           python -m pip install --upgrade pip
           pip cache purge
           pip install -r api/requirements.txt
 
-      - name: Enregistrement du fournisseur de ressources Azure
+      - name: Enregistrement du fournisseur de ressources Azure (Microsoft.AlertsManagement)
         uses: azure/CLI@v1
         with:
           inlineScript: |
             echo "Enregistrement du fournisseur 'Microsoft.AlertsManagement' et attente de la confirmation..."
-            az provider register --namespace Microsoft.AlertsManagement
-            # L'enregistrement peut prendre plusieurs minutes. On attend qu'il soit terminé.
+            az provider register --namespace Microsoft.AlertsManagement --wait
+            # L'enregistrement peut prendre plusieurs minutes. Attendre qu'il soit terminé.
             while [[ $(az provider show --namespace Microsoft.AlertsManagement --query registrationState) != "\"Registered\"" ]]; do
               echo "En attente de l'enregistrement du fournisseur 'Microsoft.AlertsManagement'..."
               sleep 30
             done
             echo "Fournisseur 'Microsoft.AlertsManagement' enregistré avec succès."
 
-      - name: Création des ressources Azure (si nécessaire)
+      - name: Création des ressources Azure pour la Function App (si nécessaire)
         uses: azure/CLI@v1
         with:
           azcliversion: latest
           inlineScript: |
             echo "Création du groupe de ressources..."
-            az group create --name ${{ env.AZURE_RESOURCE_GROUP }} --location "${{ env.AZURE_LOCATION }}" --tags owner=${{ github.actor }}
+            az group create --name ${{ env.AZURE_RESOURCE_GROUP }} \
+              --location "${{ env.AZURE_LOCATION }}" \
+              --tags owner=${{ github.actor }}
 
             echo "Installation de l'extension 'functionapp' pour les fonctionnalités les plus récentes..."
             az extension add --name functionapp --upgrade
 
             echo "Création du compte de stockage..."
-            az storage account create --name ${{ env.AZURE_STORAGE_ACCOUNT_NAME }} --location "${{ env.AZURE_LOCATION }}" --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --sku Standard_LRS --https-only true
+            az storage account create --name ${{ env.AZURE_STORAGE_ACCOUNT_NAME }} \
+              --location "${{ env.AZURE_LOCATION }}" \
+              --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+              --sku Standard_LRS --https-only true
 
             echo "Création d'un plan Premium pour la Function App (pour éviter les démarrages à froid)..."
-            az functionapp plan create --name ${{ env.AZURE_FUNCTION_PLAN_NAME }} --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --location "${{ env.AZURE_LOCATION }}" --sku EP1 --is-linux
+            az functionapp plan create --name ${{ env.AZURE_FUNCTION_PLAN_NAME }} \
+              --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+              --location "${{ env.AZURE_LOCATION }}" \
+              --sku EP1 --is-linux
 
             echo "Création de l'application de fonction..."
-            az functionapp create --name ${{ env.AZURE_FUNCTIONAPP_NAME }} --storage-account ${{ env.AZURE_STORAGE_ACCOUNT_NAME }} --plan ${{ env.AZURE_FUNCTION_PLAN_NAME }} --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --runtime python --runtime-version ${{ env.PYTHON_VERSION }} --functions-version 4
+            az functionapp create --name ${{ env.AZURE_FUNCTIONAPP_NAME }} \
+              --storage-account ${{ env.AZURE_STORAGE_ACCOUNT_NAME }} \
+              --plan ${{ env.AZURE_FUNCTION_PLAN_NAME }} \
+              --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+              --runtime python \
+              --runtime-version ${{ env.PYTHON_VERSION }} \
+              --functions-version 4
 
             echo "Récupération de la chaîne de connexion du stockage..."
-            STORAGE_CONNECTION_STRING=$(az storage account show-connection-string --name ${{ env.AZURE_STORAGE_ACCOUNT_NAME }} --resource-group ${{ env.AZURE_RESOURCE_GROUP }} -o tsv)
+            STORAGE_CONNECTION_STRING=$(az storage account show-connection-string \
+              --name ${{ env.AZURE_STORAGE_ACCOUNT_NAME }} \
+              --resource-group ${{ env.AZURE_RESOURCE_GROUP }} -o tsv)
 
             echo "Configuration des paramètres de l'application..."
-            az functionapp config appsettings set --name ${{ env.AZURE_FUNCTIONAPP_NAME }} --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --settings \
+            az functionapp config appsettings set --name ${{ env.AZURE_FUNCTIONAPP_NAME }} \
+              --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --settings \
               "AzureWebJobsStorage=$STORAGE_CONNECTION_STRING" \
               "WEBSITE_CONTENTAZUREFILECONNECTIONSTRING=$STORAGE_CONNECTION_STRING" \
               "AZURE_STORAGE_ACCOUNT_NAME=${{ env.AZURE_STORAGE_ACCOUNT_NAME }}" \
               "SCM_DO_BUILD_DURING_DEPLOYMENT=true"
-
             echo "Attente de 30 secondes pour permettre à Azure de stabiliser les ressources..."
             sleep 30
 
       - name: Configuration de la mise à l'échelle automatique pour le Plan Premium
         uses: azure/CLI@v1
         with:
+          azcliversion: latest
           inlineScript: |
-            echo "Création/Mise à jour du profil de mise à l'échelle automatique pour le plan de fonction..."
+            echo "Création/Mise à jour du profil de mise à l'échelle automatique..."
             az monitor autoscale create \
               --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
               --resource ${{ env.AZURE_FUNCTION_PLAN_NAME }} \
               --resource-type "Microsoft.Web/serverfarms" \
               --name "autoscale-function-plan-cpu" \
-              --min-count 1 --max-count 3 --count 1 || echo "Le profil autoscale existe déjà, nous continuons."
+              --min-count 1 --max-count 3 --count 1 || echo "Le profil autoscale existe déjà."
 
             echo "Configuration des règles de mise à l'échelle basées sur le CPU..."
-            az monitor autoscale rule create --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --autoscale-name "autoscale-function-plan-cpu" --scale "out 1" --condition "CpuPercentage > 70 avg 5m"
-            az monitor autoscale rule create --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --autoscale-name "autoscale-function-plan-cpu" --scale "in 1" --condition "CpuPercentage < 30 avg 5m"
+            az monitor autoscale rule create \
+              --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+              --autoscale-name "autoscale-function-plan-cpu" \
+              --scale "out 1" \
+              --condition "CpuPercentage > 70 avg 5m"
+            az monitor autoscale rule create \
+              --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+              --autoscale-name "autoscale-function-plan-cpu" \
+              --scale "in 1" \
+              --condition "CpuPercentage < 30 avg 5m"
 
       - name: Déploiement sur Azure Functions
         uses: azure/functions-action@v1
         with:
           app-name: ${{ env.AZURE_FUNCTIONAPP_NAME }}
           package: api
+
+      - name: Déconnexion d'Azure
+        run: |
+          az logout
+          az cache purge
+          az account clear
