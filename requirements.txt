@@ -7,3 +7,4 @@ azure-storage-blob
 azure-identity
 pyarrow
 scikit-learn
+Flask-WTF
