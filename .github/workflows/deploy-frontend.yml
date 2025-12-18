@@ -59,8 +59,7 @@ jobs:
       uses: Azure/appservice-settings@v1
       with:
         app-name: ${{ env.AZURE_WEBAPP_NAME }}
-        resource-group-name: ${{ env.AZURE_RESOURCE_GROUP }}
-        settings-json: |
+        app-settings-json: |
           [
             { "name": "AZURE_STORAGE_ACCOUNT_NAME", "value": "${{ secrets.AZURE_STORAGE_ACCOUNT_NAME }}", "slotSetting": false },
             { "name": "API_URL", "value": "${{ secrets.API_URL }}", "slotSetting": false }
