@@ -65,9 +65,22 @@ jobs:
             { "name": "API_URL", "value": "${{ secrets.API_URL }}", "slotSetting": false }
           ]
 
+    - name: Création de l'artefact de déploiement
+      run: |
+        # Créer un répertoire de déploiement
+        mkdir -p release
+        # Copier les fichiers de l'application
+        cp -r frontend/ app.py logic.py requirements.txt release/
+        # Installer les dépendances dans le package
+        python -m pip install --upgrade pip
+        pip install -r release/requirements.txt -t release/
+        # Créer l'archive zip
+        cd release
+        zip -r ../release.zip .
+
     - name: Déploiement sur Azure App Service
       uses: azure/webapps-deploy@v3
       with:
         app-name: ${{ env.AZURE_WEBAPP_NAME }}
         resource-group-name: ${{ env.AZURE_RESOURCE_GROUP }}
-        package: .
+        package: release.zip
