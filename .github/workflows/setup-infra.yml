@@ -58,7 +58,10 @@ jobs:
             SCM_DO_BUILD_DURING_DEPLOYMENT=false \
             WEBSITE_HEALTHCHECK_MAXPINGFAILURES="10" \
             AZURE_STORAGE_ACCOUNT_NAME="${{ secrets.AZURE_STORAGE_ACCOUNT_NAME }}" \
-            API_URL="${{ secrets.API_URL }}"
+            API_URL="${{ secrets.API_URL }}" \
+            SECRET_KEY="${{ secrets.FLASK_SECRET_KEY }}" \
+            ADMIN_USERNAME="${{ secrets.ADMIN_USERNAME }}" \
+            ADMIN_PASSWORD="${{ secrets.ADMIN_PASSWORD }}"
 
           echo "Configuration de la commande de démarrage..."
           az webapp config set --name ${{ env.AZURE_WEBAPP_NAME }} --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --startup-file "gunicorn --bind=0.0.0.0:8080 --workers 3 --threads 2 --timeout 600 app:app"

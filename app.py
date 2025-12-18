@@ -27,7 +27,15 @@ app.config.from_object(config.Config)
 csrf = CSRFProtect(app)
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
+# Configuration de la journalisation plus robuste
+if not app.debug:  # Appliquer une configuration plus avancée en production
+    # Créer un gestionnaire de fichiers pour les logs
+    file_handler = logging.FileHandler("app.log")
+    file_handler.setLevel(logging.WARNING)  # Log les avertissements et erreurs dans un fichier
+    file_handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]"))
+    app.logger.addHandler(file_handler)
+
+logging.basicConfig(level=logging.INFO)  # Conserver pour la console en développement
 
 try:
     import logic  # noqa: F401
@@ -84,6 +92,13 @@ def internal_error(error):
     """Affiche une page 500 personnalisée."""
     app.logger.error(f"Server Error: {error}", exc_info=True)
     return render_template("error.html", error_code=500, error_message="Erreur interne du serveur"), 500
+
+
+# --- Route pour le bilan de santé (Health Check) ---
+@app.route("/health")
+def health_check():
+    """Point de terminaison simple pour le bilan de santé d'Azure App Service."""
+    return jsonify({"status": "healthy"}), 200
 
 
 # --- Gestionnaire d'erreurs pour l'API (enregistré sur le blueprint API) ---
