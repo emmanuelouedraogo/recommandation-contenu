@@ -5,9 +5,7 @@ from flask import Flask, render_template, jsonify, request, Response
 from functools import wraps
 from flask_wtf.csrf import CSRFProtect
 
-# --- Création des Blueprints ---
-from blueprints.api import api_bp
-from blueprints.views import views_bp
+from flask import render_template, request, jsonify, Response
 
 # --- Configuration and Initialization ---
 import config  # Importer le nouveau fichier de configuration
@@ -84,7 +82,7 @@ def requires_auth(f):
 @app.errorhandler(404)
 def not_found_error(error):
     """Affiche une page 404 personnalisée."""
-    return render_template("error.html", error_code=404, error_message="Page non trouvée"), 404
+    return render_template("error.html", error_code=404, error_message="Page non trouvée!"), 404
 
 
 @app.errorhandler(500)
@@ -101,24 +99,22 @@ def health_check():
     return jsonify({"status": "healthy"}), 200
 
 
-# --- Gestionnaire d'erreurs pour l'API (enregistré sur le blueprint API) ---
-@api_bp.errorhandler(Exception)
-def handle_api_error(e):
-    """
-    Capture toutes les exceptions non gérées pour les routes de l'API
-    et retourne une réponse JSON standard.
-    """
-    # Journaliser l'erreur complète pour le débogage
-    app.logger.error(f"Unhandled exception occurred: {e}", exc_info=True)
-    # Retourner une réponse générique à l'utilisateur
-    return jsonify({"error": "Une erreur interne inattendue est survenue sur le serveur."}), 500
-
-
-# Enregistrer le Blueprint auprès de l'application Flask.
-app.register_blueprint(views_bp)
-app.register_blueprint(api_bp, url_prefix="/api")  # Toutes les routes de l'API auront le préfixe /api
-
 if __name__ == "__main__":
+
+    @app.errorhandler(Exception)
+    def handle_api_error(e):
+        """
+        Capture toutes les exceptions non gérées pour les routes de l'API
+        et retourne une réponse JSON standard.
+        """
+        # Journaliser l'erreur complète pour le débogage
+        app.logger.error(f"Unhandled exception occurred: {e}", exc_info=True)
+        # Retourner une réponse générique à l'utilisateur
+        return jsonify({"error": "Une erreur interne inattendue est survenue sur le serveur."}), 500
+
+    # Enregistrer le Blueprint auprès de l'application Flask.
+    # app.register_blueprint(views_bp)
+    # app.register_blueprint(api_bp, url_prefix="/api")  # Toutes les routes de l'API auront le préfixe /api
     # Permet de lancer l'application en local pour le développement
     # Le port est configurable via la variable d'environnement PORT, avec 5000 par défaut.
     port = int(os.getenv("PORT", 8080))
